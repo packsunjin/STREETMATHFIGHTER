@@ -1,6 +1,6 @@
 (async function checkExistingSession() {
   try {
-    const res = await fetch('/api/me', { credentials: 'include' });
+    const res = await fetch('api/me', { credentials: 'include' });
     const data = await res.json();
     if (data.authenticated) {
       window.location.href = 'dashboard.html';
@@ -21,7 +21,7 @@ form.addEventListener('submit', async (e) => {
   const password = document.getElementById('password').value;
 
   try {
-    const res = await fetch('/api/login', {
+    const res = await fetch('api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',

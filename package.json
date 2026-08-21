@@ -4,6 +4,7 @@
   "private": true,
   "description": "수학 문제 풀이 서비스 - 메인 서버(학생용) + 관리자 서버(문제 관리)",
   "scripts": {
+    "start": "node server.js",
     "start:main": "node main-server/server.js",
     "start:admin": "node admin-server/server.js",
     "dev:main": "node --watch main-server/server.js",

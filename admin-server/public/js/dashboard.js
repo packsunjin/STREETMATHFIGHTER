@@ -22,7 +22,7 @@ function showToast(message) {
 }
 
 async function checkAuth() {
-  const res = await fetch('/api/me', { credentials: 'include' });
+  const res = await fetch('api/me', { credentials: 'include' });
   const data = await res.json();
   if (!data.authenticated) {
     window.location.href = 'index.html';
@@ -32,7 +32,7 @@ async function checkAuth() {
 }
 
 document.getElementById('logoutBtn').addEventListener('click', async () => {
-  await fetch('/api/logout', { method: 'POST', credentials: 'include' });
+  await fetch('api/logout', { method: 'POST', credentials: 'include' });
   window.location.href = 'index.html';
 });
 
@@ -47,7 +47,7 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
 
 async function loadProblems() {
   const qs = currentDifficultyFilter ? `?difficulty=${encodeURIComponent(currentDifficultyFilter)}` : '';
-  const res = await fetch(`/api/problems${qs}`, { credentials: 'include' });
+  const res = await fetch(`api/problems${qs}`, { credentials: 'include' });
   const data = await res.json();
   problemsCache = data.problems || [];
   renderList();
@@ -75,7 +75,7 @@ function renderList() {
     li.querySelector('.btn-danger').addEventListener('click', async (e) => {
       e.stopPropagation();
       if (!confirm(`"${problem.title}" 문제를 삭제할까요?`)) return;
-      const res = await fetch(`/api/problems/${problem.id}`, {
+      const res = await fetch(`api/problems/${problem.id}`, {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -143,7 +143,7 @@ problemForm.addEventListener('submit', async (e) => {
   }
 
   const isEdit = Boolean(problemIdInput.value);
-  const url = isEdit ? `/api/problems/${problemIdInput.value}` : '/api/problems';
+  const url = isEdit ? `api/problems/${problemIdInput.value}` : 'api/problems';
   const method = isEdit ? 'PUT' : 'POST';
 
   submitBtn.disabled = true;

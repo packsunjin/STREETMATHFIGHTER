@@ -9,6 +9,7 @@ const multer = require('multer');
 const cors = require('cors');
 
 const {
+  DATA_DIR,
   DIFFICULTIES,
   listProblems,
   getProblem,
@@ -21,7 +22,7 @@ const PORT = process.env.ADMIN_PORT || 4000;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'changeme123';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-please-change';
-const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
+const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -192,6 +193,10 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
-app.listen(PORT, () => {
-  console.log(`[admin-server] 관리자 서버 실행 중: http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`[admin-server] 관리자 서버 실행 중: http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;

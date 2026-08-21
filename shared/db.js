@@ -1,7 +1,13 @@
 const path = require('path');
+const fs = require('fs');
 const Database = require('better-sqlite3');
 
-const DB_PATH = path.join(__dirname, '..', 'data.sqlite');
+const DATA_DIR = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.join(__dirname, '..');
+fs.mkdirSync(DATA_DIR, { recursive: true });
+
+const DB_PATH = path.join(DATA_DIR, 'data.sqlite');
 const db = new Database(DB_PATH);
 
 db.pragma('journal_mode = WAL');
@@ -75,6 +81,7 @@ function deleteProblem(id) {
 
 module.exports = {
   db,
+  DATA_DIR,
   DIFFICULTIES,
   listProblems,
   getProblem,

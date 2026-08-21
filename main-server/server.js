@@ -5,10 +5,10 @@ const fs = require('fs');
 const express = require('express');
 const cors = require('cors');
 
-const { DIFFICULTIES, listProblems, getProblem } = require('../shared/db');
+const { DATA_DIR, DIFFICULTIES, listProblems, getProblem } = require('../shared/db');
 
 const PORT = process.env.MAIN_PORT || 3000;
-const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
+const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -44,6 +44,10 @@ app.get('/api/problems/:id', (req, res) => {
   res.json({ problem: toPublicProblem(problem) });
 });
 
-app.listen(PORT, () => {
-  console.log(`[main-server] 학생용 서버 실행 중: http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`[main-server] 학생용 서버 실행 중: http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
