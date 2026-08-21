@@ -1,10 +1,2 @@
 node_modules/
-data.sqlite
-data.sqlite-journal
-data.sqlite-wal
-data.sqlite-shm
 .env
-uploads/*
-!uploads/.gitkeep
-.data/*
-!.data/.gitkeep

@@ -1,15 +1,14 @@
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
 const path = require('path');
-const fs = require('fs');
-const crypto = require('crypto');
+const { Readable } = require('stream');
 const express = require('express');
 const session = require('express-session');
 const multer = require('multer');
 const cors = require('cors');
+const cloudinary = require('cloudinary').v2;
 
 const {
-  DATA_DIR,
   DIFFICULTIES,
   listProblems,
   getProblem,
@@ -22,9 +21,13 @@ const PORT = process.env.ADMIN_PORT || 4000;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'changeme123';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-please-change';
-const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 
-fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+if (!process.env.CLOUDINARY_URL) {
+  throw new Error(
+    'CLOUDINARY_URL 환경변수가 설정되지 않았습니다. .env에 무료 Cloudinary 계정의 연결 문자열을 넣어주세요.'
+  );
+}
+cloudinary.config({ secure: true });
 
 const { requireAuth } = require('./middleware/auth');
 
@@ -44,19 +47,10 @@ app.use(
   })
 );
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const name = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`;
-    cb(null, name);
-  },
-});
-
 const ALLOWED_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp']);
 
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
@@ -67,7 +61,19 @@ const upload = multer({
   },
 });
 
-app.use('/uploads', express.static(UPLOAD_DIR));
+function uploadImageToCloudinary(buffer) {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      { folder: 'streetmathfighter', resource_type: 'image' },
+      (err, result) => {
+        if (err) return reject(err);
+        resolve(result);
+      }
+    );
+    Readable.from(buffer).pipe(uploadStream);
+  });
+}
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ---- 인증 ----
@@ -111,84 +117,110 @@ function toPublicProblem(problem) {
   };
 }
 
-app.get('/api/problems', requireAuth, (req, res) => {
-  const { difficulty } = req.query;
-  if (difficulty && !DIFFICULTIES.includes(difficulty)) {
-    return res.status(400).json({ error: '난이도 값이 올바르지 않습니다.' });
+app.get('/api/problems', requireAuth, async (req, res, next) => {
+  try {
+    const { difficulty } = req.query;
+    if (difficulty && !DIFFICULTIES.includes(difficulty)) {
+      return res.status(400).json({ error: '난이도 값이 올바르지 않습니다.' });
+    }
+    const problems = (await listProblems({ difficulty })).map(toPublicProblem);
+    res.json({ problems });
+  } catch (err) {
+    next(err);
   }
-  const problems = listProblems({ difficulty }).map(toPublicProblem);
-  res.json({ problems });
 });
 
-app.get('/api/problems/:id', requireAuth, (req, res) => {
-  const problem = getProblem(req.params.id);
-  if (!problem) return res.status(404).json({ error: '문제를 찾을 수 없습니다.' });
-  res.json({ problem: toPublicProblem(problem) });
+app.get('/api/problems/:id', requireAuth, async (req, res, next) => {
+  try {
+    const problem = await getProblem(req.params.id);
+    if (!problem) return res.status(404).json({ error: '문제를 찾을 수 없습니다.' });
+    res.json({ problem: toPublicProblem(problem) });
+  } catch (err) {
+    next(err);
+  }
 });
 
-app.post('/api/problems', requireAuth, upload.single('image'), (req, res) => {
-  const { title, difficulty, description } = req.body || {};
+app.post('/api/problems', requireAuth, upload.single('image'), async (req, res, next) => {
+  try {
+    const { title, difficulty, description } = req.body || {};
 
-  if (!title || !title.trim()) {
-    return res.status(400).json({ error: '제목을 입력해주세요.' });
-  }
-  if (!DIFFICULTIES.includes(difficulty)) {
-    return res.status(400).json({ error: '난이도는 상/중/하 중 하나여야 합니다.' });
-  }
-  if (!req.file) {
-    return res.status(400).json({ error: '문제 이미지를 업로드해주세요.' });
-  }
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: '제목을 입력해주세요.' });
+    }
+    if (!DIFFICULTIES.includes(difficulty)) {
+      return res.status(400).json({ error: '난이도는 상/중/하 중 하나여야 합니다.' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: '문제 이미지를 업로드해주세요.' });
+    }
 
-  const problem = createProblem({
-    title: title.trim(),
-    difficulty,
-    image_path: `/uploads/${req.file.filename}`,
-    description: description ? description.trim() : null,
-  });
+    const uploaded = await uploadImageToCloudinary(req.file.buffer);
 
-  res.status(201).json({ problem: toPublicProblem(problem) });
+    const problem = await createProblem({
+      title: title.trim(),
+      difficulty,
+      image_path: uploaded.secure_url,
+      image_public_id: uploaded.public_id,
+      description: description ? description.trim() : null,
+    });
+
+    res.status(201).json({ problem: toPublicProblem(problem) });
+  } catch (err) {
+    next(err);
+  }
 });
 
-app.put('/api/problems/:id', requireAuth, upload.single('image'), (req, res) => {
-  const existing = getProblem(req.params.id);
-  if (!existing) return res.status(404).json({ error: '문제를 찾을 수 없습니다.' });
+app.put('/api/problems/:id', requireAuth, upload.single('image'), async (req, res, next) => {
+  try {
+    const existing = await getProblem(req.params.id);
+    if (!existing) return res.status(404).json({ error: '문제를 찾을 수 없습니다.' });
 
-  const { title, difficulty, description } = req.body || {};
+    const { title, difficulty, description } = req.body || {};
 
-  if (difficulty && !DIFFICULTIES.includes(difficulty)) {
-    return res.status(400).json({ error: '난이도는 상/중/하 중 하나여야 합니다.' });
+    if (difficulty && !DIFFICULTIES.includes(difficulty)) {
+      return res.status(400).json({ error: '난이도는 상/중/하 중 하나여야 합니다.' });
+    }
+
+    let image_path;
+    let image_public_id;
+    if (req.file) {
+      const uploaded = await uploadImageToCloudinary(req.file.buffer);
+      image_path = uploaded.secure_url;
+      image_public_id = uploaded.public_id;
+      cloudinary.uploader.destroy(existing.image_public_id).catch(() => {});
+    }
+
+    const problem = await updateProblem(req.params.id, {
+      title: title !== undefined ? title.trim() : undefined,
+      difficulty: difficulty || undefined,
+      image_path,
+      image_public_id,
+      description: description !== undefined ? description.trim() : undefined,
+    });
+
+    res.json({ problem: toPublicProblem(problem) });
+  } catch (err) {
+    next(err);
   }
-
-  let image_path;
-  if (req.file) {
-    image_path = `/uploads/${req.file.filename}`;
-    const oldFile = path.join(UPLOAD_DIR, path.basename(existing.image_path));
-    fs.unlink(oldFile, () => {});
-  }
-
-  const problem = updateProblem(req.params.id, {
-    title: title !== undefined ? title.trim() : undefined,
-    difficulty: difficulty || undefined,
-    image_path,
-    description: description !== undefined ? description.trim() : undefined,
-  });
-
-  res.json({ problem: toPublicProblem(problem) });
 });
 
-app.delete('/api/problems/:id', requireAuth, (req, res) => {
-  const deleted = deleteProblem(req.params.id);
-  if (!deleted) return res.status(404).json({ error: '문제를 찾을 수 없습니다.' });
+app.delete('/api/problems/:id', requireAuth, async (req, res, next) => {
+  try {
+    const deleted = await deleteProblem(req.params.id);
+    if (!deleted) return res.status(404).json({ error: '문제를 찾을 수 없습니다.' });
 
-  const filePath = path.join(UPLOAD_DIR, path.basename(deleted.image_path));
-  fs.unlink(filePath, () => {});
+    cloudinary.uploader.destroy(deleted.image_public_id).catch(() => {});
 
-  res.json({ ok: true });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
 });
 
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError || err) {
-    return res.status(400).json({ error: err.message });
+    console.error(err);
+    return res.status(400).json({ error: err.message || '요청을 처리할 수 없습니다.' });
   }
   next(err);
 });
