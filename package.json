@@ -1,0 +1,24 @@
+{
+  "name": "streetmathfighter",
+  "version": "1.0.0",
+  "private": true,
+  "description": "수학 문제 풀이 서비스 - 메인 서버(학생용) + 관리자 서버(문제 관리)",
+  "scripts": {
+    "start:main": "node main-server/server.js",
+    "start:admin": "node admin-server/server.js",
+    "dev:main": "node --watch main-server/server.js",
+    "dev:admin": "node --watch admin-server/server.js",
+    "dev": "concurrently -n MAIN,ADMIN -c blue,magenta \"npm:dev:main\" \"npm:dev:admin\""
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-session": "^1.18.0",
+    "multer": "^2.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>문제 풀이 - 스트리트매스파이터</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="solve-wrap">
+    <div class="top-bar">
+      <button class="back-btn" id="backBtn">← 목록으로</button>
+      <h2 class="solve-title" id="problemTitle">문제 불러오는 중...</h2>
+    </div>
+
+    <div class="canvas-stage">
+      <div class="canvas-frame" id="canvasFrame">
+        <img id="problemImage" alt="문제 이미지" />
+        <canvas id="drawCanvas"></canvas>
+      </div>
+    </div>
+
+    <div class="description-toggle" id="descriptionToggleWrap" style="display:none;">
+      <button class="link-btn" id="descriptionToggle">설명 / 해설 보기 ▾</button>
+      <div class="description-box" id="descriptionBox"></div>
+    </div>
+
+    <div class="toolbar">
+      <button class="tool-btn active" id="penBtn">✏️ 펜</button>
+      <button class="tool-btn" id="eraserBtn">🧽 지우개</button>
+      <div class="size-control">
+        <span>굵기</span>
+        <input type="range" id="sizeRange" min="1" max="30" value="4" />
+      </div>
+      <button class="tool-btn danger" id="clearBtn">🗑 전체 지우기</button>
+    </div>
+  </div>
+
+  <script src="js/solve.js"></script>
+</body>
+</html>

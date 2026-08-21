@@ -1,0 +1,286 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  background: #0f172a;
+  color: #f1f5f9;
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ---- 홈: 난이도 선택 ---- */
+
+.home-wrap {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.home-wrap h1 {
+  font-size: 30px;
+  margin-bottom: 6px;
+}
+
+.home-wrap p {
+  color: #94a3b8;
+  margin-bottom: 40px;
+}
+
+.difficulty-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  width: 100%;
+  max-width: 640px;
+}
+
+.difficulty-card {
+  border-radius: 18px;
+  padding: 36px 16px;
+  cursor: pointer;
+  font-weight: 800;
+  font-size: 26px;
+  border: none;
+  transition: transform 0.15s ease;
+}
+
+.difficulty-card:hover {
+  transform: translateY(-4px);
+}
+
+.difficulty-card small {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  margin-top: 8px;
+  opacity: 0.8;
+}
+
+.difficulty-card.하 {
+  background: linear-gradient(135deg, #34d399, #059669);
+  color: #062e21;
+}
+
+.difficulty-card.중 {
+  background: linear-gradient(135deg, #fbbf24, #d97706);
+  color: #3a2503;
+}
+
+.difficulty-card.상 {
+  background: linear-gradient(135deg, #f87171, #b91c1c);
+  color: #3a0a0a;
+}
+
+/* ---- 상단바 (공통) ---- */
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  background: #111827;
+  border-bottom: 1px solid #1f2937;
+}
+
+.top-bar .back-btn {
+  background: #1f2937;
+  border: none;
+  color: #f1f5f9;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.top-bar h2 {
+  font-size: 15px;
+  margin: 0;
+  flex: 1;
+}
+
+/* ---- 문제 목록 ---- */
+
+.list-wrap {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.problem-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.problem-card {
+  background: #1e293b;
+  border-radius: 14px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid #334155;
+}
+
+.problem-card:hover {
+  border-color: #6366f1;
+}
+
+.problem-card img {
+  width: 100%;
+  height: 130px;
+  object-fit: cover;
+  background: #0f172a;
+}
+
+.problem-card .info {
+  padding: 10px 12px;
+}
+
+.problem-card .info .title {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.empty-state {
+  text-align: center;
+  color: #64748b;
+  padding: 60px 0;
+}
+
+/* ---- 풀이 화면 ---- */
+
+.solve-wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.solve-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.canvas-stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: 16px;
+  background: #0b1120;
+}
+
+.canvas-frame {
+  position: relative;
+  max-width: 100%;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.canvas-frame img {
+  display: block;
+  max-width: 100%;
+  max-height: 72vh;
+  width: auto;
+  height: auto;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.canvas-frame canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: #111827;
+  border-top: 1px solid #1f2937;
+  flex-wrap: wrap;
+}
+
+.tool-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #1f2937;
+  border: 2px solid transparent;
+  color: #f1f5f9;
+  padding: 10px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.tool-btn.active {
+  border-color: #6366f1;
+  background: #312e81;
+}
+
+.tool-btn.danger {
+  margin-left: auto;
+}
+
+.tool-btn.danger:hover {
+  background: #7f1d1d;
+}
+
+.size-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.size-control input {
+  width: 100px;
+}
+
+.description-toggle {
+  padding: 0 16px 16px;
+}
+
+.description-box {
+  background: #1e293b;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-top: 10px;
+  font-size: 14px;
+  line-height: 1.6;
+  display: none;
+  white-space: pre-wrap;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: #a5b4fc;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+}
