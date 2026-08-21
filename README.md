@@ -36,17 +36,32 @@ npm run dev:admin   # http://localhost:4000
 | `SESSION_SECRET` | 세션 쿠키 서명 키 | (배포 전 반드시 변경) |
 | `DATA_DIR` | DB/업로드 이미지 저장 경로 | 비어있으면 프로젝트 루트 |
 
-## GitHub 리포로 웹사이트 배포하기 (Render)
+## GitHub 리포로 웹사이트 배포하기
 
-GitHub Pages는 정적 파일만 서빙하므로 로그인·DB·이미지 업로드가 필요한 이 서비스는 열 수 없습니다. 대신 리포에 포함된 `render.yaml`로 [Render](https://render.com)에 바로 배포할 수 있습니다.
+GitHub Pages는 정적 파일만 서빙하므로 로그인·DB·이미지 업로드가 필요한 이 서비스는 열 수 없습니다. 신용카드 없이 완전 무료로 열려면 **Glitch**를 권장합니다.
 
-1. GitHub 저장소를 Render에 연결 → **New > Blueprint** 선택 → 이 리포 선택 (`render.yaml`을 자동으로 인식)
-2. 배포 시 `ADMIN_USERNAME`, `ADMIN_PASSWORD` 값을 Render 대시보드에서 입력 (안전한 비밀번호로)
-3. 배포가 끝나면 하나의 URL로 다음처럼 접속합니다.
-   - `https://<서비스주소>/` → 학생용 메인 사이트
-   - `https://<서비스주소>/admin` → 관리자 사이트
+### Glitch (완전 무료, 신용카드 불필요)
 
-`render.yaml`은 영구 디스크(`/var/data`)를 붙여 `DATA_DIR=/var/data`로 지정하므로, 재배포/재시작 후에도 등록한 문제와 이미지가 유지됩니다. 단, **영구 디스크는 Render 유료 플랜(starter 이상)** 에서만 지원됩니다. 데이터 유지가 필요 없는 테스트용이라면 `render.yaml`에서 `disk` 항목과 `DATA_DIR`을 지우고 `plan: free`로 바꿔도 되지만, 이 경우 서버가 재시작될 때마다 등록된 문제가 초기화됩니다.
+1. [glitch.com](https://glitch.com)에 가입 (GitHub 계정으로 로그인 가능)
+2. **New Project → Import from GitHub** 선택 → 이 저장소 주소(`https://github.com/P-SUNJiN/STREETMATHFIGHTER`) 입력
+3. Glitch가 `package.json`을 인식해 자동으로 `npm install` 후 `npm start`(`server.js`)를 실행합니다.
+4. Glitch 에디터에서 프로젝트 루트에 `.env` 파일을 새로 만들고 아래처럼 채워주세요 (`.env`는 git에 포함되지 않으므로 직접 입력해야 합니다).
+   ```
+   ADMIN_USERNAME=admin
+   ADMIN_PASSWORD=원하는-안전한-비밀번호
+   SESSION_SECRET=임의의-긴-문자열
+   DATA_DIR=.data
+   ```
+   `DATA_DIR=.data`가 핵심입니다. Glitch는 `.data/` 폴더를 **영구 저장 전용 공간**으로 취급해서, 프로젝트가 잠들었다가(5분 미접속 시 슬립) 다음 요청에 다시 깨어나도 그 안의 `data.sqlite`와 업로드 이미지가 그대로 유지됩니다. (이 리포는 이미 이 설정을 반영해뒀습니다.)
+5. 배포된 주소(`https://<프로젝트명>.glitch.me`)로 접속하면:
+   - `/` → 학생용 메인 사이트
+   - `/admin` → 관리자 사이트
+
+주의: Glitch의 GitHub Import는 **1회성 복사**입니다. 이후 로컬에서 코드를 고쳐 GitHub에 `git push`해도 Glitch에 자동 반영되지 않으니, Glitch 에디터의 **Tools → Import and Export → GitHub Import**를 다시 실행해 최신 코드를 동기화해야 합니다. 그리고 5분간 요청이 없으면 서버가 잠들었다가 다음 접속 시 몇 초간 깨어나는 지연이 있을 수 있습니다.
+
+### Render (유료 플랜에서만 데이터 유지)
+
+리포에는 [Render](https://render.com)용 `render.yaml`도 포함되어 있습니다. GitHub 저장소를 Render에 연결 → **New > Blueprint**로 배포하면 됩니다. 단, 문제/이미지가 재시작 후에도 유지되려면 **영구 디스크(유료 플랜, starter 이상)** 가 필요합니다. `render.yaml`에서 `disk`와 `DATA_DIR`을 지우고 `plan: free`로 바꾸면 무료로 돌릴 수 있지만, 서버가 재시작될 때마다 등록된 문제가 초기화됩니다.
 
 Railway 등 다른 호스팅도 원리는 같습니다: 빌드 `npm install`, 시작 `npm start`, 영구 볼륨을 하나 붙이고 그 경로를 `DATA_DIR`로 지정하면 됩니다.
 
