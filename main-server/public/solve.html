@@ -9,30 +9,44 @@
 <body>
   <div class="solve-wrap">
     <div class="top-bar">
-      <button class="back-btn" id="backBtn">← 목록으로</button>
-      <h2 class="solve-title" id="problemTitle">문제 불러오는 중...</h2>
+      <button class="icon-btn" id="backBtn" title="목록으로">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <h2 class="solve-title">문제 풀이</h2>
     </div>
 
     <div class="canvas-stage">
-      <div class="canvas-frame" id="canvasFrame">
-        <img id="problemImage" alt="문제 이미지" />
-        <canvas id="drawCanvas"></canvas>
-      </div>
-    </div>
+      <div class="problem-card-solve">
+        <div class="problem-card-header">
+          <span class="badge" id="difficultyBadge"></span>
+          <span class="problem-card-title" id="problemCardTitle">문제 불러오는 중...</span>
+          <div class="tool-icons">
+            <button class="icon-btn tool-btn active" id="penBtn" title="펜">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            </button>
+            <button class="icon-btn tool-btn" id="eraserBtn" title="지우개">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H9l-6.5-6.5a1.5 1.5 0 0 1 0-2L11 3l9 9-6 6"/><path d="M6 12l6 6"/></svg>
+            </button>
+            <div class="size-control">
+              <span>굵기</span>
+              <input type="range" id="sizeRange" min="1" max="30" value="4" />
+            </div>
+            <button class="icon-btn tool-btn danger" id="clearBtn" title="전체 지우기">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            </button>
+          </div>
+        </div>
 
-    <div class="description-toggle" id="descriptionToggleWrap" style="display:none;">
-      <button class="link-btn" id="descriptionToggle">설명 / 해설 보기 ▾</button>
-      <div class="description-box" id="descriptionBox"></div>
-    </div>
-
-    <div class="toolbar">
-      <button class="tool-btn active" id="penBtn">✏️ 펜</button>
-      <button class="tool-btn" id="eraserBtn">🧽 지우개</button>
-      <div class="size-control">
-        <span>굵기</span>
-        <input type="range" id="sizeRange" min="1" max="30" value="4" />
+        <div class="canvas-frame" id="canvasFrame">
+          <img id="problemImage" alt="문제 이미지" />
+          <canvas id="drawCanvas"></canvas>
+        </div>
       </div>
-      <button class="tool-btn danger" id="clearBtn">🗑 전체 지우기</button>
+
+      <div class="description-toggle" id="descriptionToggleWrap" style="display:none;">
+        <button class="link-btn" id="descriptionToggle">설명 / 해설 보기</button>
+        <div class="description-box" id="descriptionBox"></div>
+      </div>
     </div>
   </div>
 

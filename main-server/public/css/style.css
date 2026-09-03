@@ -1,3 +1,27 @@
+:root {
+  --bg: #f4f5f7;
+  --card: #ffffff;
+  --text: #191b1f;
+  --text-secondary: #8a8f98;
+  --border: #ececef;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 16px rgba(16, 24, 40, 0.06);
+
+  --blue: #3d6bff;
+  --blue-light: #eaf0ff;
+
+  --green: #16a34a;
+  --green-light: #e7f9ee;
+  --orange: #d97706;
+  --orange-light: #fff4e0;
+  --red: #e0393e;
+  --red-light: #ffecec;
+
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+  --radius-pill: 999px;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -5,8 +29,8 @@
 body {
   margin: 0;
   font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
-  background: #ffffff;
-  color: #111111;
+  background: var(--bg);
+  color: var(--text);
   min-height: 100vh;
 }
 
@@ -15,60 +39,107 @@ a {
   text-decoration: none;
 }
 
+button {
+  font-family: inherit;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  background: #f1f2f4;
+}
+
+.icon-btn svg {
+  width: 19px;
+  height: 19px;
+}
+
 /* ---- 홈: 난이도 선택 ---- */
 
 .home-wrap {
   min-height: 100vh;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 24px;
-  text-align: center;
 }
 
-.home-wrap h1 {
-  font-size: 28px;
-  margin-bottom: 6px;
+.home-card {
+  background: var(--card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 48px 40px;
+  text-align: center;
+  width: 100%;
+  max-width: 560px;
+}
+
+.home-card h1 {
+  font-size: 24px;
+  margin: 0 0 6px;
   font-weight: 800;
 }
 
-.home-wrap p {
-  color: #555555;
-  margin-bottom: 40px;
+.home-card p {
+  color: var(--text-secondary);
+  margin: 0 0 32px;
+  font-size: 14px;
 }
 
 .difficulty-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  width: 100%;
-  max-width: 640px;
+  gap: 14px;
 }
 
 .difficulty-card {
-  border-radius: 10px;
-  padding: 36px 16px;
+  border-radius: var(--radius-md);
+  padding: 28px 12px;
   cursor: pointer;
   font-weight: 800;
-  font-size: 26px;
-  border: 2px solid #111111;
-  background: #ffffff;
-  color: #111111;
-  transition: background-color 0.12s ease, color 0.12s ease;
+  font-size: 22px;
+  border: none;
+  transition: transform 0.1s ease, filter 0.1s ease;
 }
 
 .difficulty-card:hover {
-  background: #111111;
-  color: #ffffff;
+  transform: translateY(-2px);
+  filter: brightness(0.97);
 }
 
 .difficulty-card small {
   display: block;
-  font-size: 13px;
-  font-weight: 500;
-  margin-top: 8px;
-  opacity: 0.7;
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 6px;
+  opacity: 0.8;
+}
+
+.difficulty-card.하 {
+  background: var(--green-light);
+  color: var(--green);
+}
+
+.difficulty-card.중 {
+  background: var(--orange-light);
+  color: var(--orange);
+}
+
+.difficulty-card.상 {
+  background: var(--red-light);
+  color: var(--red);
 }
 
 /* ---- 상단바 (공통) ---- */
@@ -76,25 +147,10 @@ a {
 .top-bar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   padding: 14px 20px;
-  background: #ffffff;
-  border-bottom: 2px solid #111111;
-}
-
-.top-bar .back-btn {
-  background: #ffffff;
-  border: 1px solid #111111;
-  color: #111111;
-  padding: 8px 14px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.top-bar .back-btn:hover {
-  background: #111111;
-  color: #ffffff;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
 }
 
 .top-bar h2 {
@@ -107,53 +163,78 @@ a {
 /* ---- 문제 목록 ---- */
 
 .list-wrap {
-  max-width: 720px;
+  max-width: 760px;
   margin: 0 auto;
-  padding: 20px;
+  padding: 24px 20px;
 }
 
 .problem-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 16px;
 }
 
 .problem-card {
-  background: #ffffff;
-  border-radius: 8px;
+  background: var(--card);
+  border-radius: var(--radius-md);
   overflow: hidden;
   cursor: pointer;
-  border: 2px solid #111111;
+  box-shadow: var(--shadow);
 }
 
 .problem-card:hover {
-  background: #f5f5f5;
+  transform: translateY(-2px);
 }
 
 .problem-card img {
   width: 100%;
   height: 130px;
   object-fit: cover;
-  background: #f5f5f5;
-  border-bottom: 2px solid #111111;
+  background: var(--bg);
+  display: block;
 }
 
 .problem-card .info {
-  padding: 10px 12px;
+  padding: 12px 14px;
 }
 
 .problem-card .info .title {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  margin-bottom: 6px;
+}
+
+.badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+}
+
+.badge.하 {
+  background: var(--green-light);
+  color: var(--green);
+}
+
+.badge.중 {
+  background: var(--orange-light);
+  color: var(--orange);
+}
+
+.badge.상 {
+  background: var(--red-light);
+  color: var(--red);
 }
 
 .empty-state {
   text-align: center;
-  color: #777777;
-  padding: 60px 0;
+  color: var(--text-secondary);
+  padding: 80px 0;
+  font-size: 14px;
 }
 
 /* ---- 풀이 화면 ---- */
@@ -161,7 +242,7 @@ a {
 .solve-wrap {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  min-height: 100vh;
 }
 
 .solve-title {
@@ -172,26 +253,79 @@ a {
 .canvas-stage {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  overflow: auto;
-  padding: 16px;
-  background: #ffffff;
+  padding: 20px;
+  gap: 12px;
+}
+
+.problem-card-solve {
+  background: var(--card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  max-width: 100%;
+  width: fit-content;
+}
+
+.problem-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.problem-card-header .problem-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-icons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tool-btn.active {
+  background: var(--blue-light);
+  color: var(--blue);
+}
+
+.tool-btn.danger:hover {
+  background: var(--red-light);
+  color: var(--red);
+}
+
+.size-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 0 6px;
+}
+
+.size-control input {
+  width: 80px;
+  accent-color: var(--blue);
 }
 
 .canvas-frame {
   position: relative;
   max-width: 100%;
-  border: 2px solid #111111;
-  border-radius: 6px;
-  overflow: hidden;
-  background: #fff;
 }
 
 .canvas-frame img {
   display: block;
   max-width: 100%;
-  max-height: 72vh;
+  max-height: 68vh;
   width: auto;
   height: auto;
   user-select: none;
@@ -208,83 +342,32 @@ a {
   cursor: crosshair;
 }
 
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 16px;
-  background: #ffffff;
-  border-top: 2px solid #111111;
-  flex-wrap: wrap;
-}
-
-.tool-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: #ffffff;
-  border: 2px solid #111111;
-  color: #111111;
-  padding: 10px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.tool-btn:hover {
-  background: #f0f0f0;
-}
-
-.tool-btn.active {
-  background: #111111;
-  color: #ffffff;
-}
-
-.tool-btn.danger {
-  margin-left: auto;
-}
-
-.tool-btn.danger:hover {
-  background: #fdecec;
-  border-color: #c0392b;
-  color: #c0392b;
-}
-
-.size-control {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #444444;
-  font-size: 13px;
-}
-
-.size-control input {
-  width: 100px;
-}
-
 .description-toggle {
-  padding: 0 16px 16px;
+  width: 100%;
+  max-width: 640px;
+}
+
+.link-btn {
+  background: var(--card);
+  border: none;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow);
+  color: var(--blue);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 16px;
 }
 
 .description-box {
-  background: #fafafa;
-  border: 1px solid #111111;
-  border-radius: 6px;
+  background: var(--card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
   padding: 14px 16px;
-  margin-top: 10px;
+  margin-top: 8px;
   font-size: 14px;
   line-height: 1.6;
   display: none;
   white-space: pre-wrap;
-}
-
-.link-btn {
-  background: none;
-  border: none;
-  color: #111111;
-  text-decoration: underline;
-  cursor: pointer;
-  font-size: 13px;
-  padding: 0;
+  color: var(--text);
 }

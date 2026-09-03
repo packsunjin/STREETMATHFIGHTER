@@ -127,20 +127,23 @@ descriptionToggle.addEventListener('click', () => {
 
 async function loadProblem() {
   if (!problemId) {
-    document.getElementById('problemTitle').textContent = '잘못된 접근입니다.';
+    document.getElementById('problemCardTitle').textContent = '잘못된 접근입니다.';
     return;
   }
 
   try {
     const res = await fetch(`/api/problems/${problemId}`);
     if (!res.ok) {
-      document.getElementById('problemTitle').textContent = '문제를 찾을 수 없습니다.';
+      document.getElementById('problemCardTitle').textContent = '문제를 찾을 수 없습니다.';
       return;
     }
     const data = await res.json();
     const problem = data.problem;
 
-    document.getElementById('problemTitle').textContent = `[${problem.difficulty}] ${problem.title}`;
+    const badge = document.getElementById('difficultyBadge');
+    badge.textContent = problem.difficulty;
+    badge.classList.add(problem.difficulty);
+    document.getElementById('problemCardTitle').textContent = problem.title;
 
     if (problem.description) {
       descriptionToggleWrap.style.display = 'block';
@@ -152,7 +155,7 @@ async function loadProblem() {
       resizeCanvas();
     };
   } catch (err) {
-    document.getElementById('problemTitle').textContent = '서버에 연결할 수 없습니다.';
+    document.getElementById('problemCardTitle').textContent = '서버에 연결할 수 없습니다.';
   }
 }
 

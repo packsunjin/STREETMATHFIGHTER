@@ -26,6 +26,7 @@ async function loadProblems() {
       <img src="${problem.imageUrl}" alt="${escapeHtml(problem.title)}" />
       <div class="info">
         <div class="title">${escapeHtml(problem.title)}</div>
+        <span class="badge ${problem.difficulty}">${problem.difficulty}</span>
       </div>
     `;
     card.addEventListener('click', () => {
