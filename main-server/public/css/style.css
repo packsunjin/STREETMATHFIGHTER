@@ -32,6 +32,27 @@ body {
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
+  animation: page-fade-in 0.35s ease both;
+}
+
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 a {
@@ -41,6 +62,19 @@ a {
 
 button {
   font-family: inherit;
+}
+
+button,
+.icon-btn,
+.problem-card,
+.difficulty-card {
+  transition: transform 0.12s ease, background-color 0.15s ease, box-shadow 0.15s ease,
+    filter 0.15s ease, color 0.15s ease;
+}
+
+.icon-btn:active,
+.tool-btn:active {
+  transform: scale(0.92);
 }
 
 .icon-btn {
@@ -59,6 +93,11 @@ button {
 
 .icon-btn:hover {
   background: #f1f2f4;
+}
+
+.icon-btn.active {
+  background: var(--blue-light);
+  color: var(--blue);
 }
 
 .icon-btn svg {
@@ -103,6 +142,7 @@ button {
   margin: 0 0 clamp(8px, 1.5vw, 18px);
   font-weight: 900;
   letter-spacing: -0.02em;
+  animation: rise-in 0.5s ease 0.05s both;
 }
 
 .home-hero p {
@@ -110,6 +150,7 @@ button {
   margin: 0;
   font-size: clamp(16px, 2vw, 30px);
   font-weight: 600;
+  animation: rise-in 0.5s ease 0.12s both;
 }
 
 .difficulty-grid {
@@ -127,12 +168,26 @@ button {
   font-weight: 900;
   border: none;
   box-shadow: var(--shadow);
-  transition: transform 0.12s ease, filter 0.12s ease;
+  transition: transform 0.15s ease, filter 0.12s ease, box-shadow 0.15s ease;
+  animation: rise-in 0.5s ease both;
+}
+
+.difficulty-grid .difficulty-card:nth-child(1) {
+  animation-delay: 0.18s;
+}
+
+.difficulty-grid .difficulty-card:nth-child(2) {
+  animation-delay: 0.26s;
+}
+
+.difficulty-grid .difficulty-card:nth-child(3) {
+  animation-delay: 0.34s;
 }
 
 .difficulty-card:hover {
-  transform: translateY(-6px) scale(1.02);
+  transform: translateY(-6px) scale(1.03);
   filter: brightness(0.97);
+  box-shadow: 0 8px 28px rgba(16, 24, 40, 0.12);
 }
 
 .difficulty-card:active {
@@ -206,10 +261,12 @@ button {
   overflow: hidden;
   cursor: pointer;
   box-shadow: var(--shadow);
+  animation: rise-in 0.35s ease both;
 }
 
 .problem-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(16, 24, 40, 0.1);
 }
 
 .problem-card img {
@@ -256,6 +313,12 @@ button {
   color: var(--red);
 }
 
+.badge.type {
+  background: var(--bg);
+  color: var(--text-secondary);
+  margin-left: 4px;
+}
+
 .empty-state {
   text-align: center;
   color: var(--text-secondary);
@@ -283,6 +346,16 @@ button {
   align-items: center;
   padding: 20px;
   gap: 12px;
+  overflow: auto;
+}
+
+.solve-wrap:fullscreen {
+  height: 100vh;
+  background: var(--bg);
+}
+
+.solve-wrap:fullscreen .canvas-stage {
+  justify-content: center;
 }
 
 .problem-card-solve {
@@ -290,8 +363,8 @@ button {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
   overflow: hidden;
-  max-width: 100%;
   width: fit-content;
+  flex-shrink: 0;
 }
 
 .problem-card-header {
@@ -343,16 +416,31 @@ button {
   accent-color: var(--blue);
 }
 
+.tool-divider {
+  width: 1px;
+  height: 22px;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+.zoom-level {
+  display: inline-block;
+  min-width: 42px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
 .canvas-frame {
   position: relative;
-  max-width: 100%;
+  flex: 0 0 auto;
+  transition: width 0.2s ease;
 }
 
 .canvas-frame img {
   display: block;
-  max-width: 100%;
-  max-height: 68vh;
-  width: auto;
+  width: 100%;
   height: auto;
   user-select: none;
   -webkit-user-drag: none;
@@ -383,17 +471,40 @@ button {
   font-size: 13px;
   font-weight: 700;
   padding: 8px 16px;
+  transition: transform 0.12s ease, background-color 0.15s ease;
+}
+
+.link-btn:hover {
+  background: var(--blue-light);
+}
+
+.link-btn:active {
+  transform: scale(0.97);
 }
 
 .description-box {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 0.25s ease, opacity 0.2s ease, margin-top 0.25s ease;
+  margin-top: 0;
+}
+
+.description-box.open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  margin-top: 8px;
+}
+
+.description-box-inner {
+  min-height: 0;
+  overflow: hidden;
   background: var(--card);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow);
   padding: 14px 16px;
-  margin-top: 8px;
   font-size: 14px;
   line-height: 1.6;
-  display: none;
   white-space: pre-wrap;
   color: var(--text);
 }

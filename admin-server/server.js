@@ -10,6 +10,7 @@ const cloudinary = require('cloudinary').v2;
 
 const {
   DIFFICULTIES,
+  QUESTION_TYPES,
   listProblems,
   getProblem,
   createProblem,
@@ -112,6 +113,7 @@ function toPublicProblem(problem) {
     difficulty: problem.difficulty,
     imageUrl: problem.image_path,
     description: problem.description,
+    questionType: problem.question_type,
     createdAt: problem.created_at,
     updatedAt: problem.updated_at,
   };
@@ -142,13 +144,16 @@ app.get('/api/problems/:id', requireAuth, async (req, res, next) => {
 
 app.post('/api/problems', requireAuth, upload.single('image'), async (req, res, next) => {
   try {
-    const { title, difficulty, description } = req.body || {};
+    const { title, difficulty, description, questionType } = req.body || {};
 
     if (!title || !title.trim()) {
       return res.status(400).json({ error: '제목을 입력해주세요.' });
     }
     if (!DIFFICULTIES.includes(difficulty)) {
       return res.status(400).json({ error: '난이도는 상/중/하 중 하나여야 합니다.' });
+    }
+    if (questionType && !QUESTION_TYPES.includes(questionType)) {
+      return res.status(400).json({ error: '문제 유형이 올바르지 않습니다.' });
     }
     if (!req.file) {
       return res.status(400).json({ error: '문제 이미지를 업로드해주세요.' });
@@ -162,6 +167,7 @@ app.post('/api/problems', requireAuth, upload.single('image'), async (req, res, 
       image_path: uploaded.secure_url,
       image_public_id: uploaded.public_id,
       description: description ? description.trim() : null,
+      question_type: questionType || 'subjective',
     });
 
     res.status(201).json({ problem: toPublicProblem(problem) });
@@ -175,10 +181,13 @@ app.put('/api/problems/:id', requireAuth, upload.single('image'), async (req, re
     const existing = await getProblem(req.params.id);
     if (!existing) return res.status(404).json({ error: '문제를 찾을 수 없습니다.' });
 
-    const { title, difficulty, description } = req.body || {};
+    const { title, difficulty, description, questionType } = req.body || {};
 
     if (difficulty && !DIFFICULTIES.includes(difficulty)) {
       return res.status(400).json({ error: '난이도는 상/중/하 중 하나여야 합니다.' });
+    }
+    if (questionType && !QUESTION_TYPES.includes(questionType)) {
+      return res.status(400).json({ error: '문제 유형이 올바르지 않습니다.' });
     }
 
     let image_path;
@@ -196,6 +205,7 @@ app.put('/api/problems/:id', requireAuth, upload.single('image'), async (req, re
       image_path,
       image_public_id,
       description: description !== undefined ? description.trim() : undefined,
+      question_type: questionType || undefined,
     });
 
     res.json({ problem: toPublicProblem(problem) });

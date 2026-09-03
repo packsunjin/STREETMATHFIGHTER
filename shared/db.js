@@ -14,6 +14,7 @@ const pool = new Pool({
 });
 
 const DIFFICULTIES = ['상', '중', '하'];
+const QUESTION_TYPES = ['objective', 'subjective'];
 
 const ready = pool.query(`
   CREATE TABLE IF NOT EXISTS problems (
@@ -26,6 +27,15 @@ const ready = pool.query(`
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
   );
+
+  ALTER TABLE problems
+    ADD COLUMN IF NOT EXISTS question_type TEXT NOT NULL DEFAULT 'subjective';
+
+  ALTER TABLE problems
+    DROP CONSTRAINT IF EXISTS problems_question_type_check;
+
+  ALTER TABLE problems
+    ADD CONSTRAINT problems_question_type_check CHECK (question_type IN ('objective', 'subjective'));
 `);
 
 async function listProblems({ difficulty } = {}) {
@@ -47,18 +57,28 @@ async function getProblem(id) {
   return rows[0] || null;
 }
 
-async function createProblem({ title, difficulty, image_path, image_public_id, description }) {
+async function createProblem({
+  title,
+  difficulty,
+  image_path,
+  image_public_id,
+  description,
+  question_type,
+}) {
   await ready;
   const { rows } = await pool.query(
-    `INSERT INTO problems (title, difficulty, image_path, image_public_id, description)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO problems (title, difficulty, image_path, image_public_id, description, question_type)
+     VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING *`,
-    [title, difficulty, image_path, image_public_id, description || null]
+    [title, difficulty, image_path, image_public_id, description || null, question_type || 'subjective']
   );
   return rows[0];
 }
 
-async function updateProblem(id, { title, difficulty, image_path, image_public_id, description }) {
+async function updateProblem(
+  id,
+  { title, difficulty, image_path, image_public_id, description, question_type }
+) {
   await ready;
   const existing = await getProblem(id);
   if (!existing) return null;
@@ -70,8 +90,9 @@ async function updateProblem(id, { title, difficulty, image_path, image_public_i
        image_path = $3,
        image_public_id = $4,
        description = $5,
+       question_type = $6,
        updated_at = now()
-     WHERE id = $6
+     WHERE id = $7
      RETURNING *`,
     [
       title ?? existing.title,
@@ -79,6 +100,7 @@ async function updateProblem(id, { title, difficulty, image_path, image_public_i
       image_path ?? existing.image_path,
       image_public_id ?? existing.image_public_id,
       description !== undefined ? description : existing.description,
+      question_type ?? existing.question_type,
       id,
     ]
   );
@@ -94,6 +116,7 @@ async function deleteProblem(id) {
 module.exports = {
   pool,
   DIFFICULTIES,
+  QUESTION_TYPES,
   listProblems,
   getProblem,
   createProblem,

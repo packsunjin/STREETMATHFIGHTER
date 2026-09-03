@@ -31,10 +31,40 @@ body {
   font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   background: var(--bg);
   color: var(--text);
+  animation: page-fade-in 0.35s ease both;
+}
+
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 a {
   color: inherit;
+}
+
+button {
+  transition: transform 0.12s ease, background-color 0.15s ease, box-shadow 0.15s ease,
+    border-color 0.15s ease, filter 0.15s ease;
+}
+
+button:active {
+  transform: scale(0.96);
 }
 
 .top-bar {
@@ -83,6 +113,7 @@ a {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
   width: 320px;
+  animation: rise-in 0.4s ease both;
 }
 
 .login-card h1 {
@@ -181,6 +212,11 @@ a {
   border-radius: var(--radius-lg);
   padding: 20px;
   box-shadow: var(--shadow);
+  animation: rise-in 0.4s ease both;
+}
+
+.dashboard .panel:nth-child(2) {
+  animation-delay: 0.06s;
 }
 
 .panel h2 {
@@ -260,6 +296,48 @@ a {
   border-color: var(--blue);
 }
 
+.segmented {
+  display: flex;
+  gap: 6px;
+}
+
+.segmented-option {
+  flex: 1;
+  position: relative;
+}
+
+.segmented-option input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.segmented-option span {
+  display: block;
+  text-align: center;
+  padding: 9px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.segmented-option input:checked + span {
+  background: var(--blue);
+  color: #fff;
+  border-color: var(--blue);
+}
+
+.segmented-option input:focus-visible + span {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
 .problem-list {
   list-style: none;
   margin: 0;
@@ -277,10 +355,13 @@ a {
   border-radius: var(--radius-md);
   padding: 10px;
   cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+  animation: rise-in 0.3s ease both;
 }
 
 .problem-item:hover {
   background: #fafbfc;
+  transform: translateX(2px);
 }
 
 .problem-item.selected {
@@ -333,6 +414,12 @@ a {
   color: var(--green);
 }
 
+.badge.type {
+  background: var(--bg);
+  color: var(--text-secondary);
+  margin-left: 4px;
+}
+
 .empty-state {
   color: var(--text-secondary);
   font-size: 13px;
@@ -353,17 +440,19 @@ a {
   position: fixed;
   bottom: 24px;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateY(8px);
   background: var(--text);
   color: #fff;
   padding: 10px 18px;
   border-radius: var(--radius-pill);
   font-size: 13px;
+  box-shadow: var(--shadow);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
 .toast.show {
   opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }

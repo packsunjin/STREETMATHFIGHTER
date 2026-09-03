@@ -21,6 +21,7 @@ function toPublicProblem(problem) {
     difficulty: problem.difficulty,
     imageUrl: problem.image_path,
     description: problem.description,
+    questionType: problem.question_type,
   };
 }
 

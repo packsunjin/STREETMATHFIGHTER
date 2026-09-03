@@ -45,6 +45,19 @@
           </select>
         </div>
         <div class="field">
+          <label>문제 유형</label>
+          <div class="segmented" id="questionTypeGroup">
+            <label class="segmented-option">
+              <input type="radio" name="questionType" value="subjective" checked />
+              <span>주관식</span>
+            </label>
+            <label class="segmented-option">
+              <input type="radio" name="questionType" value="objective" />
+              <span>객관식</span>
+            </label>
+          </div>
+        </div>
+        <div class="field">
           <label for="image">문제 이미지</label>
           <input type="file" id="image" name="image" accept="image/*" />
           <img id="imagePreview" class="image-preview" alt="미리보기" />

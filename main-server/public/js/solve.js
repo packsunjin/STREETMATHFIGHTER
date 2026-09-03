@@ -14,10 +14,74 @@ const backBtn = document.getElementById('backBtn');
 const descriptionToggleWrap = document.getElementById('descriptionToggleWrap');
 const descriptionToggle = document.getElementById('descriptionToggle');
 const descriptionBox = document.getElementById('descriptionBox');
+const descriptionBoxInner = document.getElementById('descriptionBoxInner');
+const fullscreenBtn = document.getElementById('fullscreenBtn');
+const solveWrap = document.querySelector('.solve-wrap');
+const canvasStage = document.querySelector('.canvas-stage');
+const zoomInBtn = document.getElementById('zoomInBtn');
+const zoomOutBtn = document.getElementById('zoomOutBtn');
+const zoomLevelLabel = document.getElementById('zoomLevel');
 
 let tool = 'pen'; // 'pen' | 'eraser'
 let drawing = false;
 let lastPoint = null;
+
+// ---- 확대/축소 ----
+
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 3;
+const ZOOM_STEP = 0.2;
+
+let baseWidth = null; // 100% 기준(화면에 맞춘) 너비(px)
+let zoomLevel = 1;
+
+function computeFitWidth() {
+  const stageRect = canvasStage.getBoundingClientRect();
+  const availableWidth = Math.max(stageRect.width - 40, 200);
+  const availableHeight = Math.max(stageRect.height - 140, 200);
+  const naturalW = img.naturalWidth || availableWidth;
+  const naturalH = img.naturalHeight || availableHeight;
+  const scale = Math.min(availableWidth / naturalW, availableHeight / naturalH);
+  return Math.max(naturalW * scale, 200);
+}
+
+let zoomResizeTimer = null;
+
+function applyZoom() {
+  if (!baseWidth) return;
+  frame.style.width = `${baseWidth * zoomLevel}px`;
+  zoomLevelLabel.textContent = `${Math.round(zoomLevel * 100)}%`;
+  // 캔버스 프레임의 width 트랜지션(0.2s)이 끝난 뒤에 실제 해상도를 다시 샘플링해
+  // 확대/축소 중에도 부드럽게 보이면서 최종적으로는 선명하게 유지되도록 함
+  clearTimeout(zoomResizeTimer);
+  zoomResizeTimer = setTimeout(resizeCanvas, 220);
+}
+
+function setZoom(next) {
+  zoomLevel = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, next));
+  applyZoom();
+}
+
+zoomInBtn.addEventListener('click', () => setZoom(zoomLevel + ZOOM_STEP));
+zoomOutBtn.addEventListener('click', () => setZoom(zoomLevel - ZOOM_STEP));
+
+// ---- 전체화면 ----
+
+fullscreenBtn.addEventListener('click', () => {
+  if (!document.fullscreenElement) {
+    solveWrap.requestFullscreen?.();
+  } else {
+    document.exitFullscreen?.();
+  }
+});
+
+document.addEventListener('fullscreenchange', () => {
+  fullscreenBtn.classList.toggle('active', Boolean(document.fullscreenElement));
+  if (img.naturalWidth) {
+    baseWidth = computeFitWidth();
+    applyZoom();
+  }
+});
 
 backBtn.addEventListener('click', () => {
   window.history.length > 1 ? window.history.back() : (window.location.href = 'index.html');
@@ -117,12 +181,18 @@ canvas.addEventListener('pointerup', stopDrawing);
 canvas.addEventListener('pointercancel', stopDrawing);
 canvas.addEventListener('pointerleave', stopDrawing);
 
-window.addEventListener('resize', resizeCanvas);
+window.addEventListener('resize', () => {
+  if (img.naturalWidth) {
+    baseWidth = computeFitWidth();
+    applyZoom();
+  } else {
+    resizeCanvas();
+  }
+});
 
 descriptionToggle.addEventListener('click', () => {
-  const visible = descriptionBox.style.display === 'block';
-  descriptionBox.style.display = visible ? 'none' : 'block';
-  descriptionToggle.textContent = visible ? '설명 / 해설 보기 ▾' : '설명 / 해설 닫기 ▴';
+  const open = descriptionBox.classList.toggle('open');
+  descriptionToggle.textContent = open ? '설명 / 해설 닫기' : '설명 / 해설 보기';
 });
 
 async function loadProblem() {
@@ -143,16 +213,23 @@ async function loadProblem() {
     const badge = document.getElementById('difficultyBadge');
     badge.textContent = problem.difficulty;
     badge.classList.add(problem.difficulty);
+
+    const typeBadge = document.getElementById('typeBadge');
+    typeBadge.textContent = problem.questionType === 'objective' ? '객관식' : '주관식';
+    typeBadge.style.display = 'inline-block';
+
     document.getElementById('problemCardTitle').textContent = problem.title;
 
     if (problem.description) {
       descriptionToggleWrap.style.display = 'block';
-      descriptionBox.textContent = problem.description;
+      descriptionBoxInner.textContent = problem.description;
     }
 
     img.src = problem.imageUrl;
     img.onload = () => {
-      resizeCanvas();
+      zoomLevel = 1;
+      baseWidth = computeFitWidth();
+      applyZoom();
     };
   } catch (err) {
     document.getElementById('problemCardTitle').textContent = '서버에 연결할 수 없습니다.';

@@ -27,6 +27,7 @@ async function loadProblems() {
       <div class="info">
         <div class="title">${escapeHtml(problem.title)}</div>
         <span class="badge ${problem.difficulty}">${problem.difficulty}</span>
+        <span class="badge type">${problem.questionType === 'objective' ? '객관식' : '주관식'}</span>
       </div>
     `;
     card.addEventListener('click', () => {

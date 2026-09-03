@@ -65,6 +65,7 @@ function renderList() {
       <div class="meta">
         <div class="title">${escapeHtml(problem.title)}</div>
         <span class="badge ${problem.difficulty}">${problem.difficulty}</span>
+        <span class="badge type">${problem.questionType === 'objective' ? '객관식' : '주관식'}</span>
       </div>
       <button class="btn-danger" data-id="${problem.id}">삭제</button>
     `;
@@ -103,6 +104,10 @@ function loadIntoForm(problem) {
   titleInput.value = problem.title;
   difficultyInput.value = problem.difficulty;
   descriptionInput.value = problem.description || '';
+  const typeRadio = document.querySelector(
+    `input[name="questionType"][value="${problem.questionType === 'objective' ? 'objective' : 'subjective'}"]`
+  );
+  if (typeRadio) typeRadio.checked = true;
   imagePreview.src = problem.imageUrl;
   imagePreview.style.display = 'block';
   imageInput.required = false;
@@ -138,6 +143,8 @@ problemForm.addEventListener('submit', async (e) => {
   formData.append('title', titleInput.value.trim());
   formData.append('difficulty', difficultyInput.value);
   formData.append('description', descriptionInput.value.trim());
+  const checkedType = document.querySelector('input[name="questionType"]:checked');
+  formData.append('questionType', checkedType ? checkedType.value : 'subjective');
   if (imageInput.files[0]) {
     formData.append('image', imageInput.files[0]);
   }
