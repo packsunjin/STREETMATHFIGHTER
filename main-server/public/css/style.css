@@ -66,65 +66,91 @@ button {
   height: 19px;
 }
 
-/* ---- 홈: 난이도 선택 ---- */
+/* ---- 홈: 난이도 선택 (큰 화면 이벤트용) ---- */
 
 .home-wrap {
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 24px;
-}
-
-.home-card {
-  background: var(--card);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
-  padding: 48px 40px;
+  padding: clamp(24px, 5vw, 80px);
+  gap: clamp(32px, 6vh, 72px);
   text-align: center;
-  width: 100%;
-  max-width: 560px;
 }
 
-.home-card h1 {
-  font-size: 24px;
-  margin: 0 0 6px;
-  font-weight: 800;
+.home-hero .siren {
+  font-size: clamp(48px, 8vw, 100px);
+  line-height: 1;
+  margin-bottom: clamp(8px, 1.5vw, 20px);
+  display: inline-block;
+  animation: siren-pulse 1.6s ease-in-out infinite;
 }
 
-.home-card p {
+@keyframes siren-pulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 rgba(224, 57, 62, 0));
+  }
+  50% {
+    transform: scale(1.08);
+    filter: drop-shadow(0 6px 24px rgba(224, 57, 62, 0.35));
+  }
+}
+
+.home-hero h1 {
+  font-size: clamp(40px, 8vw, 108px);
+  margin: 0 0 clamp(8px, 1.5vw, 18px);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.home-hero p {
   color: var(--text-secondary);
-  margin: 0 0 32px;
-  font-size: 14px;
+  margin: 0;
+  font-size: clamp(16px, 2vw, 30px);
+  font-weight: 600;
 }
 
 .difficulty-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
+  gap: clamp(16px, 2.5vw, 40px);
+  width: 100%;
+  max-width: 1400px;
 }
 
 .difficulty-card {
-  border-radius: var(--radius-md);
-  padding: 28px 12px;
+  border-radius: var(--radius-lg);
+  padding: clamp(32px, 6vw, 88px) clamp(12px, 2vw, 24px);
   cursor: pointer;
-  font-weight: 800;
-  font-size: 22px;
+  font-weight: 900;
   border: none;
-  transition: transform 0.1s ease, filter 0.1s ease;
+  box-shadow: var(--shadow);
+  transition: transform 0.12s ease, filter 0.12s ease;
 }
 
 .difficulty-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-6px) scale(1.02);
   filter: brightness(0.97);
+}
+
+.difficulty-card:active {
+  transform: translateY(-2px) scale(0.99);
+}
+
+.difficulty-card .difficulty-label {
+  display: block;
+  font-size: clamp(36px, 7vw, 88px);
+  line-height: 1;
 }
 
 .difficulty-card small {
   display: block;
-  font-size: 12px;
-  font-weight: 600;
-  margin-top: 6px;
-  opacity: 0.8;
+  font-size: clamp(14px, 1.6vw, 24px);
+  font-weight: 700;
+  margin-top: clamp(8px, 1.5vw, 18px);
+  opacity: 0.85;
 }
 
 .difficulty-card.하 {
