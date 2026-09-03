@@ -27,7 +27,7 @@ const answerPanel = document.getElementById('answerPanel');
 const answerChoices = document.getElementById('answerChoices');
 const answerForm = document.getElementById('answerForm');
 const answerInput = document.getElementById('answerInput');
-const checkAnswerBtn = document.getElementById('checkAnswerBtn');
+const submitAnswerBtn = document.getElementById('submitAnswerBtn');
 const answerResult = document.getElementById('answerResult');
 
 let tool = 'pen'; // 'pen' | 'eraser'
@@ -35,6 +35,7 @@ let drawing = false;
 let lastPoint = null;
 let currentProblem = null;
 let answered = false;
+let selectedChoice = null;
 
 // ---- 확대/축소 ----
 
@@ -232,52 +233,60 @@ function showAnswerResult(correct, correctAnswer) {
   }
 }
 
+// 객관식: 클릭하면 선택만 되고(하이라이트), 아직 채점 안 됨 -> "제출"을 눌러야 채점
 answerChoices.querySelectorAll('.choice-btn').forEach((btn) => {
-  btn.addEventListener('click', async () => {
+  btn.addEventListener('click', () => {
     if (answered) return;
-    answered = true;
-    const result = await checkAnswer(btn.dataset.choice);
-    if (!result) {
-      answered = false;
-      return;
-    }
-    answerChoices.querySelectorAll('.choice-btn').forEach((b) => (b.disabled = true));
-    btn.classList.add(result.correct ? 'correct' : 'incorrect');
-    if (!result.correct) {
-      const correctBtn = answerChoices.querySelector(`[data-choice="${result.correctAnswer}"]`);
-      if (correctBtn) correctBtn.classList.add('correct');
-    }
-    showAnswerResult(result.correct, result.correctAnswer);
+    selectedChoice = btn.dataset.choice;
+    answerChoices.querySelectorAll('.choice-btn').forEach((b) => {
+      b.classList.toggle('selected', b === btn);
+    });
   });
 });
 
 answerForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   if (answered) return;
-  const value = answerInput.value.trim();
+
+  const isObjective = currentProblem.questionType === 'objective';
+  const value = isObjective ? selectedChoice : answerInput.value.trim();
   if (!value) return;
+
   answered = true;
   const result = await checkAnswer(value);
   if (!result) {
     answered = false;
     return;
   }
-  answerInput.disabled = true;
-  checkAnswerBtn.disabled = true;
+
+  submitAnswerBtn.disabled = true;
+  if (isObjective) {
+    answerChoices.querySelectorAll('.choice-btn').forEach((b) => (b.disabled = true));
+    const chosenBtn = answerChoices.querySelector(`[data-choice="${selectedChoice}"]`);
+    chosenBtn?.classList.remove('selected');
+    chosenBtn?.classList.add(result.correct ? 'correct' : 'incorrect');
+    if (!result.correct) {
+      const correctBtn = answerChoices.querySelector(`[data-choice="${result.correctAnswer}"]`);
+      correctBtn?.classList.add('correct');
+    }
+  } else {
+    answerInput.disabled = true;
+  }
   showAnswerResult(result.correct, result.correctAnswer);
 });
 
 function resetAnswerPanel(problem) {
   answered = false;
+  selectedChoice = null;
   answerResult.textContent = '';
   answerResult.classList.remove('correct', 'incorrect');
   answerChoices.querySelectorAll('.choice-btn').forEach((b) => {
     b.disabled = false;
-    b.classList.remove('correct', 'incorrect');
+    b.classList.remove('correct', 'incorrect', 'selected');
   });
   answerInput.value = '';
   answerInput.disabled = false;
-  checkAnswerBtn.disabled = false;
+  submitAnswerBtn.disabled = false;
 
   if (!problem.hasAnswer) {
     answerPanel.style.display = 'none';
@@ -286,7 +295,7 @@ function resetAnswerPanel(problem) {
   answerPanel.style.display = 'flex';
   const isObjective = problem.questionType === 'objective';
   answerChoices.style.display = isObjective ? 'flex' : 'none';
-  answerForm.style.display = isObjective ? 'none' : 'flex';
+  answerInput.style.display = isObjective ? 'none' : 'block';
 }
 
 // ---- 다음 문제 (셔플백 랜덤) ----

@@ -509,6 +509,12 @@ button,
   border-color: var(--blue);
 }
 
+.choice-btn.selected {
+  border-color: var(--blue);
+  background: var(--blue-light);
+  color: var(--blue);
+}
+
 .choice-btn.correct {
   border-color: var(--green);
   background: var(--green-light);
