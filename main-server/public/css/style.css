@@ -5,8 +5,8 @@
 body {
   margin: 0;
   font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
-  background: #0f172a;
-  color: #f1f5f9;
+  background: #ffffff;
+  color: #111111;
   min-height: 100vh;
 }
 
@@ -28,35 +28,39 @@ a {
 }
 
 .home-wrap h1 {
-  font-size: 30px;
+  font-size: 28px;
   margin-bottom: 6px;
+  font-weight: 800;
 }
 
 .home-wrap p {
-  color: #94a3b8;
+  color: #555555;
   margin-bottom: 40px;
 }
 
 .difficulty-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 18px;
+  gap: 16px;
   width: 100%;
   max-width: 640px;
 }
 
 .difficulty-card {
-  border-radius: 18px;
+  border-radius: 10px;
   padding: 36px 16px;
   cursor: pointer;
   font-weight: 800;
   font-size: 26px;
-  border: none;
-  transition: transform 0.15s ease;
+  border: 2px solid #111111;
+  background: #ffffff;
+  color: #111111;
+  transition: background-color 0.12s ease, color 0.12s ease;
 }
 
 .difficulty-card:hover {
-  transform: translateY(-4px);
+  background: #111111;
+  color: #ffffff;
 }
 
 .difficulty-card small {
@@ -64,22 +68,7 @@ a {
   font-size: 13px;
   font-weight: 500;
   margin-top: 8px;
-  opacity: 0.8;
-}
-
-.difficulty-card.하 {
-  background: linear-gradient(135deg, #34d399, #059669);
-  color: #062e21;
-}
-
-.difficulty-card.중 {
-  background: linear-gradient(135deg, #fbbf24, #d97706);
-  color: #3a2503;
-}
-
-.difficulty-card.상 {
-  background: linear-gradient(135deg, #f87171, #b91c1c);
-  color: #3a0a0a;
+  opacity: 0.7;
 }
 
 /* ---- 상단바 (공통) ---- */
@@ -89,24 +78,30 @@ a {
   align-items: center;
   gap: 12px;
   padding: 14px 20px;
-  background: #111827;
-  border-bottom: 1px solid #1f2937;
+  background: #ffffff;
+  border-bottom: 2px solid #111111;
 }
 
 .top-bar .back-btn {
-  background: #1f2937;
-  border: none;
-  color: #f1f5f9;
+  background: #ffffff;
+  border: 1px solid #111111;
+  color: #111111;
   padding: 8px 14px;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 13px;
+}
+
+.top-bar .back-btn:hover {
+  background: #111111;
+  color: #ffffff;
 }
 
 .top-bar h2 {
   font-size: 15px;
   margin: 0;
   flex: 1;
+  font-weight: 700;
 }
 
 /* ---- 문제 목록 ---- */
@@ -124,22 +119,23 @@ a {
 }
 
 .problem-card {
-  background: #1e293b;
-  border-radius: 14px;
+  background: #ffffff;
+  border-radius: 8px;
   overflow: hidden;
   cursor: pointer;
-  border: 1px solid #334155;
+  border: 2px solid #111111;
 }
 
 .problem-card:hover {
-  border-color: #6366f1;
+  background: #f5f5f5;
 }
 
 .problem-card img {
   width: 100%;
   height: 130px;
   object-fit: cover;
-  background: #0f172a;
+  background: #f5f5f5;
+  border-bottom: 2px solid #111111;
 }
 
 .problem-card .info {
@@ -156,7 +152,7 @@ a {
 
 .empty-state {
   text-align: center;
-  color: #64748b;
+  color: #777777;
   padding: 60px 0;
 }
 
@@ -170,7 +166,7 @@ a {
 
 .solve-title {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .canvas-stage {
@@ -180,14 +176,14 @@ a {
   justify-content: center;
   overflow: auto;
   padding: 16px;
-  background: #0b1120;
+  background: #ffffff;
 }
 
 .canvas-frame {
   position: relative;
   max-width: 100%;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
-  border-radius: 10px;
+  border: 2px solid #111111;
+  border-radius: 6px;
   overflow: hidden;
   background: #fff;
 }
@@ -217,8 +213,8 @@ a {
   align-items: center;
   gap: 10px;
   padding: 14px 16px;
-  background: #111827;
-  border-top: 1px solid #1f2937;
+  background: #ffffff;
+  border-top: 2px solid #111111;
   flex-wrap: wrap;
 }
 
@@ -226,19 +222,23 @@ a {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: #1f2937;
-  border: 2px solid transparent;
-  color: #f1f5f9;
+  background: #ffffff;
+  border: 2px solid #111111;
+  color: #111111;
   padding: 10px 16px;
-  border-radius: 10px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
+}
+
+.tool-btn:hover {
+  background: #f0f0f0;
 }
 
 .tool-btn.active {
-  border-color: #6366f1;
-  background: #312e81;
+  background: #111111;
+  color: #ffffff;
 }
 
 .tool-btn.danger {
@@ -246,14 +246,16 @@ a {
 }
 
 .tool-btn.danger:hover {
-  background: #7f1d1d;
+  background: #fdecec;
+  border-color: #c0392b;
+  color: #c0392b;
 }
 
 .size-control {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #94a3b8;
+  color: #444444;
   font-size: 13px;
 }
 
@@ -266,8 +268,9 @@ a {
 }
 
 .description-box {
-  background: #1e293b;
-  border-radius: 10px;
+  background: #fafafa;
+  border: 1px solid #111111;
+  border-radius: 6px;
   padding: 14px 16px;
   margin-top: 10px;
   font-size: 14px;
@@ -279,7 +282,8 @@ a {
 .link-btn {
   background: none;
   border: none;
-  color: #a5b4fc;
+  color: #111111;
+  text-decoration: underline;
   cursor: pointer;
   font-size: 13px;
   padding: 0;
