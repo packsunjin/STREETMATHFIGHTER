@@ -15,6 +15,7 @@ const pool = new Pool({
 
 const DIFFICULTIES = ['상', '중', '하'];
 const QUESTION_TYPES = ['objective', 'subjective'];
+const OBJECTIVE_CHOICES = ['1', '2', '3', '4', '5'];
 
 const ready = pool.query(`
   CREATE TABLE IF NOT EXISTS problems (
@@ -36,6 +37,9 @@ const ready = pool.query(`
 
   ALTER TABLE problems
     ADD CONSTRAINT problems_question_type_check CHECK (question_type IN ('objective', 'subjective'));
+
+  ALTER TABLE problems
+    ADD COLUMN IF NOT EXISTS answer TEXT;
 `);
 
 async function listProblems({ difficulty } = {}) {
@@ -64,20 +68,29 @@ async function createProblem({
   image_public_id,
   description,
   question_type,
+  answer,
 }) {
   await ready;
   const { rows } = await pool.query(
-    `INSERT INTO problems (title, difficulty, image_path, image_public_id, description, question_type)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO problems (title, difficulty, image_path, image_public_id, description, question_type, answer)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
-    [title, difficulty, image_path, image_public_id, description || null, question_type || 'subjective']
+    [
+      title,
+      difficulty,
+      image_path,
+      image_public_id,
+      description || null,
+      question_type || 'subjective',
+      answer || null,
+    ]
   );
   return rows[0];
 }
 
 async function updateProblem(
   id,
-  { title, difficulty, image_path, image_public_id, description, question_type }
+  { title, difficulty, image_path, image_public_id, description, question_type, answer }
 ) {
   await ready;
   const existing = await getProblem(id);
@@ -91,8 +104,9 @@ async function updateProblem(
        image_public_id = $4,
        description = $5,
        question_type = $6,
+       answer = $7,
        updated_at = now()
-     WHERE id = $7
+     WHERE id = $8
      RETURNING *`,
     [
       title ?? existing.title,
@@ -101,6 +115,7 @@ async function updateProblem(
       image_public_id ?? existing.image_public_id,
       description !== undefined ? description : existing.description,
       question_type ?? existing.question_type,
+      answer !== undefined ? answer : existing.answer,
       id,
     ]
   );
@@ -117,6 +132,7 @@ module.exports = {
   pool,
   DIFFICULTIES,
   QUESTION_TYPES,
+  OBJECTIVE_CHOICES,
   listProblems,
   getProblem,
   createProblem,

@@ -21,10 +21,20 @@ const canvasStage = document.querySelector('.canvas-stage');
 const zoomInBtn = document.getElementById('zoomInBtn');
 const zoomOutBtn = document.getElementById('zoomOutBtn');
 const zoomLevelLabel = document.getElementById('zoomLevel');
+const nextProblemBtn = document.getElementById('nextProblemBtn');
+const listBtn = document.getElementById('listBtn');
+const answerPanel = document.getElementById('answerPanel');
+const answerChoices = document.getElementById('answerChoices');
+const answerForm = document.getElementById('answerForm');
+const answerInput = document.getElementById('answerInput');
+const checkAnswerBtn = document.getElementById('checkAnswerBtn');
+const answerResult = document.getElementById('answerResult');
 
 let tool = 'pen'; // 'pen' | 'eraser'
 let drawing = false;
 let lastPoint = null;
+let currentProblem = null;
+let answered = false;
 
 // ---- 확대/축소 ----
 
@@ -190,6 +200,114 @@ window.addEventListener('resize', () => {
   }
 });
 
+// ---- 정답 채점 ----
+
+async function checkAnswer(value) {
+  try {
+    const res = await fetch(`/api/problems/${problemId}/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ answer: value }),
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch (err) {
+    return null;
+  }
+}
+
+const CHOICE_SYMBOLS = ['①', '②', '③', '④', '⑤'];
+
+function showAnswerResult(correct, correctAnswer) {
+  answerResult.classList.remove('correct', 'incorrect');
+  answerResult.classList.add(correct ? 'correct' : 'incorrect');
+  if (correct) {
+    answerResult.textContent = '정답입니다! 🎉';
+  } else {
+    const label =
+      currentProblem.questionType === 'objective'
+        ? CHOICE_SYMBOLS[Number(correctAnswer) - 1] || correctAnswer
+        : correctAnswer;
+    answerResult.textContent = `오답입니다. 정답: ${label}`;
+  }
+}
+
+answerChoices.querySelectorAll('.choice-btn').forEach((btn) => {
+  btn.addEventListener('click', async () => {
+    if (answered) return;
+    answered = true;
+    const result = await checkAnswer(btn.dataset.choice);
+    if (!result) {
+      answered = false;
+      return;
+    }
+    answerChoices.querySelectorAll('.choice-btn').forEach((b) => (b.disabled = true));
+    btn.classList.add(result.correct ? 'correct' : 'incorrect');
+    if (!result.correct) {
+      const correctBtn = answerChoices.querySelector(`[data-choice="${result.correctAnswer}"]`);
+      if (correctBtn) correctBtn.classList.add('correct');
+    }
+    showAnswerResult(result.correct, result.correctAnswer);
+  });
+});
+
+answerForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (answered) return;
+  const value = answerInput.value.trim();
+  if (!value) return;
+  answered = true;
+  const result = await checkAnswer(value);
+  if (!result) {
+    answered = false;
+    return;
+  }
+  answerInput.disabled = true;
+  checkAnswerBtn.disabled = true;
+  showAnswerResult(result.correct, result.correctAnswer);
+});
+
+function resetAnswerPanel(problem) {
+  answered = false;
+  answerResult.textContent = '';
+  answerResult.classList.remove('correct', 'incorrect');
+  answerChoices.querySelectorAll('.choice-btn').forEach((b) => {
+    b.disabled = false;
+    b.classList.remove('correct', 'incorrect');
+  });
+  answerInput.value = '';
+  answerInput.disabled = false;
+  checkAnswerBtn.disabled = false;
+
+  if (!problem.hasAnswer) {
+    answerPanel.style.display = 'none';
+    return;
+  }
+  answerPanel.style.display = 'flex';
+  const isObjective = problem.questionType === 'objective';
+  answerChoices.style.display = isObjective ? 'flex' : 'none';
+  answerForm.style.display = isObjective ? 'none' : 'flex';
+}
+
+// ---- 다음 문제 (셔플백 랜덤) ----
+
+listBtn.addEventListener('click', () => {
+  if (!currentProblem) return;
+  window.location.href = `list.html?difficulty=${encodeURIComponent(currentProblem.difficulty)}`;
+});
+
+nextProblemBtn.addEventListener('click', async () => {
+  if (!currentProblem) return;
+  nextProblemBtn.disabled = true;
+  const nextId = await getNextProblemId(currentProblem.difficulty, currentProblem.id);
+  if (nextId) {
+    window.location.href = `solve.html?id=${nextId}`;
+  } else {
+    nextProblemBtn.disabled = false;
+    alert('이 난이도에는 아직 풀 수 있는 문제가 없어요.');
+  }
+});
+
 descriptionToggle.addEventListener('click', () => {
   const open = descriptionBox.classList.toggle('open');
   descriptionToggle.textContent = open ? '설명 / 해설 닫기' : '설명 / 해설 보기';
@@ -209,6 +327,8 @@ async function loadProblem() {
     }
     const data = await res.json();
     const problem = data.problem;
+    currentProblem = problem;
+    resetAnswerPanel(problem);
 
     const badge = document.getElementById('difficultyBadge');
     badge.textContent = problem.difficulty;

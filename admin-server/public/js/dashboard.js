@@ -14,6 +14,20 @@ const imageInput = document.getElementById('image');
 const imagePreview = document.getElementById('imagePreview');
 const descriptionInput = document.getElementById('description');
 const toast = document.getElementById('toast');
+const answerFieldObjective = document.getElementById('answerFieldObjective');
+const answerFieldSubjective = document.getElementById('answerFieldSubjective');
+const answerText = document.getElementById('answerText');
+
+function updateAnswerFieldVisibility() {
+  const checkedType = document.querySelector('input[name="questionType"]:checked');
+  const isObjective = checkedType?.value === 'objective';
+  answerFieldObjective.style.display = isObjective ? 'block' : 'none';
+  answerFieldSubjective.style.display = isObjective ? 'none' : 'block';
+}
+
+document.querySelectorAll('input[name="questionType"]').forEach((radio) => {
+  radio.addEventListener('change', updateAnswerFieldVisibility);
+});
 
 function showToast(message) {
   toast.textContent = message;
@@ -108,6 +122,15 @@ function loadIntoForm(problem) {
     `input[name="questionType"][value="${problem.questionType === 'objective' ? 'objective' : 'subjective'}"]`
   );
   if (typeRadio) typeRadio.checked = true;
+  updateAnswerFieldVisibility();
+  document.querySelectorAll('input[name="answerChoice"]').forEach((r) => (r.checked = false));
+  if (problem.questionType === 'objective') {
+    const choiceRadio = document.querySelector(`input[name="answerChoice"][value="${problem.answer || ''}"]`);
+    if (choiceRadio) choiceRadio.checked = true;
+    answerText.value = '';
+  } else {
+    answerText.value = problem.answer || '';
+  }
   imagePreview.src = problem.imageUrl;
   imagePreview.style.display = 'block';
   imageInput.required = false;
@@ -124,6 +147,7 @@ function resetForm() {
   imagePreview.src = '';
   formTitle.textContent = '새 문제 등록';
   submitBtn.textContent = '등록하기';
+  updateAnswerFieldVisibility();
   renderList();
 }
 
@@ -144,7 +168,16 @@ problemForm.addEventListener('submit', async (e) => {
   formData.append('difficulty', difficultyInput.value);
   formData.append('description', descriptionInput.value.trim());
   const checkedType = document.querySelector('input[name="questionType"]:checked');
+  const isObjective = checkedType?.value === 'objective';
   formData.append('questionType', checkedType ? checkedType.value : 'subjective');
+
+  if (isObjective) {
+    const checkedChoice = document.querySelector('input[name="answerChoice"]:checked');
+    formData.append('answer', checkedChoice ? checkedChoice.value : '');
+  } else {
+    formData.append('answer', answerText.value.trim());
+  }
+
   if (imageInput.files[0]) {
     formData.append('image', imageInput.files[0]);
   }
@@ -171,4 +204,5 @@ problemForm.addEventListener('submit', async (e) => {
   }
 });
 
+updateAnswerFieldVisibility();
 checkAuth().then(loadProblems);

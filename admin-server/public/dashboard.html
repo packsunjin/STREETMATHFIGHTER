@@ -57,6 +57,20 @@
             </label>
           </div>
         </div>
+        <div class="field" id="answerFieldObjective">
+          <label>정답 (객관식)</label>
+          <div class="choice-picker" id="answerChoiceGroup">
+            <label class="choice-option"><input type="radio" name="answerChoice" value="1" /><span>①</span></label>
+            <label class="choice-option"><input type="radio" name="answerChoice" value="2" /><span>②</span></label>
+            <label class="choice-option"><input type="radio" name="answerChoice" value="3" /><span>③</span></label>
+            <label class="choice-option"><input type="radio" name="answerChoice" value="4" /><span>④</span></label>
+            <label class="choice-option"><input type="radio" name="answerChoice" value="5" /><span>⑤</span></label>
+          </div>
+        </div>
+        <div class="field" id="answerFieldSubjective">
+          <label for="answerText">정답 (선택, 자동 채점용)</label>
+          <input type="text" id="answerText" name="answerText" placeholder="비워두면 채점 없이 풀이만 가능합니다." />
+        </div>
         <div class="field">
           <label for="image">문제 이미지</label>
           <input type="file" id="image" name="image" accept="image/*" />

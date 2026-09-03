@@ -13,6 +13,13 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
       </button>
       <h2 class="solve-title">문제 풀이</h2>
+      <button class="icon-btn" id="listBtn" title="문제 목록">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg>
+      </button>
+      <button class="next-btn" id="nextProblemBtn" title="다음 문제">
+        다음 문제
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
       <button class="icon-btn" id="fullscreenBtn" title="전체화면">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
       </button>
@@ -54,6 +61,21 @@
           <img id="problemImage" alt="문제 이미지" />
           <canvas id="drawCanvas"></canvas>
         </div>
+
+        <div class="answer-panel" id="answerPanel" style="display:none;">
+          <div class="answer-choices" id="answerChoices">
+            <button class="choice-btn" type="button" data-choice="1">①</button>
+            <button class="choice-btn" type="button" data-choice="2">②</button>
+            <button class="choice-btn" type="button" data-choice="3">③</button>
+            <button class="choice-btn" type="button" data-choice="4">④</button>
+            <button class="choice-btn" type="button" data-choice="5">⑤</button>
+          </div>
+          <form class="answer-form" id="answerForm">
+            <input type="text" id="answerInput" placeholder="정답을 입력하고 Enter" autocomplete="off" />
+            <button type="submit" class="btn-check" id="checkAnswerBtn">채점하기</button>
+          </form>
+          <div class="answer-result" id="answerResult"></div>
+        </div>
       </div>
 
       <div class="description-toggle" id="descriptionToggleWrap" style="display:none;">
@@ -65,6 +87,7 @@
     </div>
   </div>
 
+  <script src="js/queue.js"></script>
   <script src="js/solve.js"></script>
 </body>
 </html>

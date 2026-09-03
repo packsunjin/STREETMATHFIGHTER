@@ -11,6 +11,7 @@ const cloudinary = require('cloudinary').v2;
 const {
   DIFFICULTIES,
   QUESTION_TYPES,
+  OBJECTIVE_CHOICES,
   listProblems,
   getProblem,
   createProblem,
@@ -77,6 +78,17 @@ function uploadImageToCloudinary(buffer) {
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// 정답 문자열 정규화. 미입력이면 null(채점 기능 없음), 객관식이면 1~5만 허용.
+function normalizeAnswer(questionType, rawAnswer) {
+  if (rawAnswer === undefined || rawAnswer === null) return { ok: true, value: undefined };
+  const trimmed = String(rawAnswer).trim();
+  if (!trimmed) return { ok: true, value: null };
+  if (questionType === 'objective' && !OBJECTIVE_CHOICES.includes(trimmed)) {
+    return { ok: false };
+  }
+  return { ok: true, value: trimmed };
+}
+
 // ---- 인증 ----
 
 app.post('/api/login', (req, res) => {
@@ -114,6 +126,7 @@ function toPublicProblem(problem) {
     imageUrl: problem.image_path,
     description: problem.description,
     questionType: problem.question_type,
+    answer: problem.answer,
     createdAt: problem.created_at,
     updatedAt: problem.updated_at,
   };
@@ -144,7 +157,7 @@ app.get('/api/problems/:id', requireAuth, async (req, res, next) => {
 
 app.post('/api/problems', requireAuth, upload.single('image'), async (req, res, next) => {
   try {
-    const { title, difficulty, description, questionType } = req.body || {};
+    const { title, difficulty, description, questionType, answer } = req.body || {};
 
     if (!title || !title.trim()) {
       return res.status(400).json({ error: '제목을 입력해주세요.' });
@@ -154,6 +167,10 @@ app.post('/api/problems', requireAuth, upload.single('image'), async (req, res, 
     }
     if (questionType && !QUESTION_TYPES.includes(questionType)) {
       return res.status(400).json({ error: '문제 유형이 올바르지 않습니다.' });
+    }
+    const normalizedAnswer = normalizeAnswer(questionType || 'subjective', answer);
+    if (!normalizedAnswer.ok) {
+      return res.status(400).json({ error: '객관식 정답은 ①~⑤ 중 하나를 선택해주세요.' });
     }
     if (!req.file) {
       return res.status(400).json({ error: '문제 이미지를 업로드해주세요.' });
@@ -168,6 +185,7 @@ app.post('/api/problems', requireAuth, upload.single('image'), async (req, res, 
       image_public_id: uploaded.public_id,
       description: description ? description.trim() : null,
       question_type: questionType || 'subjective',
+      answer: normalizedAnswer.value,
     });
 
     res.status(201).json({ problem: toPublicProblem(problem) });
@@ -181,13 +199,18 @@ app.put('/api/problems/:id', requireAuth, upload.single('image'), async (req, re
     const existing = await getProblem(req.params.id);
     if (!existing) return res.status(404).json({ error: '문제를 찾을 수 없습니다.' });
 
-    const { title, difficulty, description, questionType } = req.body || {};
+    const { title, difficulty, description, questionType, answer } = req.body || {};
 
     if (difficulty && !DIFFICULTIES.includes(difficulty)) {
       return res.status(400).json({ error: '난이도는 상/중/하 중 하나여야 합니다.' });
     }
     if (questionType && !QUESTION_TYPES.includes(questionType)) {
       return res.status(400).json({ error: '문제 유형이 올바르지 않습니다.' });
+    }
+    const effectiveType = questionType || existing.question_type;
+    const normalizedAnswer = normalizeAnswer(effectiveType, answer);
+    if (!normalizedAnswer.ok) {
+      return res.status(400).json({ error: '객관식 정답은 ①~⑤ 중 하나를 선택해주세요.' });
     }
 
     let image_path;
@@ -206,6 +229,7 @@ app.put('/api/problems/:id', requireAuth, upload.single('image'), async (req, re
       image_public_id,
       description: description !== undefined ? description.trim() : undefined,
       question_type: questionType || undefined,
+      answer: normalizedAnswer.value,
     });
 
     res.json({ problem: toPublicProblem(problem) });

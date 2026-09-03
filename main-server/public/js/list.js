@@ -23,10 +23,10 @@ async function loadProblems() {
     const card = document.createElement('div');
     card.className = 'problem-card';
     card.innerHTML = `
+      <span class="badge badge-corner">${problem.difficulty}</span>
       <img src="${problem.imageUrl}" alt="${escapeHtml(problem.title)}" />
       <div class="info">
         <div class="title">${escapeHtml(problem.title)}</div>
-        <span class="badge ${problem.difficulty}">${problem.difficulty}</span>
         <span class="badge type">${problem.questionType === 'objective' ? '객관식' : '주관식'}</span>
       </div>
     `;

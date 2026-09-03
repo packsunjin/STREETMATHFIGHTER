@@ -208,19 +208,24 @@ button,
   opacity: 0.85;
 }
 
+/* 색상 대신 무채색 명도 단계로 난이도를 구분 (쉬움=밝음 -> 어려움=어두움) */
 .difficulty-card.하 {
-  background: var(--green-light);
-  color: var(--green);
+  background: #f3f3f4;
+  color: var(--text);
 }
 
 .difficulty-card.중 {
-  background: var(--orange-light);
-  color: var(--orange);
+  background: #d7d8db;
+  color: var(--text);
 }
 
 .difficulty-card.상 {
-  background: var(--red-light);
-  color: var(--red);
+  background: var(--text);
+  color: #fff;
+}
+
+.difficulty-card.상 small {
+  opacity: 0.7;
 }
 
 /* ---- 상단바 (공통) ---- */
@@ -241,6 +246,29 @@ button,
   font-weight: 700;
 }
 
+.next-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: var(--blue-light);
+  color: var(--blue);
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.next-btn:hover {
+  filter: brightness(0.96);
+}
+
+.next-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
 /* ---- 문제 목록 ---- */
 
 .list-wrap {
@@ -256,6 +284,7 @@ button,
 }
 
 .problem-card {
+  position: relative;
   background: var(--card);
   border-radius: var(--radius-md);
   overflow: hidden;
@@ -296,27 +325,21 @@ button,
   font-weight: 800;
   padding: 3px 9px;
   border-radius: var(--radius-pill);
-}
-
-.badge.하 {
-  background: var(--green-light);
-  color: var(--green);
-}
-
-.badge.중 {
-  background: var(--orange-light);
-  color: var(--orange);
-}
-
-.badge.상 {
-  background: var(--red-light);
-  color: var(--red);
+  background: var(--text);
+  color: #fff;
 }
 
 .badge.type {
   background: var(--bg);
   color: var(--text-secondary);
   margin-left: 4px;
+}
+
+.badge-corner {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1;
 }
 
 .empty-state {
@@ -454,6 +477,99 @@ button,
   height: 100%;
   touch-action: none;
   cursor: crosshair;
+}
+
+.answer-panel {
+  padding: 16px 18px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.answer-choices {
+  display: flex;
+  gap: 10px;
+}
+
+.choice-btn {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.choice-btn:hover {
+  border-color: var(--blue);
+}
+
+.choice-btn.correct {
+  border-color: var(--green);
+  background: var(--green-light);
+  color: var(--green);
+}
+
+.choice-btn.incorrect {
+  border-color: var(--red);
+  background: var(--red-light);
+  color: var(--red);
+}
+
+.choice-btn:disabled {
+  cursor: default;
+}
+
+.answer-form {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  max-width: 360px;
+}
+
+.answer-form input {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.answer-form input:focus {
+  outline: none;
+  border-color: var(--blue);
+}
+
+.btn-check {
+  border: none;
+  background: var(--blue);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.answer-result {
+  font-size: 14px;
+  font-weight: 700;
+  min-height: 20px;
+  animation: rise-in 0.25s ease both;
+}
+
+.answer-result.correct {
+  color: var(--green);
+}
+
+.answer-result.incorrect {
+  color: var(--red);
 }
 
 .description-toggle {
