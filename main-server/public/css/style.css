@@ -105,58 +105,22 @@ button,
   height: 19px;
 }
 
-/* ---- 홈: 난이도 선택 (큰 화면 이벤트용) ---- */
+/* ---- 홈: 난이도 선택 (흰 배경 + 검은 선, 세로 리스트형) ---- */
 
-/* 히어로(사이렌+타이틀)는 위쪽에 작게, 실제로 누르는 난이도 버튼은
-   화면 아래쪽 절반, 손이 편하게 닿는 위치로 몰아서 배치 */
 .home-wrap {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: clamp(20px, 4vw, 48px);
-  padding-bottom: clamp(56px, 11vh, 140px);
+  padding-bottom: clamp(40px, 8vh, 100px);
   text-align: center;
-  position: relative;
-  overflow: hidden;
-  background:
-    repeating-linear-gradient(
-      -35deg,
-      rgba(25, 27, 31, 0.025) 0px,
-      rgba(25, 27, 31, 0.025) 2px,
-      transparent 2px,
-      transparent 44px
-    ),
-    var(--bg);
+  background: #ffffff;
 }
 
 .home-hero {
   margin-top: clamp(16px, 5vh, 56px);
-}
-
-.home-spacer {
-  flex: 1;
-  min-height: 16px;
-}
-
-.home-wrap::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: min(90vw, 900px);
-  height: min(90vw, 900px);
-  transform: translate(-50%, -50%);
-  background: radial-gradient(circle, rgba(224, 57, 62, 0.07), transparent 65%);
-  pointer-events: none;
-  z-index: 0;
-}
-
-.home-hero,
-.home-spacer,
-.difficulty-grid {
-  position: relative;
-  z-index: 1;
+  margin-bottom: clamp(32px, 6vh, 64px);
 }
 
 .home-hero .siren {
@@ -170,16 +134,14 @@ button,
 @keyframes siren-pulse {
   0%, 100% {
     transform: scale(1);
-    filter: drop-shadow(0 0 0 rgba(224, 57, 62, 0));
   }
   50% {
     transform: scale(1.08);
-    filter: drop-shadow(0 6px 24px rgba(224, 57, 62, 0.35));
   }
 }
 
 .home-hero .brand-en {
-  color: var(--red);
+  color: var(--text);
   margin: 0 0 clamp(2px, 0.6vw, 6px);
   font-size: clamp(11px, 1.3vw, 15px);
   font-weight: 800;
@@ -203,104 +165,67 @@ button,
   animation: rise-in 0.5s ease 0.12s both;
 }
 
-.difficulty-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: clamp(16px, 2.5vw, 40px);
+.difficulty-list {
   width: 100%;
-  max-width: 1400px;
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(14px, 2.2vh, 22px);
+  margin: auto 0;
 }
 
-.difficulty-card {
-  position: relative;
-  overflow: hidden;
-  border-radius: var(--radius-lg);
-  padding: clamp(32px, 6vw, 88px) clamp(12px, 2vw, 24px);
+.difficulty-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: clamp(20px, 3.4vh, 34px) clamp(24px, 4vw, 48px);
+  background: #ffffff;
+  color: var(--text);
+  border: 3px solid var(--text);
+  border-radius: 14px;
   cursor: pointer;
-  font-weight: 900;
-  border: 3px solid transparent;
-  box-shadow: var(--shadow);
-  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.15s ease,
-    box-shadow 0.2s ease, border-color 0.2s ease;
-  animation: rise-in 0.5s ease both;
+  animation: rise-in 0.4s ease both;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.15s ease,
+    color 0.15s ease;
 }
 
-.difficulty-card::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle, rgba(61, 107, 255, 0.28), transparent 70%);
-  opacity: 0;
-  transform: scale(0.5);
-  transition: opacity 0.25s ease, transform 0.25s ease;
-  pointer-events: none;
+.difficulty-list .difficulty-bar:nth-child(1) {
+  animation-delay: 0.12s;
 }
 
-.difficulty-grid .difficulty-card:nth-child(1) {
+.difficulty-list .difficulty-bar:nth-child(2) {
   animation-delay: 0.18s;
 }
 
-.difficulty-grid .difficulty-card:nth-child(2) {
-  animation-delay: 0.26s;
+.difficulty-list .difficulty-bar:nth-child(3) {
+  animation-delay: 0.24s;
 }
 
-.difficulty-grid .difficulty-card:nth-child(3) {
-  animation-delay: 0.34s;
+.difficulty-bar:hover {
+  background: var(--text);
+  color: #ffffff;
+  transform: scale(1.02);
 }
 
-.difficulty-card:hover {
-  transform: translateY(-12px) scale(1.06);
-  filter: brightness(0.96);
-  box-shadow: 0 16px 40px rgba(16, 24, 40, 0.2);
-  border-color: var(--blue);
-}
-
-.difficulty-card:hover::after {
-  opacity: 1;
-  transform: scale(1);
-}
-
-.difficulty-card:active {
-  transform: translateY(-4px) scale(0.94);
+.difficulty-bar:active {
+  transform: scale(0.97);
   transition-duration: 0.08s;
-  box-shadow: 0 4px 14px rgba(16, 24, 40, 0.18);
 }
 
-.difficulty-card:disabled {
+.difficulty-bar:disabled {
   cursor: default;
 }
 
-.difficulty-card .difficulty-label {
-  display: block;
-  font-size: clamp(36px, 7vw, 88px);
+.difficulty-bar-label {
+  font-size: clamp(30px, 5.5vw, 52px);
+  font-weight: 900;
   line-height: 1;
 }
 
-.difficulty-card small {
-  display: block;
-  font-size: clamp(14px, 1.6vw, 24px);
+.difficulty-bar-caption {
+  font-size: clamp(13px, 1.6vw, 18px);
   font-weight: 700;
-  margin-top: clamp(8px, 1.5vw, 18px);
-  opacity: 0.85;
-}
-
-/* 색상 대신 무채색 명도 단계로 난이도를 구분 (쉬움=밝음 -> 어려움=어두움) */
-.difficulty-card.하 {
-  background: #f3f3f4;
-  color: var(--text);
-}
-
-.difficulty-card.중 {
-  background: #d7d8db;
-  color: var(--text);
-}
-
-.difficulty-card.상 {
-  background: var(--text);
-  color: #fff;
-}
-
-.difficulty-card.상 small {
   opacity: 0.7;
 }
 
@@ -427,10 +352,14 @@ button,
 
 /* ---- 풀이 화면 ---- */
 
+/* 페이지 자체는 화면에 딱 맞추고(스크롤 없음), 내부 뷰어만 필요하면
+   프레임 안에서 pan으로 이동하도록 함 */
 .solve-wrap {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 .solve-title {
@@ -443,9 +372,11 @@ button,
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 20px;
-  gap: 12px;
-  overflow: auto;
+  justify-content: center;
+  padding: 12px 20px;
+  gap: 10px;
+  overflow: hidden;
+  min-height: 0;
 }
 
 .solve-wrap:fullscreen {
@@ -534,7 +465,7 @@ button,
 .viewer-frame {
   position: relative;
   overflow: hidden;
-  background: #fafafa;
+  background: #ffffff;
   touch-action: none;
 }
 
@@ -575,48 +506,76 @@ button,
   cursor: grabbing;
 }
 
+/* 평상시엔 사진 위에 거슬리는 줄이 안 보이도록 히트 영역만 투명하게 두고,
+   변의 가운데에 작은 그립만 살짝 보이게 함. 호버해야 확실히 강조됨. */
 .resize-handle {
   position: absolute;
-  background: rgba(25, 27, 31, 0.06);
-  transition: background-color 0.15s ease;
+  background: transparent;
   z-index: 2;
 }
 
-.resize-handle:hover,
-.resize-handle:active {
-  background: rgba(61, 107, 255, 0.25);
+.resize-handle::after {
+  content: '';
+  position: absolute;
+  background: rgba(25, 27, 31, 0.18);
+  border-radius: 999px;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.resize-handle:hover::after,
+.resize-handle:active::after {
+  background: var(--blue);
+  transform: scale(1.15);
+}
+
+.resize-e,
+.resize-w {
+  top: 0;
+  width: 14px;
+  height: 100%;
+  cursor: ew-resize;
 }
 
 .resize-e {
-  top: 0;
   right: 0;
-  width: 10px;
-  height: 100%;
-  cursor: ew-resize;
 }
 
 .resize-w {
-  top: 0;
   left: 0;
-  width: 10px;
-  height: 100%;
-  cursor: ew-resize;
+}
+
+.resize-e::after,
+.resize-w::after {
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 36px;
+  transform: translate(-50%, -50%);
+}
+
+.resize-s,
+.resize-n {
+  left: 0;
+  width: 100%;
+  height: 14px;
+  cursor: ns-resize;
 }
 
 .resize-s {
   bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 10px;
-  cursor: ns-resize;
 }
 
 .resize-n {
   top: 0;
-  left: 0;
-  width: 100%;
-  height: 10px;
-  cursor: ns-resize;
+}
+
+.resize-s::after,
+.resize-n::after {
+  top: 50%;
+  left: 50%;
+  width: 36px;
+  height: 4px;
+  transform: translate(-50%, -50%);
 }
 
 .resize-se {
@@ -625,37 +584,48 @@ button,
   width: 18px;
   height: 18px;
   cursor: nwse-resize;
-  background: rgba(25, 27, 31, 0.12);
-  border-radius: 4px 0 0 0;
 }
 
-.resize-se:hover,
-.resize-se:active {
-  background: rgba(61, 107, 255, 0.35);
+.resize-se::after {
+  bottom: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  transform: none;
+  border-radius: 2px;
 }
 
+/* 화면 왼쪽 아래 구석에 딱 붙는 작은 한 줄짜리 알약 모양 패널 */
 .answer-panel {
-  padding: 16px 18px;
-  border-top: 1px solid var(--border);
+  position: fixed;
+  left: 14px;
+  bottom: 14px;
+  z-index: 30;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 6px;
+  background: #ffffff;
+  border: 2px solid var(--text);
+  border-radius: 999px;
+  padding: 6px 8px 6px 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  max-width: calc(100vw - 28px);
 }
 
 .answer-choices {
   display: flex;
-  gap: 10px;
+  gap: 5px;
 }
 
 .choice-btn {
-  width: 46px;
-  height: 46px;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
   border-radius: 50%;
   border: 2px solid var(--border);
   background: var(--card);
   color: var(--text);
-  font-size: 17px;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -688,17 +658,16 @@ button,
 
 .answer-form {
   display: flex;
-  gap: 8px;
-  width: 100%;
-  max-width: 360px;
+  align-items: center;
+  gap: 6px;
 }
 
 .answer-form input {
-  flex: 1;
-  padding: 10px 14px;
+  width: 84px;
+  padding: 7px 10px;
   border-radius: var(--radius-pill);
   border: 1px solid var(--border);
-  font-size: 14px;
+  font-size: 13px;
   font-family: inherit;
 }
 
@@ -708,29 +677,42 @@ button,
 }
 
 .btn-check {
+  flex-shrink: 0;
   border: none;
   background: var(--blue);
   color: #fff;
-  padding: 10px 18px;
+  padding: 8px 14px;
   border-radius: var(--radius-pill);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
 }
 
 .answer-result {
-  font-size: 14px;
+  position: absolute;
+  left: 0;
+  bottom: 100%;
+  margin-bottom: 8px;
+  white-space: nowrap;
+  background: var(--text);
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
   font-weight: 700;
-  min-height: 20px;
   animation: rise-in 0.25s ease both;
 }
 
+.answer-result:empty {
+  display: none;
+}
+
 .answer-result.correct {
-  color: var(--green);
+  background: var(--green);
 }
 
 .answer-result.incorrect {
-  color: var(--red);
+  background: var(--red);
 }
 
 .description-toggle {

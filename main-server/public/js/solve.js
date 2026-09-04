@@ -53,10 +53,16 @@ function applyViewerSize() {
   viewerFrame.style.height = `${viewerHeight}px`;
 }
 
+function headerHeight() {
+  const header = document.querySelector('.problem-card-header');
+  return header ? header.offsetHeight : 60;
+}
+
+// 기본값은 상단바를 뺀 나머지 화면을 최대한 꽉 채움 (스크롤 생길 일 없게)
 function initViewerSize() {
   const stageRect = canvasStage.getBoundingClientRect();
-  viewerWidth = Math.max(Math.min(stageRect.width - 40, 760), VIEWER_MIN_WIDTH);
-  viewerHeight = Math.max(Math.min(stageRect.height - 140, 560), VIEWER_MIN_HEIGHT);
+  viewerWidth = Math.max(stageRect.width - 24, VIEWER_MIN_WIDTH);
+  viewerHeight = Math.max(stageRect.height - headerHeight() - 64, VIEWER_MIN_HEIGHT);
   applyViewerSize();
 }
 
@@ -321,8 +327,8 @@ canvas.addEventListener('pointerleave', stopDrawing);
 
 window.addEventListener('resize', () => {
   const stageRect = canvasStage.getBoundingClientRect();
-  const maxW = Math.max(stageRect.width - 40, VIEWER_MIN_WIDTH);
-  const maxH = Math.max(stageRect.height - 140, VIEWER_MIN_HEIGHT);
+  const maxW = Math.max(stageRect.width - 24, VIEWER_MIN_WIDTH);
+  const maxH = Math.max(stageRect.height - headerHeight() - 64, VIEWER_MIN_HEIGHT);
   viewerWidth = Math.min(viewerWidth, maxW);
   viewerHeight = Math.min(viewerHeight, maxH);
   applyViewerSize();
