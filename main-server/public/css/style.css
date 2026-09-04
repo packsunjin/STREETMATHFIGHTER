@@ -352,8 +352,8 @@ button,
 
 /* ---- 풀이 화면 ---- */
 
-/* 페이지 자체는 화면에 딱 맞추고(스크롤 없음), 내부 뷰어만 필요하면
-   프레임 안에서 pan으로 이동하도록 함 */
+/* 페이지 자체는 화면에 딱 맞추고(스크롤 없음), 흰색 문제 창을
+   회색 배경(canvas-stage) 위에서 통째로 드래그/리사이즈함 */
 .solve-wrap {
   display: flex;
   flex-direction: column;
@@ -368,15 +368,11 @@ button,
 }
 
 .canvas-stage {
+  position: relative;
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 20px;
-  gap: 10px;
   overflow: hidden;
   min-height: 0;
+  background: var(--bg);
 }
 
 .solve-wrap:fullscreen {
@@ -384,17 +380,21 @@ button,
   background: var(--bg);
 }
 
-.solve-wrap:fullscreen .canvas-stage {
-  justify-content: center;
-}
-
 .problem-card-solve {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
   background: var(--card);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
   overflow: hidden;
-  width: fit-content;
-  flex-shrink: 0;
+  transition: width 0.2s ease;
+}
+
+.problem-card-solve.dragging,
+.problem-card-solve.resizing {
+  transition: none;
 }
 
 .problem-card-header {
@@ -404,6 +404,12 @@ button,
   padding: 14px 18px;
   border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
+  cursor: grab;
+  user-select: none;
+}
+
+.problem-card-header.dragging {
+  cursor: grabbing;
 }
 
 .problem-card-header .problem-card-title {
@@ -462,22 +468,9 @@ button,
   color: var(--text-secondary);
 }
 
-.viewer-frame {
-  position: relative;
-  overflow: hidden;
-  background: #ffffff;
-  touch-action: none;
-}
-
-.viewer-content {
-  position: absolute;
-  top: 0;
-  left: 0;
-}
-
 .canvas-frame {
   position: relative;
-  transition: width 0.2s ease;
+  width: 100%;
 }
 
 .canvas-frame img {
@@ -498,25 +491,27 @@ button,
   cursor: crosshair;
 }
 
-.canvas-frame canvas.pan-mode {
-  cursor: grab;
-}
-
-.canvas-frame canvas.panning {
-  cursor: grabbing;
-}
-
 /* 평상시엔 사진 위에 거슬리는 줄이 안 보이도록 히트 영역만 투명하게 두고,
-   변의 가운데에 작은 그립만 살짝 보이게 함. 호버해야 확실히 강조됨. */
+   가운데에 작은 그립만 살짝 보이게 함. 호버해야 확실히 강조됨. */
 .resize-handle {
   position: absolute;
+  top: 0;
+  width: 14px;
+  height: 100%;
   background: transparent;
-  z-index: 2;
+  cursor: ew-resize;
+  z-index: 3;
+  touch-action: none;
 }
 
 .resize-handle::after {
   content: '';
   position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 36px;
+  transform: translate(-50%, -50%);
   background: rgba(25, 27, 31, 0.18);
   border-radius: 999px;
   transition: background-color 0.15s ease, transform 0.15s ease;
@@ -525,15 +520,7 @@ button,
 .resize-handle:hover::after,
 .resize-handle:active::after {
   background: var(--blue);
-  transform: scale(1.15);
-}
-
-.resize-e,
-.resize-w {
-  top: 0;
-  width: 14px;
-  height: 100%;
-  cursor: ew-resize;
+  transform: translate(-50%, -50%) scale(1.15);
 }
 
 .resize-e {
@@ -544,72 +531,14 @@ button,
   left: 0;
 }
 
-.resize-e::after,
-.resize-w::after {
-  top: 50%;
-  left: 50%;
-  width: 4px;
-  height: 36px;
-  transform: translate(-50%, -50%);
-}
-
-.resize-s,
-.resize-n {
-  left: 0;
-  width: 100%;
-  height: 14px;
-  cursor: ns-resize;
-}
-
-.resize-s {
-  bottom: 0;
-}
-
-.resize-n {
-  top: 0;
-}
-
-.resize-s::after,
-.resize-n::after {
-  top: 50%;
-  left: 50%;
-  width: 36px;
-  height: 4px;
-  transform: translate(-50%, -50%);
-}
-
-.resize-se {
-  bottom: 0;
-  right: 0;
-  width: 18px;
-  height: 18px;
-  cursor: nwse-resize;
-}
-
-.resize-se::after {
-  bottom: 4px;
-  right: 4px;
-  width: 8px;
-  height: 8px;
-  transform: none;
-  border-radius: 2px;
-}
-
-/* 화면 왼쪽 아래 구석에 딱 붙는 작은 한 줄짜리 알약 모양 패널 */
+/* 카드 안, 한 줄짜리 정답 제출 영역 */
 .answer-panel {
-  position: fixed;
-  left: 14px;
-  bottom: 14px;
-  z-index: 30;
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
-  background: #ffffff;
-  border: 2px solid var(--text);
-  border-radius: 999px;
-  padding: 6px 8px 6px 10px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
-  max-width: calc(100vw - 28px);
+  gap: 10px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
 }
 
 .answer-choices {
@@ -622,8 +551,8 @@ button,
   height: 32px;
   flex-shrink: 0;
   border-radius: 50%;
-  border: 2px solid var(--border);
-  background: var(--card);
+  border: none;
+  background: var(--bg);
   color: var(--text);
   font-size: 13px;
   font-weight: 700;
@@ -631,25 +560,23 @@ button,
 }
 
 .choice-btn:hover {
-  border-color: var(--blue);
-}
-
-.choice-btn.selected {
-  border-color: var(--blue);
   background: var(--blue-light);
   color: var(--blue);
 }
 
+.choice-btn.selected {
+  background: var(--blue);
+  color: #fff;
+}
+
 .choice-btn.correct {
-  border-color: var(--green);
-  background: var(--green-light);
-  color: var(--green);
+  background: var(--green);
+  color: #fff;
 }
 
 .choice-btn.incorrect {
-  border-color: var(--red);
-  background: var(--red-light);
-  color: var(--red);
+  background: var(--red);
+  color: #fff;
 }
 
 .choice-btn:disabled {
@@ -716,8 +643,12 @@ button,
 }
 
 .description-toggle {
-  width: 100%;
-  max-width: 640px;
+  position: absolute;
+  top: 12px;
+  right: 20px;
+  width: auto;
+  max-width: min(360px, calc(100% - 40px));
+  z-index: 1;
 }
 
 .link-btn {

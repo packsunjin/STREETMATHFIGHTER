@@ -4,13 +4,11 @@ const problemId = params.get('id');
 const img = document.getElementById('problemImage');
 const canvas = document.getElementById('drawCanvas');
 const ctx = canvas.getContext('2d');
-const frame = document.getElementById('canvasFrame');
-const viewerFrame = document.getElementById('viewerFrame');
-const viewerContent = document.getElementById('viewerContent');
+const problemCard = document.getElementById('problemCardSolve');
+const problemCardHeader = document.getElementById('problemCardHeader');
 
 const penBtn = document.getElementById('penBtn');
 const eraserBtn = document.getElementById('eraserBtn');
-const panBtn = document.getElementById('panBtn');
 const clearBtn = document.getElementById('clearBtn');
 const sizeRange = document.getElementById('sizeRange');
 const backBtn = document.getElementById('backBtn');
@@ -33,64 +31,127 @@ const answerInput = document.getElementById('answerInput');
 const submitAnswerBtn = document.getElementById('submitAnswerBtn');
 const answerResult = document.getElementById('answerResult');
 
-let tool = 'pen'; // 'pen' | 'eraser' | 'pan'
+let tool = 'pen'; // 'pen' | 'eraser'
 let drawing = false;
 let lastPoint = null;
 let currentProblem = null;
 let answered = false;
 let selectedChoice = null;
 
-// ---- 문제 창 크기(리사이즈 가능한 고정 프레임) ----
-// 확대/축소는 이 프레임 안에서만 일어나고(overflow:hidden), 프레임 밖으로는 절대 안 커짐.
+// ---- 흰색 문제 창을 회색 배경 위에서 통째로 드래그 + 가로 리사이즈 ----
+// 사진 내부를 pan으로 옮기는 방식은 쓰지 않음: 확대/축소는 창 너비를 바꾸는 것과 같고,
+// 사진은 항상 width:100%로 그 너비에 맞춰 다시 흐름(reflow)됨.
 
-let viewerWidth = 640;
-let viewerHeight = 420;
-const VIEWER_MIN_WIDTH = 320;
-const VIEWER_MIN_HEIGHT = 240;
+const CARD_MIN_WIDTH = 320;
+const CARD_MARGIN = 12;
 
-function applyViewerSize() {
-  viewerFrame.style.width = `${viewerWidth}px`;
-  viewerFrame.style.height = `${viewerHeight}px`;
+let cardWidth = 640;
+let cardLeft = 0;
+let cardTop = 0;
+
+function applyCardBox() {
+  problemCard.style.width = `${cardWidth}px`;
+  problemCard.style.left = `${cardLeft}px`;
+  problemCard.style.top = `${cardTop}px`;
 }
 
-function headerHeight() {
-  const header = document.querySelector('.problem-card-header');
-  return header ? header.offsetHeight : 60;
-}
-
-// 기본값은 상단바를 뺀 나머지 화면을 최대한 꽉 채움 (스크롤 생길 일 없게)
-function initViewerSize() {
+function clampCardWidth() {
   const stageRect = canvasStage.getBoundingClientRect();
-  viewerWidth = Math.max(stageRect.width - 24, VIEWER_MIN_WIDTH);
-  viewerHeight = Math.max(stageRect.height - headerHeight() - 64, VIEWER_MIN_HEIGHT);
-  applyViewerSize();
+  const maxW = Math.max(stageRect.width - CARD_MARGIN * 2, CARD_MIN_WIDTH);
+  cardWidth = Math.min(Math.max(cardWidth, CARD_MIN_WIDTH), maxW);
 }
+
+function clampCardPosition() {
+  const stageRect = canvasStage.getBoundingClientRect();
+  const cardRect = problemCard.getBoundingClientRect();
+  const maxLeft = Math.max(CARD_MARGIN, stageRect.width - cardRect.width - CARD_MARGIN);
+  const maxTop = Math.max(CARD_MARGIN, stageRect.height - cardRect.height - CARD_MARGIN);
+  cardLeft = Math.min(Math.max(cardLeft, CARD_MARGIN), maxLeft);
+  cardTop = Math.min(Math.max(cardTop, CARD_MARGIN), maxTop);
+}
+
+function centerCard() {
+  clampCardWidth();
+  applyCardBox();
+  const stageRect = canvasStage.getBoundingClientRect();
+  const cardRect = problemCard.getBoundingClientRect();
+  cardLeft = Math.max(CARD_MARGIN, (stageRect.width - cardRect.width) / 2);
+  cardTop = Math.max(CARD_MARGIN, (stageRect.height - cardRect.height) / 2);
+  applyCardBox();
+}
+
+// ---- 헤더를 잡고 창 전체를 드래그 (버튼/입력 위에서는 드래그 시작 안 함) ----
+
+let draggingCard = false;
+let dragStart = null;
+
+problemCardHeader.addEventListener('pointerdown', (e) => {
+  if (e.target.closest('button, input, .tool-icons')) return;
+  draggingCard = true;
+  problemCardHeader.setPointerCapture(e.pointerId);
+  problemCardHeader.classList.add('dragging');
+  problemCard.classList.add('dragging');
+  document.body.style.userSelect = 'none';
+  dragStart = { x: e.clientX, y: e.clientY, left: cardLeft, top: cardTop };
+});
+
+problemCardHeader.addEventListener('pointermove', (e) => {
+  if (!draggingCard) return;
+  cardLeft = dragStart.left + (e.clientX - dragStart.x);
+  cardTop = dragStart.top + (e.clientY - dragStart.y);
+  clampCardPosition();
+  applyCardBox();
+});
+
+function stopDragCard(e) {
+  if (!draggingCard) return;
+  draggingCard = false;
+  problemCardHeader.classList.remove('dragging');
+  problemCard.classList.remove('dragging');
+  document.body.style.userSelect = '';
+  if (e && problemCardHeader.hasPointerCapture(e.pointerId)) {
+    problemCardHeader.releasePointerCapture(e.pointerId);
+  }
+}
+
+problemCardHeader.addEventListener('pointerup', stopDragCard);
+problemCardHeader.addEventListener('pointercancel', stopDragCard);
+
+// ---- 가장자리 핸들로 창 너비(=확대/축소) 조절 ----
 
 function setupResizeHandle(el) {
-  const dir = el.dataset.dir;
+  const dir = el.dataset.dir; // 'e' | 'w'
   el.addEventListener('pointerdown', (e) => {
     e.preventDefault();
+    e.stopPropagation();
     el.setPointerCapture(e.pointerId);
+    problemCard.classList.add('resizing');
     const startX = e.clientX;
-    const startY = e.clientY;
-    const startW = viewerWidth;
-    const startH = viewerHeight;
+    const startW = cardWidth;
+    const startLeft = cardLeft;
 
     function onMove(ev) {
       const dx = ev.clientX - startX;
-      const dy = ev.clientY - startY;
-      if (dir.includes('e')) viewerWidth = Math.max(VIEWER_MIN_WIDTH, startW + dx);
-      if (dir.includes('w')) viewerWidth = Math.max(VIEWER_MIN_WIDTH, startW - dx);
-      if (dir.includes('s')) viewerHeight = Math.max(VIEWER_MIN_HEIGHT, startH + dy);
-      if (dir.includes('n')) viewerHeight = Math.max(VIEWER_MIN_HEIGHT, startH - dy);
-      applyViewerSize();
-      clampPan();
-      applyPan();
+      if (dir === 'e') {
+        cardWidth = Math.max(CARD_MIN_WIDTH, startW + dx);
+      } else {
+        const nextWidth = Math.max(CARD_MIN_WIDTH, startW - dx);
+        cardLeft = startLeft - (nextWidth - startW);
+        cardWidth = nextWidth;
+      }
+      clampCardWidth();
+      applyCardBox();
+      updateZoomLabel();
+      resizeCanvas();
     }
     function onUp() {
       el.releasePointerCapture(e.pointerId);
       el.removeEventListener('pointermove', onMove);
       el.removeEventListener('pointerup', onUp);
+      problemCard.classList.remove('resizing');
+      clampCardPosition();
+      applyCardBox();
+      resizeCanvas();
     }
     el.addEventListener('pointermove', onMove);
     el.addEventListener('pointerup', onUp);
@@ -99,107 +160,43 @@ function setupResizeHandle(el) {
 
 document.querySelectorAll('.resize-handle').forEach(setupResizeHandle);
 
-// ---- 확대/축소 + 화면 이동(pan) ----
+// ---- 확대/축소 (= 창 너비 조절) ----
 
-const ZOOM_MIN = 0.5;
-const ZOOM_MAX = 3;
-const ZOOM_STEP = 0.2;
-
-let baseWidth = null; // 100% 기준(뷰어 프레임에 맞춘) 너비(px)
-let zoomLevel = 1;
-let panX = 0;
-let panY = 0;
+let baseFitWidth = null; // 100% 기준 너비(px)
 
 function computeFitWidth() {
-  const availableWidth = Math.max(viewerWidth - 24, 200);
-  const availableHeight = Math.max(viewerHeight - 24, 200);
-  const naturalW = img.naturalWidth || availableWidth;
-  const naturalH = img.naturalHeight || availableHeight;
-  const scale = Math.min(availableWidth / naturalW, availableHeight / naturalH);
-  return Math.max(naturalW * scale, 200);
+  const stageRect = canvasStage.getBoundingClientRect();
+  const maxW = Math.max(stageRect.width - CARD_MARGIN * 2, CARD_MIN_WIDTH);
+  const naturalW = img.naturalWidth || maxW;
+  return Math.min(naturalW, maxW, 760);
 }
 
-function applyPan() {
-  viewerContent.style.transform = `translate(${panX}px, ${panY}px)`;
-}
-
-// 프레임보다 콘텐츠가 작으면 가운데 정렬, 크면 프레임 밖으로 안 벗어나게 clamp
-function clampPan() {
-  const contentW = frame.offsetWidth;
-  const contentH = frame.offsetHeight;
-
-  if (contentW <= viewerWidth) {
-    panX = (viewerWidth - contentW) / 2;
-  } else {
-    panX = Math.min(0, Math.max(viewerWidth - contentW, panX));
-  }
-  if (contentH <= viewerHeight) {
-    panY = (viewerHeight - contentH) / 2;
-  } else {
-    panY = Math.min(0, Math.max(viewerHeight - contentH, panY));
-  }
+function updateZoomLabel() {
+  if (!baseFitWidth) return;
+  zoomLevelLabel.textContent = `${Math.round((cardWidth / baseFitWidth) * 100)}%`;
 }
 
 let zoomResizeTimer = null;
 
-function applyZoom() {
-  if (!baseWidth) return;
-  frame.style.width = `${baseWidth * zoomLevel}px`;
-  zoomLevelLabel.textContent = `${Math.round(zoomLevel * 100)}%`;
-  // 캔버스 프레임의 width 트랜지션(0.2s)이 끝난 뒤에 실제 해상도를 다시 샘플링해
-  // 확대/축소 중에도 부드럽게 보이면서 최종적으로는 선명하게 유지되도록 함
+function setCardWidth(nextWidth) {
+  cardWidth = baseFitWidth ? Math.min(nextWidth, baseFitWidth * 3) : nextWidth;
+  clampCardWidth();
+  applyCardBox();
+  clampCardPosition();
+  applyCardBox();
+  updateZoomLabel();
   clearTimeout(zoomResizeTimer);
-  zoomResizeTimer = setTimeout(() => {
-    resizeCanvas();
-    clampPan();
-    applyPan();
-  }, 220);
-  // 트랜지션 중에도 프레임 밖으로 안 나가도록 즉시 한 번 clamp
-  requestAnimationFrame(() => {
-    clampPan();
-    applyPan();
-  });
+  zoomResizeTimer = setTimeout(resizeCanvas, 220);
 }
 
-function setZoom(next) {
-  zoomLevel = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, next));
-  applyZoom();
-}
-
-zoomInBtn.addEventListener('click', () => setZoom(zoomLevel + ZOOM_STEP));
-zoomOutBtn.addEventListener('click', () => setZoom(zoomLevel - ZOOM_STEP));
-
-// 화면 이동(팬) 드래그 - '이동' 툴이 선택돼 있을 때만 동작
-let panning = false;
-let panStart = null;
-
-canvas.addEventListener('pointerdown', (e) => {
-  if (tool !== 'pan') return;
-  panning = true;
-  canvas.classList.add('panning');
-  canvas.setPointerCapture(e.pointerId);
-  panStart = { x: e.clientX, y: e.clientY, panX, panY };
+zoomInBtn.addEventListener('click', () => {
+  if (!baseFitWidth) return;
+  setCardWidth(cardWidth + baseFitWidth * 0.2);
 });
-
-canvas.addEventListener('pointermove', (e) => {
-  if (tool !== 'pan' || !panning) return;
-  panX = panStart.panX + (e.clientX - panStart.x);
-  panY = panStart.panY + (e.clientY - panStart.y);
-  clampPan();
-  applyPan();
+zoomOutBtn.addEventListener('click', () => {
+  if (!baseFitWidth) return;
+  setCardWidth(cardWidth - baseFitWidth * 0.2);
 });
-
-function stopPanning(e) {
-  if (!panning) return;
-  panning = false;
-  canvas.classList.remove('panning');
-  if (e && canvas.hasPointerCapture(e.pointerId)) {
-    canvas.releasePointerCapture(e.pointerId);
-  }
-}
-
-canvas.addEventListener('pointerup', stopPanning);
-canvas.addEventListener('pointercancel', stopPanning);
 
 // ---- 전체화면 ----
 
@@ -214,11 +211,12 @@ fullscreenBtn.addEventListener('click', () => {
 document.addEventListener('fullscreenchange', () => {
   fullscreenBtn.classList.toggle('active', Boolean(document.fullscreenElement));
   requestAnimationFrame(() => {
-    initViewerSize();
     if (img.naturalWidth) {
-      zoomLevel = 1;
-      baseWidth = computeFitWidth();
-      applyZoom();
+      baseFitWidth = computeFitWidth();
+      cardWidth = baseFitWidth;
+      centerCard();
+      updateZoomLabel();
+      resizeCanvas();
     }
   });
 });
@@ -231,8 +229,6 @@ function setTool(newTool) {
   tool = newTool;
   penBtn.classList.toggle('active', tool === 'pen');
   eraserBtn.classList.toggle('active', tool === 'eraser');
-  panBtn.classList.toggle('active', tool === 'pan');
-  canvas.classList.toggle('pan-mode', tool === 'pan');
   sizeRange.min = tool === 'eraser' ? 10 : 1;
   if (tool === 'eraser' && Number(sizeRange.value) < 10) {
     sizeRange.value = 20;
@@ -241,7 +237,6 @@ function setTool(newTool) {
 
 penBtn.addEventListener('click', () => setTool('pen'));
 eraserBtn.addEventListener('click', () => setTool('eraser'));
-panBtn.addEventListener('click', () => setTool('pan'));
 
 clearBtn.addEventListener('click', () => {
   if (confirm('그린 내용을 모두 지울까요?')) {
@@ -284,7 +279,6 @@ function strokeStyleFor() {
 }
 
 canvas.addEventListener('pointerdown', (e) => {
-  if (tool === 'pan') return;
   drawing = true;
   canvas.setPointerCapture(e.pointerId);
   lastPoint = getPoint(e);
@@ -326,19 +320,15 @@ canvas.addEventListener('pointercancel', stopDrawing);
 canvas.addEventListener('pointerleave', stopDrawing);
 
 window.addEventListener('resize', () => {
-  const stageRect = canvasStage.getBoundingClientRect();
-  const maxW = Math.max(stageRect.width - 24, VIEWER_MIN_WIDTH);
-  const maxH = Math.max(stageRect.height - headerHeight() - 64, VIEWER_MIN_HEIGHT);
-  viewerWidth = Math.min(viewerWidth, maxW);
-  viewerHeight = Math.min(viewerHeight, maxH);
-  applyViewerSize();
-
   if (img.naturalWidth) {
-    baseWidth = computeFitWidth();
-    applyZoom();
-  } else {
-    resizeCanvas();
+    baseFitWidth = computeFitWidth();
   }
+  clampCardWidth();
+  applyCardBox();
+  clampCardPosition();
+  applyCardBox();
+  updateZoomLabel();
+  resizeCanvas();
 });
 
 // ---- 정답 채점 ----
@@ -496,11 +486,11 @@ async function loadProblem() {
 
     img.src = problem.imageUrl;
     img.onload = () => {
-      zoomLevel = 1;
-      panX = 0;
-      panY = 0;
-      baseWidth = computeFitWidth();
-      applyZoom();
+      baseFitWidth = computeFitWidth();
+      cardWidth = baseFitWidth;
+      centerCard();
+      updateZoomLabel();
+      resizeCanvas();
     };
   } catch (err) {
     document.getElementById('problemCardTitle').textContent = '서버에 연결할 수 없습니다.';
@@ -508,5 +498,5 @@ async function loadProblem() {
 }
 
 setTool('pen');
-initViewerSize();
+centerCard();
 loadProblem();

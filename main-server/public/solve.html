@@ -25,9 +25,9 @@
       </button>
     </div>
 
-    <div class="canvas-stage">
-      <div class="problem-card-solve">
-        <div class="problem-card-header">
+    <div class="canvas-stage" id="canvasStage">
+      <div class="problem-card-solve" id="problemCardSolve">
+        <div class="problem-card-header" id="problemCardHeader">
           <span class="badge" id="difficultyBadge"></span>
           <span class="badge type" id="typeBadge" style="display:none;"></span>
           <span class="problem-card-title" id="problemCardTitle">문제 불러오는 중...</span>
@@ -46,9 +46,6 @@
             <button class="icon-btn tool-btn" id="eraserBtn" title="지우개">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H9l-6.5-6.5a1.5 1.5 0 0 1 0-2L11 3l9 9-6 6"/><path d="M6 12l6 6"/></svg>
             </button>
-            <button class="icon-btn tool-btn" id="panBtn" title="화면 이동(선택 모드)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-4.53a1.98 1.98 0 0 1 .27-2.79v0a1.98 1.98 0 0 1 2.6.06L8 14"/></svg>
-            </button>
             <div class="size-control">
               <span>굵기</span>
               <input type="range" id="sizeRange" min="1" max="30" value="4" />
@@ -60,18 +57,9 @@
           </div>
         </div>
 
-        <div class="viewer-frame" id="viewerFrame">
-          <div class="viewer-content" id="viewerContent">
-            <div class="canvas-frame" id="canvasFrame">
-              <img id="problemImage" alt="문제 이미지" />
-              <canvas id="drawCanvas"></canvas>
-            </div>
-          </div>
-          <div class="resize-handle resize-e" data-dir="e"></div>
-          <div class="resize-handle resize-w" data-dir="w"></div>
-          <div class="resize-handle resize-s" data-dir="s"></div>
-          <div class="resize-handle resize-n" data-dir="n"></div>
-          <div class="resize-handle resize-se" data-dir="se"></div>
+        <div class="canvas-frame" id="canvasFrame">
+          <img id="problemImage" alt="문제 이미지" />
+          <canvas id="drawCanvas"></canvas>
         </div>
 
         <div class="answer-panel" id="answerPanel" style="display:none;">
@@ -88,6 +76,9 @@
           </form>
           <div class="answer-result" id="answerResult"></div>
         </div>
+
+        <div class="resize-handle resize-e" data-dir="e"></div>
+        <div class="resize-handle resize-w" data-dir="w"></div>
       </div>
 
       <div class="description-toggle" id="descriptionToggleWrap" style="display:none;">
