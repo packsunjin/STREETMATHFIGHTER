@@ -8,8 +8,50 @@
 </head>
 <body>
   <div class="timer-hud center-start" id="timerHud">
-    <span class="timer-hud-icon" id="timerHudIcon">⏱</span>
+    <span class="timer-hud-icon" id="timerHudIcon">⏰</span>
     <span class="timer-hud-text" id="timerHudText">--:--</span>
+  </div>
+  <div class="top-info-hud" id="topInfoHud">
+    <span class="badge" id="difficultyBadge"></span>
+    <span class="badge type" id="typeBadge" style="display:none;"></span>
+    <span class="problem-card-title" id="problemCardTitle">문제 불러오는 중...</span>
+  </div>
+  <div class="top-tools-hud" id="topToolsHud">
+    <div class="tool-icons">
+      <span class="zoom-level" id="zoomLevel" title="두 손가락으로 벌리거나 오므려서 확대/축소">100%</span>
+      <span class="tool-divider"></span>
+      <button class="icon-btn tool-btn" id="selectBtn" title="선택 모드(그리기 없이 보기만)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3l7 17 2-7 7-2z"/></svg>
+      </button>
+      <div class="pen-tool-wrap">
+        <button class="icon-btn tool-btn active" id="penBtn" title="펜(다시 누르면 두께/색상)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        </button>
+        <div class="pen-popup" id="penPopup" hidden>
+          <div class="pen-popup-row">
+            <span class="pen-preview" id="penPreview"><span class="pen-preview-dot" id="penPreviewDot"></span></span>
+            <input type="range" id="sizeRange" min="1" max="30" value="4" />
+          </div>
+          <div class="pen-color-row" id="penColorRow">
+            <button type="button" class="color-swatch active" data-color="#191b1f" style="background:#191b1f" title="검정"></button>
+            <button type="button" class="color-swatch" data-color="#e0393e" style="background:#e0393e" title="빨강"></button>
+            <button type="button" class="color-swatch" data-color="#3d6bff" style="background:#3d6bff" title="파랑"></button>
+            <button type="button" class="color-swatch" data-color="#16a34a" style="background:#16a34a" title="초록"></button>
+            <button type="button" class="color-swatch" data-color="#d97706" style="background:#d97706" title="주황"></button>
+          </div>
+        </div>
+      </div>
+      <button class="icon-btn tool-btn" id="eraserBtn" title="지우개(두 번 탭: 전체 지우기)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H9l-6.5-6.5a1.5 1.5 0 0 1 0-2L11 3l9 9-6 6"/><path d="M6 12l6 6"/></svg>
+      </button>
+      <span class="tool-divider"></span>
+      <button class="icon-btn tool-btn danger" id="clearBtn" title="전체 지우기">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="answer-result-hud" id="answerResultHud">
+    <span id="answerResultHudText"></span>
   </div>
   <div class="solve-wrap">
     <div class="top-bar">
@@ -31,43 +73,13 @@
 
     <div class="canvas-stage" id="canvasStage">
       <div class="problem-card-solve" id="problemCardSolve">
-        <div class="problem-card-header" id="problemCardHeader">
-          <span class="badge" id="difficultyBadge"></span>
-          <span class="badge type" id="typeBadge" style="display:none;"></span>
-          <span class="problem-card-title" id="problemCardTitle">문제 불러오는 중...</span>
-          <div class="tool-icons">
-            <span class="zoom-level" id="zoomLevel" title="두 손가락으로 벌리거나 오므려서 확대/축소">100%</span>
-            <span class="tool-divider"></span>
-            <button class="icon-btn tool-btn" id="selectBtn" title="선택 모드(그리기 없이 보기만)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3l7 17 2-7 7-2z"/></svg>
-            </button>
-            <div class="pen-tool-wrap">
-              <button class="icon-btn tool-btn active" id="penBtn" title="펜(다시 누르면 두께/색상)">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-              </button>
-              <div class="pen-popup" id="penPopup" hidden>
-                <div class="pen-popup-row">
-                  <span class="pen-preview" id="penPreview"><span class="pen-preview-dot" id="penPreviewDot"></span></span>
-                  <input type="range" id="sizeRange" min="1" max="30" value="4" />
-                </div>
-                <div class="pen-color-row" id="penColorRow">
-                  <button type="button" class="color-swatch active" data-color="#191b1f" style="background:#191b1f" title="검정"></button>
-                  <button type="button" class="color-swatch" data-color="#e0393e" style="background:#e0393e" title="빨강"></button>
-                  <button type="button" class="color-swatch" data-color="#3d6bff" style="background:#3d6bff" title="파랑"></button>
-                  <button type="button" class="color-swatch" data-color="#16a34a" style="background:#16a34a" title="초록"></button>
-                  <button type="button" class="color-swatch" data-color="#d97706" style="background:#d97706" title="주황"></button>
-                </div>
-              </div>
-            </div>
-            <button class="icon-btn tool-btn" id="eraserBtn" title="지우개(두 번 탭: 전체 지우기)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H9l-6.5-6.5a1.5 1.5 0 0 1 0-2L11 3l9 9-6 6"/><path d="M6 12l6 6"/></svg>
-            </button>
-          </div>
-        </div>
+        <div class="problem-card-header" id="problemCardHeader" title="드래그해서 창 이동"></div>
 
         <div class="canvas-frame" id="canvasFrame">
-          <img id="problemImage" alt="문제 이미지" />
-          <canvas id="drawCanvas"></canvas>
+          <div class="canvas-frame-inner" id="canvasFrameInner">
+            <img id="problemImage" alt="문제 이미지" />
+            <canvas id="drawCanvas"></canvas>
+          </div>
         </div>
 
         <div class="answer-panel" id="answerPanel" style="display:none;">
@@ -82,7 +94,10 @@
             <input type="number" id="answerInput" placeholder="정답 숫자 입력" inputmode="numeric" autocomplete="off" />
             <button type="submit" class="btn-check" id="submitAnswerBtn">제출</button>
           </form>
-          <div class="answer-result" id="answerResult"></div>
+          <div class="answer-result" id="answerResult">
+            <span id="answerResultText"></span>
+            <button type="button" class="answer-result-next" id="answerResultNextBtn" style="display:none;">다음 문제 →</button>
+          </div>
         </div>
 
         <div class="resize-handle resize-e" data-dir="e"></div>

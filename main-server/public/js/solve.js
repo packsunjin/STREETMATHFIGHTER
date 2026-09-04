@@ -7,10 +7,12 @@ const ctx = canvas.getContext('2d');
 const problemCard = document.getElementById('problemCardSolve');
 const problemCardHeader = document.getElementById('problemCardHeader');
 const canvasFrame = document.getElementById('canvasFrame');
+const canvasFrameInner = document.getElementById('canvasFrameInner');
 
 const selectBtn = document.getElementById('selectBtn');
 const penBtn = document.getElementById('penBtn');
 const eraserBtn = document.getElementById('eraserBtn');
+const clearBtn = document.getElementById('clearBtn');
 const penPopup = document.getElementById('penPopup');
 const penPreviewDot = document.getElementById('penPreviewDot');
 const penColorRow = document.getElementById('penColorRow');
@@ -35,6 +37,10 @@ const answerForm = document.getElementById('answerForm');
 const answerInput = document.getElementById('answerInput');
 const submitAnswerBtn = document.getElementById('submitAnswerBtn');
 const answerResult = document.getElementById('answerResult');
+const answerResultText = document.getElementById('answerResultText');
+const answerResultNextBtn = document.getElementById('answerResultNextBtn');
+const answerResultHud = document.getElementById('answerResultHud');
+const answerResultHudText = document.getElementById('answerResultHudText');
 
 let tool = 'pen'; // 'pen' | 'eraser' | 'select'
 let drawing = false;
@@ -63,40 +69,85 @@ function formatTime(sec) {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-// Web Audio API로 "따라라라" 느낌의 짧은 팡파르를 직접 만들어 재생(오디오 파일 불필요).
+// Web Audio API로 짧은 알림음을 직접 만들어 재생(오디오 파일 불필요).
 // 브라우저 자동재생 정책 때문에 재생이 막힐 수도 있는데, 그 경우 조용히 무시한다.
-function playFanfare() {
+function playTones(notes, waveType) {
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return;
     const audioCtx = new AudioCtx();
-    const resumeAndPlay = () => {
-      const notes = [523.25, 659.25, 783.99, 1046.5]; // 도-미-솔-도(한 옥타브 위)
-      const now = audioCtx.currentTime;
-      notes.forEach((freq, i) => {
+    const run = () => {
+      let cursor = audioCtx.currentTime;
+      notes.forEach(({ freq, dur }) => {
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
-        osc.type = 'square';
+        osc.type = waveType || 'sine';
         osc.frequency.value = freq;
-        const start = now + i * 0.12;
-        const end = start + 0.11;
+        const start = cursor;
+        const end = start + dur;
         gain.gain.setValueAtTime(0.0001, start);
-        gain.gain.exponentialRampToValueAtTime(0.22, start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.25, start + 0.015);
         gain.gain.exponentialRampToValueAtTime(0.0001, end);
         osc.connect(gain).connect(audioCtx.destination);
         osc.start(start);
         osc.stop(end + 0.02);
+        cursor = end;
       });
-      setTimeout(() => audioCtx.close().catch(() => {}), (notes.length * 0.12 + 0.3) * 1000);
+      const totalDur = notes.reduce((sum, n) => sum + n.dur, 0);
+      setTimeout(() => audioCtx.close().catch(() => {}), (totalDur + 0.3) * 1000);
     };
     if (audioCtx.state === 'suspended') {
-      audioCtx.resume().then(resumeAndPlay).catch(() => {});
+      audioCtx.resume().then(run).catch(() => {});
     } else {
-      resumeAndPlay();
+      run();
     }
   } catch (err) {
     // 오디오 재생이 막힌 환경이면 조용히 무시
   }
+}
+
+// "따라라라" 느낌의 팡파르(타이머 시작/종료 때)
+function playFanfare() {
+  playTones(
+    [523.25, 659.25, 783.99, 1046.5].map((freq) => ({ freq, dur: 0.11 })), // 도-미-솔-도
+    'square'
+  );
+}
+
+// "띠리링" 느낌의 짧은 알림음(정답 제출 결과)
+function playAnswerSound(correct) {
+  if (correct) {
+    playTones(
+      [
+        { freq: 880, dur: 0.09 },
+        { freq: 1318.5, dur: 0.16 },
+      ],
+      'triangle'
+    );
+  } else {
+    playTones(
+      [
+        { freq: 660, dur: 0.09 },
+        { freq: 415.3, dur: 0.18 },
+      ],
+      'triangle'
+    );
+  }
+}
+
+// 정답/오답, 성공/실패처럼 화면 중앙에 확 튀어나오는 큰 알림(사운드는 호출한 쪽에서 따로 재생)
+let centerPopupTimeout = null;
+function showCenterPopup(text, kind) {
+  clearTimeout(centerPopupTimeout);
+  answerResultHud.classList.remove('show', 'pop-correct', 'pop-incorrect');
+  answerResultHudText.textContent = text;
+  const popClass = kind === 'correct' || kind === 'success' ? 'pop-correct' : 'pop-incorrect';
+  requestAnimationFrame(() => {
+    answerResultHud.classList.add('show', popClass);
+  });
+  centerPopupTimeout = setTimeout(() => {
+    answerResultHud.classList.remove('show', 'pop-correct', 'pop-incorrect');
+  }, 1400);
 }
 
 function startTimer(difficulty) {
@@ -107,7 +158,7 @@ function startTimer(difficulty) {
 
   timerHud.classList.remove('warning', 'expired', 'shake-start');
   timerHud.classList.add('center-start');
-  timerHudIcon.textContent = '⏱';
+  timerHudIcon.textContent = '⏰';
   timeRemaining = TIME_LIMITS[difficulty] ?? 180;
   timerHudText.textContent = formatTime(timeRemaining);
 
@@ -139,32 +190,40 @@ function finishTimer() {
     timerHud.classList.add('result-neutral');
     timerHudIcon.textContent = '⏰';
     timerHudText.textContent = '시간 종료!';
+    showCenterPopup('시간 종료!', 'fail');
   } else if (hasAnsweredCorrectly) {
     timerHud.classList.add('result-success');
     timerHudIcon.textContent = '🏆';
     timerHudText.textContent = '성공!';
+    showCenterPopup('성공! 🏆', 'success');
   } else {
     timerHud.classList.add('result-fail');
     timerHudIcon.textContent = '💥';
     timerHudText.textContent = '탈락!';
+    showCenterPopup('실패!', 'fail');
   }
 }
 
 // ---- 흰색 문제 창을 회색 배경 위에서 통째로 드래그 + 4방향 리사이즈 ----
-// 사진 내부를 pan으로 옮기는 방식은 쓰지 않음: 카드 너비/높이가 곧 창 크기이고,
-// 사진은 object-fit:contain으로 그 안에 항상 통째로 보이도록 다시 흐름(reflow)됨.
+// 사진 내부를 pan으로 옮기는 방식은 쓰지 않음. 대신 사진 자체의 표시 크기(imgWidth/imgHeight)와
+// 창 크기(cardWidth/cardHeight)를 분리해서 관리한다:
+//  - 가장자리 핸들로 창을 늘리면 그만큼 "필기 공간(여백)"만 늘어나고 사진은 그대로 있음
+//  - 두 손가락 핀치는 사진 자체를 확대/축소하고, 창은 사진보다 작아질 수 없어서 자동으로 같이 커짐
 
 const CARD_MIN_WIDTH = 320;
 const CARD_MIN_HEIGHT = 240;
 const CARD_MARGIN = 12;
+const IMG_MIN_SIZE = 60;
 
 let cardWidth = 640;
 let cardHeight = 460;
 let cardLeft = 0;
 let cardTop = 0;
+let imgWidth = 640; // 사진의 실제 표시 크기(핀치로만 바뀜)
+let imgHeight = 460;
 
 function headerHeight() {
-  return problemCardHeader.offsetHeight || 60;
+  return problemCardHeader.offsetHeight || 18;
 }
 
 function answerPanelHeight() {
@@ -176,6 +235,11 @@ function layoutCanvasFrame() {
   canvasFrame.style.height = `${h}px`;
 }
 
+function applyImageSize() {
+  canvasFrameInner.style.width = `${imgWidth}px`;
+  canvasFrameInner.style.height = `${imgHeight}px`;
+}
+
 function applyCardBox() {
   problemCard.style.width = `${cardWidth}px`;
   problemCard.style.height = `${cardHeight}px`;
@@ -184,16 +248,32 @@ function applyCardBox() {
   layoutCanvasFrame();
 }
 
+// 창은 사진(imgWidth/imgHeight)보다 작아질 수 없음(사진이 잘리거나 줄어들지 않도록)
 function clampCardWidth() {
   const stageRect = canvasStage.getBoundingClientRect();
   const maxW = Math.max(stageRect.width - CARD_MARGIN * 2, CARD_MIN_WIDTH);
-  cardWidth = Math.min(Math.max(cardWidth, CARD_MIN_WIDTH), maxW);
+  const minW = Math.max(CARD_MIN_WIDTH, imgWidth || 0);
+  cardWidth = Math.max(minW, Math.min(cardWidth, Math.max(maxW, minW)));
 }
 
 function clampCardHeight() {
   const stageRect = canvasStage.getBoundingClientRect();
   const maxH = Math.max(stageRect.height - CARD_MARGIN * 2, CARD_MIN_HEIGHT);
-  cardHeight = Math.min(Math.max(cardHeight, CARD_MIN_HEIGHT), maxH);
+  const minH = Math.max(CARD_MIN_HEIGHT, (imgHeight || 0) + headerHeight() + answerPanelHeight());
+  cardHeight = Math.max(minH, Math.min(cardHeight, Math.max(maxH, minH)));
+}
+
+// 뷰포트(스테이지) 안에 들어오도록 사진 자체 크기를 비율 유지한 채 줄임(핀치로 화면보다 크게
+// 확대하거나, 창 크기 이상으로 화면이 작아졌을 때 사용)
+function clampImageToStage() {
+  const stageRect = canvasStage.getBoundingClientRect();
+  const maxImgW = Math.max(stageRect.width - CARD_MARGIN * 2, IMG_MIN_SIZE);
+  const maxImgH = Math.max(stageRect.height - CARD_MARGIN * 2 - headerHeight() - answerPanelHeight(), IMG_MIN_SIZE);
+  if (imgWidth > maxImgW || imgHeight > maxImgH) {
+    const shrink = Math.min(maxImgW / imgWidth, maxImgH / imgHeight);
+    imgWidth = Math.max(imgWidth * shrink, IMG_MIN_SIZE);
+    imgHeight = Math.max(imgHeight * shrink, IMG_MIN_SIZE);
+  }
 }
 
 function clampCardPosition() {
@@ -318,16 +398,15 @@ function computeFitWidth() {
   return Math.min(naturalW, maxW, 760);
 }
 
-function computeFitCardHeight(widthForImage) {
+function computeImageHeightForWidth(widthForImage) {
   const naturalW = img.naturalWidth || widthForImage;
   const naturalH = img.naturalHeight || widthForImage * 0.75;
-  const imgH = (naturalH / naturalW) * widthForImage;
-  return imgH + headerHeight() + answerPanelHeight();
+  return (naturalH / naturalW) * widthForImage;
 }
 
 function updateZoomLabel() {
   if (!baseFitWidth) return;
-  zoomLevelLabel.textContent = `${Math.round((cardWidth / baseFitWidth) * 100)}%`;
+  zoomLevelLabel.textContent = `${Math.round((imgWidth / baseFitWidth) * 100)}%`;
 }
 
 let zoomResizeTimer = null;
@@ -335,8 +414,8 @@ let zoomResizeTimer = null;
 const activeTouches = new Map(); // pointerId -> {x, y}
 let pinching = false;
 let pinchStartDist = 0;
-let pinchStartWidth = 0;
-let pinchStartHeight = 0;
+let pinchStartImgWidth = 0;
+let pinchStartImgHeight = 0;
 
 function touchDistance(p1, p2) {
   return Math.hypot(p1.x - p2.x, p1.y - p2.y);
@@ -352,17 +431,22 @@ fullscreenBtn.addEventListener('click', () => {
   }
 });
 
+function fitImageAndCardToStage() {
+  baseFitWidth = computeFitWidth();
+  imgWidth = baseFitWidth;
+  imgHeight = computeImageHeightForWidth(imgWidth);
+  applyImageSize();
+  cardWidth = imgWidth;
+  cardHeight = imgHeight + headerHeight() + answerPanelHeight();
+  centerCard();
+  updateZoomLabel();
+  resizeCanvas();
+}
+
 document.addEventListener('fullscreenchange', () => {
   fullscreenBtn.classList.toggle('active', Boolean(document.fullscreenElement));
   requestAnimationFrame(() => {
-    if (img.naturalWidth) {
-      baseFitWidth = computeFitWidth();
-      cardWidth = baseFitWidth;
-      cardHeight = computeFitCardHeight(cardWidth);
-      centerCard();
-      updateZoomLabel();
-      resizeCanvas();
-    }
+    if (img.naturalWidth) fitImageAndCardToStage();
   });
 });
 
@@ -408,15 +492,19 @@ penBtn.addEventListener('click', () => {
   }
 });
 
+function clearAllStrokes() {
+  if (!confirm('그린 내용을 모두 삭제 하시겠습니까?')) return;
+  strokes = [];
+  currentStroke = null;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
 eraserBtn.addEventListener('click', () => setTool('eraser'));
 eraserBtn.addEventListener('dblclick', (e) => {
   e.preventDefault();
-  if (confirm('그린 내용을 모두 삭제 하시겠습니까?')) {
-    strokes = [];
-    currentStroke = null;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-  }
+  clearAllStrokes();
 });
+clearBtn.addEventListener('click', clearAllStrokes);
 
 document.addEventListener('pointerdown', (e) => {
   if (!penPopup.hidden && !e.target.closest('.pen-tool-wrap')) closePenPopup();
@@ -509,8 +597,8 @@ canvas.addEventListener('pointerdown', (e) => {
       pinching = true;
       const pts = [...activeTouches.values()];
       pinchStartDist = touchDistance(pts[0], pts[1]) || 1;
-      pinchStartWidth = cardWidth;
-      pinchStartHeight = cardHeight;
+      pinchStartImgWidth = imgWidth;
+      pinchStartImgHeight = imgHeight;
       return;
     }
     if (activeTouches.size > 2) return;
@@ -541,8 +629,13 @@ canvas.addEventListener('pointermove', (e) => {
     const pts = [...activeTouches.values()];
     const dist = touchDistance(pts[0], pts[1]) || 1;
     const scale = dist / pinchStartDist;
-    cardWidth = pinchStartWidth * scale;
-    cardHeight = pinchStartHeight * scale;
+    // 핀치는 사진 자체 크기만 바꾸는 진짜 확대/축소. 창은 사진보다 작아질 수 없어서 따라 커짐.
+    imgWidth = Math.max(pinchStartImgWidth * scale, IMG_MIN_SIZE);
+    imgHeight = Math.max(pinchStartImgHeight * scale, IMG_MIN_SIZE);
+    clampImageToStage();
+    applyImageSize();
+    cardWidth = imgWidth;
+    cardHeight = imgHeight + headerHeight() + answerPanelHeight();
     clampCardWidth();
     clampCardHeight();
     applyCardBox();
@@ -606,6 +699,8 @@ window.addEventListener('resize', () => {
   if (img.naturalWidth) {
     baseFitWidth = computeFitWidth();
   }
+  clampImageToStage();
+  applyImageSize();
   clampCardWidth();
   clampCardHeight();
   applyCardBox();
@@ -633,15 +728,18 @@ async function checkAnswer(value) {
 
 function showAnswerResult(correct, correctAnswer) {
   if (correct) hasAnsweredCorrectly = true;
+  playAnswerSound(correct);
+  showCenterPopup(correct ? '정답! 🎉' : '오답! 💥', correct ? 'correct' : 'incorrect');
   answerResult.classList.remove('correct', 'incorrect');
   answerResult.classList.add(correct ? 'correct' : 'incorrect');
   if (correct) {
-    answerResult.textContent = '정답입니다! 🎉';
+    answerResultText.textContent = '정답입니다! 🎉';
   } else {
     const label =
       currentProblem.questionType === 'objective' ? `${correctAnswer}번` : correctAnswer;
-    answerResult.textContent = `오답입니다. 정답: ${label}`;
+    answerResultText.textContent = `오답입니다. 정답: ${label}`;
   }
+  answerResultNextBtn.style.display = 'inline-block';
 }
 
 // 객관식: 클릭하면 선택만 되고(하이라이트), 아직 채점 안 됨 -> "제출"을 눌러야 채점
@@ -689,7 +787,8 @@ answerForm.addEventListener('submit', async (e) => {
 function resetAnswerPanel(problem) {
   answered = false;
   selectedChoice = null;
-  answerResult.textContent = '';
+  answerResultText.textContent = '';
+  answerResultNextBtn.style.display = 'none';
   answerResult.classList.remove('correct', 'incorrect');
   answerChoices.querySelectorAll('.choice-btn').forEach((b) => {
     b.disabled = false;
@@ -716,17 +815,22 @@ listBtn.addEventListener('click', () => {
   window.location.href = `list.html?difficulty=${encodeURIComponent(currentProblem.difficulty)}`;
 });
 
-nextProblemBtn.addEventListener('click', async () => {
+async function goToNextProblem() {
   if (!currentProblem) return;
   nextProblemBtn.disabled = true;
+  answerResultNextBtn.disabled = true;
   const nextId = await getNextProblemId(currentProblem.difficulty, currentProblem.id, currentProblem.unit);
   if (nextId) {
     window.location.href = `solve.html?id=${nextId}`;
   } else {
     nextProblemBtn.disabled = false;
+    answerResultNextBtn.disabled = false;
     alert('이 난이도에는 아직 풀 수 있는 문제가 없어요.');
   }
-});
+}
+
+nextProblemBtn.addEventListener('click', goToNextProblem);
+answerResultNextBtn.addEventListener('click', goToNextProblem);
 
 descriptionToggle.addEventListener('click', () => {
   const open = descriptionBox.classList.toggle('open');
@@ -769,16 +873,9 @@ async function loadProblem() {
 
     img.src = problem.imageUrl;
     img.onload = () => {
-      baseFitWidth = computeFitWidth();
-      cardWidth = baseFitWidth;
-      cardHeight = computeFitCardHeight(cardWidth);
-      centerCard();
-      updateZoomLabel();
-      resizeCanvas();
+      fitImageAndCardToStage();
       requestAnimationFrame(() => {
-        cardHeight = computeFitCardHeight(cardWidth);
-        centerCard();
-        resizeCanvas();
+        fitImageAndCardToStage();
       });
     };
   } catch (err) {

@@ -26,12 +26,18 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 body {
   margin: 0;
   font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   background: var(--bg);
   color: var(--text);
-  min-height: 100vh;
   animation: page-fade-in 0.35s ease both;
 }
 
@@ -125,26 +131,19 @@ button,
   gap: 12px;
 }
 
-.unit-select-wrap {
+/* 단원 선택 화면: 위에 상단바(뒤로가기)가 있으므로 home-wrap이 나머지 공간만 차지하게 함 */
+.unit-page {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
 }
 
-.unit-select-label {
-  font-size: 13px;
-  color: var(--text);
-}
-
-.unit-select {
+.unit-page .home-wrap {
+  min-height: 0;
   flex: 1;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  background: #ffffff;
-  color: var(--text);
-  font-family: inherit;
-  font-size: 14px;
-  cursor: pointer;
+  overflow-y: auto;
 }
 
 .difficulty-bar {
@@ -200,8 +199,9 @@ button,
    작은 배지로 자리잡는 타이머. 항상 화면 위에 고정되고 클릭은 통과시킴(pointer-events:none). */
 .timer-hud {
   position: fixed;
-  top: 16px;
-  left: 16px;
+  /* 상단바(뒤로가기 버튼 등)와 안 겹치도록 상단바 아래, 왼쪽 여백에 자리잡음 */
+  top: 76px;
+  left: 20px;
   transform: translate(0, 0) scale(1);
   z-index: 50;
   display: inline-flex;
@@ -215,7 +215,6 @@ button,
   background: var(--bg);
   color: var(--text);
   letter-spacing: 0.02em;
-  box-shadow: var(--shadow);
   pointer-events: none;
   transform-origin: center;
   transition: top 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), left 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
@@ -224,9 +223,15 @@ button,
   animation: timer-pulse 1.8s ease-in-out infinite;
 }
 
+.timer-hud-icon {
+  font-size: 1.2em;
+}
+
+/* 뷰포트의 실제 표시 영역(dvh/dvw) 기준으로 중앙 정렬 - 모바일에서 주소창이
+   나타났다 사라져도(뷰포트 크기가 변해도) 항상 화면 정중앙에 오게 함 */
 .timer-hud.center-start {
-  top: 50%;
-  left: 50%;
+  top: 50dvh;
+  left: 50dvw;
   transform: translate(-50%, -50%) scale(1);
   font-size: 64px;
   padding: 28px 52px;
@@ -261,6 +266,42 @@ button,
 .timer-hud.expired.result-neutral {
   background: var(--text);
   color: #fff;
+}
+
+/* 타이머 옆(왼쪽)에 문제 정보, 대칭되는 오른쪽에 도구 아이콘을 고정 배치 */
+.top-info-hud {
+  position: fixed;
+  top: 76px;
+  left: 180px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100vw - 400px);
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.top-info-hud .problem-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.top-tools-hud {
+  position: fixed;
+  top: 76px;
+  right: 20px;
+  z-index: 50;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--bg);
+  box-shadow: var(--shadow);
 }
 
 @keyframes timer-pulse {
@@ -308,6 +349,52 @@ button,
   }
   75% {
     transform: translate(-50%, -50%) rotate(10deg);
+  }
+}
+
+/* 정답/오답, 성공/실패처럼 화면 중앙에 확 튀어나오는 큰 알림. 테두리/그림자 없이 flat하게. */
+.answer-result-hud {
+  position: fixed;
+  top: 50dvh;
+  left: 50dvw;
+  transform: translate(-50%, -50%) scale(0.4);
+  opacity: 0;
+  z-index: 70;
+  padding: 28px 56px;
+  border-radius: var(--radius-pill);
+  font-size: 56px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease;
+}
+
+.answer-result-hud.show {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+}
+
+.answer-result-hud.show.pop-correct {
+  background: var(--green);
+  color: #fff;
+  animation: answer-hud-pop 0.35s ease-out;
+}
+
+.answer-result-hud.show.pop-incorrect {
+  background: var(--red);
+  color: #fff;
+  animation: timer-hud-wobble 0.15s ease-in-out 3;
+}
+
+@keyframes answer-hud-pop {
+  0% {
+    transform: translate(-50%, -50%) scale(0.4);
+  }
+  60% {
+    transform: translate(-50%, -50%) scale(1.15);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
   }
 }
 
@@ -473,29 +560,30 @@ button,
   transition: none;
 }
 
+/* 문제/도구 정보는 이제 화면 위쪽 고정 HUD로 옮겨서, 카드 헤더는 드래그 손잡이 역할만 함 */
 .problem-card-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 18px;
+  position: relative;
+  height: 18px;
+  background: var(--bg);
   border-bottom: 1px solid var(--border);
-  flex-wrap: wrap;
   cursor: grab;
   user-select: none;
 }
 
-.problem-card-header.dragging {
-  cursor: grabbing;
+.problem-card-header::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 36px;
+  height: 4px;
+  transform: translate(-50%, -50%);
+  background: rgba(25, 27, 31, 0.18);
+  border-radius: 999px;
 }
 
-.problem-card-header .problem-card-title {
-  font-size: 15px;
-  font-weight: 700;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.problem-card-header.dragging {
+  cursor: grabbing;
 }
 
 .tool-icons {
@@ -507,6 +595,11 @@ button,
 .tool-btn.active {
   background: var(--blue-light);
   color: var(--blue);
+}
+
+.tool-btn.danger:hover {
+  background: var(--red-light);
+  color: var(--red);
 }
 
 .pen-tool-wrap {
@@ -598,21 +691,33 @@ button,
   color: var(--text-secondary);
 }
 
+/* 사진은 실제 크기(canvas-frame-inner)만큼만 차지하고, 창(canvas-frame)이 그보다 크면
+   가운데 정렬되어 남는 공간은 그냥 여백(=필기 공간)이 됨. 창 리사이즈는 이 여백만 바꾸고,
+   사진 자체 크기는 핀치 확대/축소에서만 바뀐다. */
 .canvas-frame {
   position: relative;
   width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
 }
 
-.canvas-frame img {
+.canvas-frame-inner {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.canvas-frame-inner img {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
   user-select: none;
   -webkit-user-drag: none;
 }
 
-.canvas-frame canvas {
+.canvas-frame-inner canvas {
   position: absolute;
   top: 0;
   left: 0;
@@ -622,7 +727,7 @@ button,
   cursor: crosshair;
 }
 
-.canvas-frame canvas.select-mode {
+.canvas-frame-inner canvas.select-mode {
   cursor: default;
 }
 
@@ -787,21 +892,26 @@ button,
 }
 
 .answer-result {
+  display: none;
   position: absolute;
   left: 0;
   bottom: 100%;
   margin-bottom: 8px;
+  align-items: center;
+  gap: 10px;
   white-space: nowrap;
   background: var(--text);
   color: #fff;
-  padding: 6px 12px;
+  padding: 6px 8px 6px 12px;
   border-radius: var(--radius-pill);
   font-size: 12px;
   font-weight: 700;
   animation: rise-in 0.25s ease both;
 }
 
-.answer-result:empty {
+/* 화면 중앙 팝업(answer-result-hud)이 결과를 크게 보여주므로, 카드 안 작은 배너는 안 씀 */
+.answer-result.correct,
+.answer-result.incorrect {
   display: none;
 }
 
@@ -811,6 +921,22 @@ button,
 
 .answer-result.incorrect {
   background: var(--red);
+}
+
+.answer-result-next {
+  flex-shrink: 0;
+  border: none;
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+  padding: 5px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.answer-result-next:hover {
+  background: rgba(255, 255, 255, 0.4);
 }
 
 .description-toggle {

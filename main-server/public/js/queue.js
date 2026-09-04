@@ -14,7 +14,7 @@ function smfQueueKey(difficulty, unit) {
   return `smf_queue_${difficulty}_${unit || 'all'}`;
 }
 
-async function getNextProblemId(difficulty, excludeId, unit) {
+async function smfFetchNextFromQueue(difficulty, unit, excludeId) {
   const key = smfQueueKey(difficulty, unit);
   let queue = [];
   try {
@@ -45,4 +45,15 @@ async function getNextProblemId(difficulty, excludeId, unit) {
     // localStorage 사용 불가(시크릿 모드 등)면 그냥 무시하고 매번 새로 섞음
   }
   return nextId;
+}
+
+// 단원을 지정했는데 그 단원 안에 다른 문제가 없어서 같은 문제만 계속 나오면(막힌 것처럼 보임),
+// 해당 난이도 전체 범위로 넓혀서 진짜 다음 문제를 찾는다.
+async function getNextProblemId(difficulty, excludeId, unit) {
+  const primary = await smfFetchNextFromQueue(difficulty, unit, excludeId);
+  if (unit && excludeId != null && primary === excludeId) {
+    const fallback = await smfFetchNextFromQueue(difficulty, null, excludeId);
+    if (fallback !== null) return fallback;
+  }
+  return primary;
 }
