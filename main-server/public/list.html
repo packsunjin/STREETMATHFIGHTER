@@ -7,16 +7,18 @@
 <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <div class="top-bar">
-    <button class="icon-btn" onclick="window.location.href='index.html'" title="난이도 선택으로">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-    </button>
-    <h2 id="pageTitle">문제 목록</h2>
-  </div>
+  <div class="list-page">
+    <div class="top-bar">
+      <button class="icon-btn" onclick="window.location.href='index.html'" title="난이도 선택으로">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <h2 id="pageTitle">문제 목록</h2>
+    </div>
 
-  <div class="list-wrap">
-    <div class="problem-grid" id="problemGrid"></div>
-    <div class="empty-state" id="emptyState" style="display:none;">아직 등록된 문제가 없습니다.</div>
+    <div class="list-wrap">
+      <div class="problem-grid" id="problemGrid"></div>
+      <div class="empty-state" id="emptyState" style="display:none;">아직 등록된 문제가 없습니다.</div>
+    </div>
   </div>
 
   <script src="js/list.js"></script>

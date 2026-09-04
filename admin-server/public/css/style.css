@@ -192,8 +192,20 @@ button:active {
 
 /* ---- 대시보드 ---- */
 
+.admin-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
 .dashboard {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   max-width: 1100px;
+  width: 100%;
   margin: 24px auto;
   padding: 0 20px 60px;
   display: grid;

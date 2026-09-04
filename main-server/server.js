@@ -4,7 +4,7 @@ const path = require('path');
 const express = require('express');
 const cors = require('cors');
 
-const { DIFFICULTIES, listProblems, getProblem } = require('../shared/db');
+const { DIFFICULTIES, listProblems, listUnits, getProblem } = require('../shared/db');
 
 const PORT = process.env.MAIN_PORT || 3000;
 
@@ -24,17 +24,31 @@ function toPublicProblem(problem) {
     description: problem.description,
     questionType: problem.question_type,
     hasAnswer: Boolean(problem.answer),
+    unit: problem.unit || null,
   };
 }
 
 app.get('/api/problems', async (req, res, next) => {
   try {
+    const { difficulty, unit } = req.query;
+    if (difficulty && !DIFFICULTIES.includes(difficulty)) {
+      return res.status(400).json({ error: '난이도 값이 올바르지 않습니다.' });
+    }
+    const problems = (await listProblems({ difficulty, unit })).map(toPublicProblem);
+    res.json({ problems });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/units', async (req, res, next) => {
+  try {
     const { difficulty } = req.query;
     if (difficulty && !DIFFICULTIES.includes(difficulty)) {
       return res.status(400).json({ error: '난이도 값이 올바르지 않습니다.' });
     }
-    const problems = (await listProblems({ difficulty })).map(toPublicProblem);
-    res.json({ problems });
+    const units = await listUnits({ difficulty });
+    res.json({ units });
   } catch (err) {
     next(err);
   }

@@ -10,6 +10,8 @@ const submitBtn = document.getElementById('submitBtn');
 const problemIdInput = document.getElementById('problemId');
 const titleInput = document.getElementById('title');
 const difficultyInput = document.getElementById('difficulty');
+const unitInput = document.getElementById('unit');
+const unitOptions = document.getElementById('unitOptions');
 const imageInput = document.getElementById('image');
 const imagePreview = document.getElementById('imagePreview');
 const descriptionInput = document.getElementById('description');
@@ -59,6 +61,17 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
   });
 });
 
+async function loadUnits() {
+  const res = await fetch('api/units', { credentials: 'include' });
+  const data = await res.json();
+  unitOptions.innerHTML = '';
+  (data.units || []).forEach((unit) => {
+    const opt = document.createElement('option');
+    opt.value = unit;
+    unitOptions.appendChild(opt);
+  });
+}
+
 async function loadProblems() {
   const qs = currentDifficultyFilter ? `?difficulty=${encodeURIComponent(currentDifficultyFilter)}` : '';
   const res = await fetch(`api/problems${qs}`, { credentials: 'include' });
@@ -80,6 +93,7 @@ function renderList() {
         <div class="title">${escapeHtml(problem.title)}</div>
         <span class="badge ${problem.difficulty}">${problem.difficulty}</span>
         <span class="badge type">${problem.questionType === 'objective' ? '객관식' : '주관식'}</span>
+        ${problem.unit ? `<span class="badge type">${escapeHtml(problem.unit)}</span>` : ''}
       </div>
       <button class="btn-danger" data-id="${problem.id}">삭제</button>
     `;
@@ -117,6 +131,7 @@ function loadIntoForm(problem) {
   problemIdInput.value = problem.id;
   titleInput.value = problem.title;
   difficultyInput.value = problem.difficulty;
+  unitInput.value = problem.unit || '';
   descriptionInput.value = problem.description || '';
   const typeRadio = document.querySelector(
     `input[name="questionType"][value="${problem.questionType === 'objective' ? 'objective' : 'subjective'}"]`
@@ -166,6 +181,7 @@ problemForm.addEventListener('submit', async (e) => {
   const formData = new FormData();
   formData.append('title', titleInput.value.trim());
   formData.append('difficulty', difficultyInput.value);
+  formData.append('unit', unitInput.value.trim());
   formData.append('description', descriptionInput.value.trim());
   const checkedType = document.querySelector('input[name="questionType"]:checked');
   const isObjective = checkedType?.value === 'objective';
@@ -197,6 +213,7 @@ problemForm.addEventListener('submit', async (e) => {
     showToast(isEdit ? '수정되었습니다.' : '등록되었습니다.');
     resetForm();
     loadProblems();
+    loadUnits();
   } catch (err) {
     showToast('서버에 연결할 수 없습니다.');
   } finally {
@@ -205,4 +222,7 @@ problemForm.addEventListener('submit', async (e) => {
 });
 
 updateAnswerFieldVisibility();
-checkAuth().then(loadProblems);
+checkAuth().then(() => {
+  loadProblems();
+  loadUnits();
+});

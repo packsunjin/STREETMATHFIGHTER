@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
+  <div class="admin-page">
   <div class="top-bar">
     <h1>스트릿매쓰파이터 · 문제 관리</h1>
     <div>
@@ -43,6 +44,11 @@
             <option value="중">중</option>
             <option value="상">상</option>
           </select>
+        </div>
+        <div class="field">
+          <label for="unit">단원 (선택)</label>
+          <input type="text" id="unit" name="unit" list="unitOptions" placeholder="예: 등비수열" />
+          <datalist id="unitOptions"></datalist>
         </div>
         <div class="field">
           <label>문제 유형</label>
@@ -86,6 +92,8 @@
         </div>
       </form>
     </div>
+  </div>
+
   </div>
 
   <div class="toast" id="toast"></div>

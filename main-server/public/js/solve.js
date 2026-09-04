@@ -6,10 +6,14 @@ const canvas = document.getElementById('drawCanvas');
 const ctx = canvas.getContext('2d');
 const problemCard = document.getElementById('problemCardSolve');
 const problemCardHeader = document.getElementById('problemCardHeader');
+const canvasFrame = document.getElementById('canvasFrame');
 
+const selectBtn = document.getElementById('selectBtn');
 const penBtn = document.getElementById('penBtn');
 const eraserBtn = document.getElementById('eraserBtn');
-const clearBtn = document.getElementById('clearBtn');
+const penPopup = document.getElementById('penPopup');
+const penPreviewDot = document.getElementById('penPreviewDot');
+const penColorRow = document.getElementById('penColorRow');
 const sizeRange = document.getElementById('sizeRange');
 const backBtn = document.getElementById('backBtn');
 const descriptionToggleWrap = document.getElementById('descriptionToggleWrap');
@@ -19,9 +23,8 @@ const descriptionBoxInner = document.getElementById('descriptionBoxInner');
 const fullscreenBtn = document.getElementById('fullscreenBtn');
 const solveWrap = document.querySelector('.solve-wrap');
 const canvasStage = document.querySelector('.canvas-stage');
-const zoomInBtn = document.getElementById('zoomInBtn');
-const zoomOutBtn = document.getElementById('zoomOutBtn');
 const zoomLevelLabel = document.getElementById('zoomLevel');
+const timerBadge = document.getElementById('timerBadge');
 const nextProblemBtn = document.getElementById('nextProblemBtn');
 const listBtn = document.getElementById('listBtn');
 const answerPanel = document.getElementById('answerPanel');
@@ -31,34 +34,93 @@ const answerInput = document.getElementById('answerInput');
 const submitAnswerBtn = document.getElementById('submitAnswerBtn');
 const answerResult = document.getElementById('answerResult');
 
-let tool = 'pen'; // 'pen' | 'eraser'
+let tool = 'pen'; // 'pen' | 'eraser' | 'select'
 let drawing = false;
-let lastPoint = null;
+let strokes = []; // {points:[{x,y}](0~1 비율), color, widthFrac, composite}
+let currentStroke = null;
 let currentProblem = null;
 let answered = false;
 let selectedChoice = null;
+let penColor = '#191b1f';
+const ERASER_SIZE = 22;
 
-// ---- 흰색 문제 창을 회색 배경 위에서 통째로 드래그 + 가로 리사이즈 ----
-// 사진 내부를 pan으로 옮기는 방식은 쓰지 않음: 확대/축소는 창 너비를 바꾸는 것과 같고,
-// 사진은 항상 width:100%로 그 너비에 맞춰 다시 흐름(reflow)됨.
+// ---- 난이도별 제한시간 타이머 ----
+
+const TIME_LIMITS = { 상: 300, 중: 180, 하: 90 }; // 초 단위: 5분 / 3분 / 1분 30초
+let timerInterval = null;
+let timeRemaining = 0;
+
+function formatTime(sec) {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function startTimer(difficulty) {
+  clearInterval(timerInterval);
+  timerBadge.classList.remove('warning', 'expired');
+  timeRemaining = TIME_LIMITS[difficulty] ?? 180;
+  timerBadge.textContent = formatTime(timeRemaining);
+
+  timerInterval = setInterval(() => {
+    timeRemaining -= 1;
+    if (timeRemaining <= 0) {
+      timeRemaining = 0;
+      timerBadge.textContent = '시간 종료';
+      timerBadge.classList.remove('warning');
+      timerBadge.classList.add('expired');
+      clearInterval(timerInterval);
+      return;
+    }
+    timerBadge.textContent = formatTime(timeRemaining);
+    timerBadge.classList.toggle('warning', timeRemaining <= 10);
+  }, 1000);
+}
+
+// ---- 흰색 문제 창을 회색 배경 위에서 통째로 드래그 + 4방향 리사이즈 ----
+// 사진 내부를 pan으로 옮기는 방식은 쓰지 않음: 카드 너비/높이가 곧 창 크기이고,
+// 사진은 object-fit:contain으로 그 안에 항상 통째로 보이도록 다시 흐름(reflow)됨.
 
 const CARD_MIN_WIDTH = 320;
+const CARD_MIN_HEIGHT = 240;
 const CARD_MARGIN = 12;
 
 let cardWidth = 640;
+let cardHeight = 460;
 let cardLeft = 0;
 let cardTop = 0;
 
+function headerHeight() {
+  return problemCardHeader.offsetHeight || 60;
+}
+
+function answerPanelHeight() {
+  return answerPanel.style.display !== 'none' ? answerPanel.offsetHeight || 0 : 0;
+}
+
+function layoutCanvasFrame() {
+  const h = Math.max(cardHeight - headerHeight() - answerPanelHeight(), 80);
+  canvasFrame.style.height = `${h}px`;
+}
+
 function applyCardBox() {
   problemCard.style.width = `${cardWidth}px`;
+  problemCard.style.height = `${cardHeight}px`;
   problemCard.style.left = `${cardLeft}px`;
   problemCard.style.top = `${cardTop}px`;
+  layoutCanvasFrame();
 }
 
 function clampCardWidth() {
   const stageRect = canvasStage.getBoundingClientRect();
   const maxW = Math.max(stageRect.width - CARD_MARGIN * 2, CARD_MIN_WIDTH);
   cardWidth = Math.min(Math.max(cardWidth, CARD_MIN_WIDTH), maxW);
+}
+
+function clampCardHeight() {
+  const stageRect = canvasStage.getBoundingClientRect();
+  const maxH = Math.max(stageRect.height - CARD_MARGIN * 2, CARD_MIN_HEIGHT);
+  cardHeight = Math.min(Math.max(cardHeight, CARD_MIN_HEIGHT), maxH);
 }
 
 function clampCardPosition() {
@@ -72,6 +134,7 @@ function clampCardPosition() {
 
 function centerCard() {
   clampCardWidth();
+  clampCardHeight();
   applyCardBox();
   const stageRect = canvasStage.getBoundingClientRect();
   const cardRect = problemCard.getBoundingClientRect();
@@ -117,32 +180,43 @@ function stopDragCard(e) {
 problemCardHeader.addEventListener('pointerup', stopDragCard);
 problemCardHeader.addEventListener('pointercancel', stopDragCard);
 
-// ---- 가장자리 핸들로 창 너비(=확대/축소) 조절 ----
+// ---- 가장자리 핸들로 창 크기 조절: 잡은 방향의 축만 늘어남 ----
 
 function setupResizeHandle(el) {
-  const dir = el.dataset.dir; // 'e' | 'w'
+  const dir = el.dataset.dir; // 'e' | 'w' | 'n' | 's'
   el.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     e.stopPropagation();
     el.setPointerCapture(e.pointerId);
     problemCard.classList.add('resizing');
     const startX = e.clientX;
+    const startY = e.clientY;
     const startW = cardWidth;
+    const startH = cardHeight;
     const startLeft = cardLeft;
+    const startTop = cardTop;
 
     function onMove(ev) {
       const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
       if (dir === 'e') {
         cardWidth = Math.max(CARD_MIN_WIDTH, startW + dx);
-      } else {
+      } else if (dir === 'w') {
         const nextWidth = Math.max(CARD_MIN_WIDTH, startW - dx);
         cardLeft = startLeft - (nextWidth - startW);
         cardWidth = nextWidth;
+      } else if (dir === 's') {
+        cardHeight = Math.max(CARD_MIN_HEIGHT, startH + dy);
+      } else if (dir === 'n') {
+        const nextHeight = Math.max(CARD_MIN_HEIGHT, startH - dy);
+        cardTop = startTop - (nextHeight - startH);
+        cardHeight = nextHeight;
       }
+      // 리사이즈는 "확대"가 아니라 필기 공간을 늘리는 것뿐이라 확대율(%) 표시는 건드리지 않음.
+      // 드래그 도중에는 매번 다시 그리지 않고(느려짐/깜빡임 방지), 손을 뗄 때 한 번만 선명하게 다시 그림.
       clampCardWidth();
+      clampCardHeight();
       applyCardBox();
-      updateZoomLabel();
-      resizeCanvas();
     }
     function onUp() {
       el.releasePointerCapture(e.pointerId);
@@ -160,7 +234,7 @@ function setupResizeHandle(el) {
 
 document.querySelectorAll('.resize-handle').forEach(setupResizeHandle);
 
-// ---- 확대/축소 (= 창 너비 조절) ----
+// ---- 확대/축소: 캔버스 위 두 손가락 핀치 제스처로 너비+높이를 함께(진짜 줌) 조절 ----
 
 let baseFitWidth = null; // 100% 기준 너비(px)
 
@@ -171,6 +245,13 @@ function computeFitWidth() {
   return Math.min(naturalW, maxW, 760);
 }
 
+function computeFitCardHeight(widthForImage) {
+  const naturalW = img.naturalWidth || widthForImage;
+  const naturalH = img.naturalHeight || widthForImage * 0.75;
+  const imgH = (naturalH / naturalW) * widthForImage;
+  return imgH + headerHeight() + answerPanelHeight();
+}
+
 function updateZoomLabel() {
   if (!baseFitWidth) return;
   zoomLevelLabel.textContent = `${Math.round((cardWidth / baseFitWidth) * 100)}%`;
@@ -178,25 +259,15 @@ function updateZoomLabel() {
 
 let zoomResizeTimer = null;
 
-function setCardWidth(nextWidth) {
-  cardWidth = baseFitWidth ? Math.min(nextWidth, baseFitWidth * 3) : nextWidth;
-  clampCardWidth();
-  applyCardBox();
-  clampCardPosition();
-  applyCardBox();
-  updateZoomLabel();
-  clearTimeout(zoomResizeTimer);
-  zoomResizeTimer = setTimeout(resizeCanvas, 220);
-}
+const activeTouches = new Map(); // pointerId -> {x, y}
+let pinching = false;
+let pinchStartDist = 0;
+let pinchStartWidth = 0;
+let pinchStartHeight = 0;
 
-zoomInBtn.addEventListener('click', () => {
-  if (!baseFitWidth) return;
-  setCardWidth(cardWidth + baseFitWidth * 0.2);
-});
-zoomOutBtn.addEventListener('click', () => {
-  if (!baseFitWidth) return;
-  setCardWidth(cardWidth - baseFitWidth * 0.2);
-});
+function touchDistance(p1, p2) {
+  return Math.hypot(p1.x - p2.x, p1.y - p2.y);
+}
 
 // ---- 전체화면 ----
 
@@ -214,6 +285,7 @@ document.addEventListener('fullscreenchange', () => {
     if (img.naturalWidth) {
       baseFitWidth = computeFitWidth();
       cardWidth = baseFitWidth;
+      cardHeight = computeFitCardHeight(cardWidth);
       centerCard();
       updateZoomLabel();
       resizeCanvas();
@@ -225,98 +297,236 @@ backBtn.addEventListener('click', () => {
   window.history.length > 1 ? window.history.back() : (window.location.href = 'index.html');
 });
 
-function setTool(newTool) {
-  tool = newTool;
-  penBtn.classList.toggle('active', tool === 'pen');
-  eraserBtn.classList.toggle('active', tool === 'eraser');
-  sizeRange.min = tool === 'eraser' ? 10 : 1;
-  if (tool === 'eraser' && Number(sizeRange.value) < 10) {
-    sizeRange.value = 20;
-  }
+// ---- 툴 선택 (펜 / 지우개 / 선택 모드) ----
+
+function closePenPopup() {
+  penPopup.hidden = true;
 }
 
-penBtn.addEventListener('click', () => setTool('pen'));
-eraserBtn.addEventListener('click', () => setTool('eraser'));
+function setPenPreview() {
+  const size = Math.min(30, Math.max(4, Number(sizeRange.value)));
+  penPreviewDot.style.width = `${size}px`;
+  penPreviewDot.style.height = `${size}px`;
+  penPreviewDot.style.background = penColor;
+}
 
-clearBtn.addEventListener('click', () => {
-  if (confirm('그린 내용을 모두 지울까요?')) {
+function openPenPopup() {
+  penPopup.hidden = false;
+  setPenPreview();
+}
+
+function setTool(newTool) {
+  tool = newTool;
+  selectBtn.classList.toggle('active', tool === 'select');
+  penBtn.classList.toggle('active', tool === 'pen');
+  eraserBtn.classList.toggle('active', tool === 'eraser');
+  canvas.classList.toggle('select-mode', tool === 'select');
+  if (tool !== 'pen') closePenPopup();
+}
+
+selectBtn.addEventListener('click', () => setTool('select'));
+
+penBtn.addEventListener('click', () => {
+  if (tool !== 'pen') {
+    setTool('pen');
+    openPenPopup();
+  } else {
+    penPopup.hidden ? openPenPopup() : closePenPopup();
+  }
+});
+
+eraserBtn.addEventListener('click', () => setTool('eraser'));
+eraserBtn.addEventListener('dblclick', (e) => {
+  e.preventDefault();
+  if (confirm('그린 내용을 모두 삭제 하시겠습니까?')) {
+    strokes = [];
+    currentStroke = null;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
 });
 
+document.addEventListener('pointerdown', (e) => {
+  if (!penPopup.hidden && !e.target.closest('.pen-tool-wrap')) closePenPopup();
+});
+
+sizeRange.addEventListener('input', setPenPreview);
+
+penColorRow.querySelectorAll('.color-swatch').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    penColor = btn.dataset.color;
+    penColorRow.querySelectorAll('.color-swatch').forEach((b) => b.classList.toggle('active', b === btn));
+    setPenPreview();
+  });
+});
+
+// 획(스트로크)의 점 좌표는 캔버스 CSS 박스 기준 0~1 비율로 저장한다.
+// 확대/리사이즈로 캔버스 해상도가 바뀌어도 비트맵을 늘리지 않고 이 비율 좌표로
+// 다시 그리기 때문에(redrawAllStrokes) 선이 절대 흐려지지 않는다.
+
+function toCanvasPx(pt) {
+  return { x: pt.x * canvas.width, y: pt.y * canvas.height };
+}
+
+function strokePixelWidth(stroke) {
+  return stroke.widthFrac * canvas.width;
+}
+
+function drawStroke(stroke) {
+  if (!stroke.points.length) return;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = strokePixelWidth(stroke);
+  ctx.strokeStyle = stroke.color;
+  ctx.globalCompositeOperation = stroke.composite;
+  ctx.beginPath();
+  const first = toCanvasPx(stroke.points[0]);
+  ctx.moveTo(first.x, first.y);
+  if (stroke.points.length === 1) {
+    ctx.lineTo(first.x + 0.01, first.y + 0.01);
+  } else {
+    for (let i = 1; i < stroke.points.length; i++) {
+      const p = toCanvasPx(stroke.points[i]);
+      ctx.lineTo(p.x, p.y);
+    }
+  }
+  ctx.stroke();
+}
+
+function redrawAllStrokes() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  strokes.forEach(drawStroke);
+  ctx.globalCompositeOperation = 'source-over';
+}
+
 function resizeCanvas() {
   const rect = img.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
-
-  const prev = document.createElement('canvas');
-  prev.width = canvas.width;
-  prev.height = canvas.height;
-  prev.getContext('2d').drawImage(canvas, 0, 0);
 
   canvas.width = rect.width * dpr;
   canvas.height = rect.height * dpr;
   canvas.style.width = `${rect.width}px`;
   canvas.style.height = `${rect.height}px`;
 
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  if (prev.width > 0 && prev.height > 0) {
-    ctx.drawImage(prev, 0, 0, prev.width, prev.height, 0, 0, canvas.width, canvas.height);
-  }
+  redrawAllStrokes();
 }
 
 function getPoint(e) {
   const rect = canvas.getBoundingClientRect();
   return {
-    x: ((e.clientX - rect.left) / rect.width) * canvas.width,
-    y: ((e.clientY - rect.top) / rect.height) * canvas.height,
+    x: (e.clientX - rect.left) / (rect.width || 1),
+    y: (e.clientY - rect.top) / (rect.height || 1),
   };
 }
 
-function strokeStyleFor() {
-  const dpr = window.devicePixelRatio || 1;
-  const scale = canvas.width / canvas.getBoundingClientRect().width || 1;
-  return Number(sizeRange.value) * scale;
+function currentLineWidthFraction() {
+  const rect = canvas.getBoundingClientRect();
+  const px = tool === 'eraser' ? ERASER_SIZE : Number(sizeRange.value);
+  return px / (rect.width || 1);
 }
 
 canvas.addEventListener('pointerdown', (e) => {
+  if (e.pointerType === 'touch') {
+    activeTouches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (activeTouches.size === 2) {
+      if (drawing) {
+        drawing = false;
+        currentStroke = null;
+      }
+      pinching = true;
+      const pts = [...activeTouches.values()];
+      pinchStartDist = touchDistance(pts[0], pts[1]) || 1;
+      pinchStartWidth = cardWidth;
+      pinchStartHeight = cardHeight;
+      return;
+    }
+    if (activeTouches.size > 2) return;
+  }
+  if (pinching || tool === 'select') return;
+
   drawing = true;
-  canvas.setPointerCapture(e.pointerId);
-  lastPoint = getPoint(e);
-
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  ctx.lineWidth = strokeStyleFor();
-  ctx.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
-  ctx.strokeStyle = '#1d4ed8';
-
-  ctx.beginPath();
-  ctx.moveTo(lastPoint.x, lastPoint.y);
-  ctx.lineTo(lastPoint.x + 0.01, lastPoint.y + 0.01);
-  ctx.stroke();
+  try {
+    canvas.setPointerCapture(e.pointerId);
+  } catch (err) {
+    // 두 번째 손가락이 거의 동시에 닿는 등 포인터가 이미 무효화된 경우 무시
+  }
+  currentStroke = {
+    points: [getPoint(e)],
+    color: penColor,
+    widthFrac: currentLineWidthFraction(),
+    composite: tool === 'eraser' ? 'destination-out' : 'source-over',
+  };
+  drawStroke(currentStroke);
 });
 
 canvas.addEventListener('pointermove', (e) => {
-  if (!drawing) return;
+  if (e.pointerType === 'touch' && activeTouches.has(e.pointerId)) {
+    activeTouches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  }
+
+  if (pinching && activeTouches.size === 2) {
+    const pts = [...activeTouches.values()];
+    const dist = touchDistance(pts[0], pts[1]) || 1;
+    const scale = dist / pinchStartDist;
+    cardWidth = pinchStartWidth * scale;
+    cardHeight = pinchStartHeight * scale;
+    clampCardWidth();
+    clampCardHeight();
+    applyCardBox();
+    clampCardPosition();
+    applyCardBox();
+    updateZoomLabel();
+    return;
+  }
+
+  if (!drawing || !currentStroke) return;
   const point = getPoint(e);
-  ctx.lineWidth = strokeStyleFor();
+  const prevPoint = currentStroke.points[currentStroke.points.length - 1];
+  currentStroke.points.push(point);
+
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = strokePixelWidth(currentStroke);
+  ctx.strokeStyle = currentStroke.color;
+  ctx.globalCompositeOperation = currentStroke.composite;
+  const a = toCanvasPx(prevPoint);
+  const b = toCanvasPx(point);
   ctx.beginPath();
-  ctx.moveTo(lastPoint.x, lastPoint.y);
-  ctx.lineTo(point.x, point.y);
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(b.x, b.y);
   ctx.stroke();
-  lastPoint = point;
 });
 
 function stopDrawing(e) {
   if (!drawing) return;
   drawing = false;
-  lastPoint = null;
+  if (currentStroke && currentStroke.points.length) {
+    strokes.push(currentStroke);
+  }
+  currentStroke = null;
   if (e && canvas.hasPointerCapture(e.pointerId)) {
     canvas.releasePointerCapture(e.pointerId);
   }
 }
 
-canvas.addEventListener('pointerup', stopDrawing);
-canvas.addEventListener('pointercancel', stopDrawing);
+function endTouch(e) {
+  if (e.pointerType !== 'touch') return;
+  activeTouches.delete(e.pointerId);
+  if (pinching && activeTouches.size < 2) {
+    pinching = false;
+    clearTimeout(zoomResizeTimer);
+    zoomResizeTimer = setTimeout(resizeCanvas, 100);
+  }
+}
+
+canvas.addEventListener('pointerup', (e) => {
+  endTouch(e);
+  stopDrawing(e);
+});
+canvas.addEventListener('pointercancel', (e) => {
+  endTouch(e);
+  stopDrawing(e);
+});
 canvas.addEventListener('pointerleave', stopDrawing);
 
 window.addEventListener('resize', () => {
@@ -324,6 +534,7 @@ window.addEventListener('resize', () => {
     baseFitWidth = computeFitWidth();
   }
   clampCardWidth();
+  clampCardHeight();
   applyCardBox();
   clampCardPosition();
   applyCardBox();
@@ -347,8 +558,6 @@ async function checkAnswer(value) {
   }
 }
 
-const CHOICE_SYMBOLS = ['①', '②', '③', '④', '⑤'];
-
 function showAnswerResult(correct, correctAnswer) {
   answerResult.classList.remove('correct', 'incorrect');
   answerResult.classList.add(correct ? 'correct' : 'incorrect');
@@ -356,9 +565,7 @@ function showAnswerResult(correct, correctAnswer) {
     answerResult.textContent = '정답입니다! 🎉';
   } else {
     const label =
-      currentProblem.questionType === 'objective'
-        ? CHOICE_SYMBOLS[Number(correctAnswer) - 1] || correctAnswer
-        : correctAnswer;
+      currentProblem.questionType === 'objective' ? `${correctAnswer}번` : correctAnswer;
     answerResult.textContent = `오답입니다. 정답: ${label}`;
   }
 }
@@ -438,7 +645,7 @@ listBtn.addEventListener('click', () => {
 nextProblemBtn.addEventListener('click', async () => {
   if (!currentProblem) return;
   nextProblemBtn.disabled = true;
-  const nextId = await getNextProblemId(currentProblem.difficulty, currentProblem.id);
+  const nextId = await getNextProblemId(currentProblem.difficulty, currentProblem.id, currentProblem.unit);
   if (nextId) {
     window.location.href = `solve.html?id=${nextId}`;
   } else {
@@ -473,6 +680,8 @@ async function loadProblem() {
     badge.textContent = problem.difficulty;
     badge.classList.add(problem.difficulty);
 
+    startTimer(problem.difficulty);
+
     const typeBadge = document.getElementById('typeBadge');
     typeBadge.textContent = problem.questionType === 'objective' ? '객관식' : '주관식';
     typeBadge.style.display = 'inline-block';
@@ -488,9 +697,15 @@ async function loadProblem() {
     img.onload = () => {
       baseFitWidth = computeFitWidth();
       cardWidth = baseFitWidth;
+      cardHeight = computeFitCardHeight(cardWidth);
       centerCard();
       updateZoomLabel();
       resizeCanvas();
+      requestAnimationFrame(() => {
+        cardHeight = computeFitCardHeight(cardWidth);
+        centerCard();
+        resizeCanvas();
+      });
     };
   } catch (err) {
     document.getElementById('problemCardTitle').textContent = '서버에 연결할 수 없습니다.';

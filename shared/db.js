@@ -40,19 +40,44 @@ const ready = pool.query(`
 
   ALTER TABLE problems
     ADD COLUMN IF NOT EXISTS answer TEXT;
+
+  ALTER TABLE problems
+    ADD COLUMN IF NOT EXISTS unit TEXT;
 `);
 
-async function listProblems({ difficulty } = {}) {
+async function listProblems({ difficulty, unit } = {}) {
+  await ready;
+  const conditions = [];
+  const values = [];
+  if (difficulty) {
+    values.push(difficulty);
+    conditions.push(`difficulty = $${values.length}`);
+  }
+  if (unit) {
+    values.push(unit);
+    conditions.push(`unit = $${values.length}`);
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const { rows } = await pool.query(
+    `SELECT * FROM problems ${where} ORDER BY created_at DESC`,
+    values
+  );
+  return rows;
+}
+
+async function listUnits({ difficulty } = {}) {
   await ready;
   if (difficulty) {
     const { rows } = await pool.query(
-      'SELECT * FROM problems WHERE difficulty = $1 ORDER BY created_at DESC',
+      `SELECT DISTINCT unit FROM problems WHERE difficulty = $1 AND unit IS NOT NULL AND unit <> '' ORDER BY unit`,
       [difficulty]
     );
-    return rows;
+    return rows.map((r) => r.unit);
   }
-  const { rows } = await pool.query('SELECT * FROM problems ORDER BY created_at DESC');
-  return rows;
+  const { rows } = await pool.query(
+    `SELECT DISTINCT unit FROM problems WHERE unit IS NOT NULL AND unit <> '' ORDER BY unit`
+  );
+  return rows.map((r) => r.unit);
 }
 
 async function getProblem(id) {
@@ -69,11 +94,12 @@ async function createProblem({
   description,
   question_type,
   answer,
+  unit,
 }) {
   await ready;
   const { rows } = await pool.query(
-    `INSERT INTO problems (title, difficulty, image_path, image_public_id, description, question_type, answer)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO problems (title, difficulty, image_path, image_public_id, description, question_type, answer, unit)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING *`,
     [
       title,
@@ -83,6 +109,7 @@ async function createProblem({
       description || null,
       question_type || 'subjective',
       answer || null,
+      unit || null,
     ]
   );
   return rows[0];
@@ -90,7 +117,7 @@ async function createProblem({
 
 async function updateProblem(
   id,
-  { title, difficulty, image_path, image_public_id, description, question_type, answer }
+  { title, difficulty, image_path, image_public_id, description, question_type, answer, unit }
 ) {
   await ready;
   const existing = await getProblem(id);
@@ -105,8 +132,9 @@ async function updateProblem(
        description = $5,
        question_type = $6,
        answer = $7,
+       unit = $8,
        updated_at = now()
-     WHERE id = $8
+     WHERE id = $9
      RETURNING *`,
     [
       title ?? existing.title,
@@ -116,6 +144,7 @@ async function updateProblem(
       description !== undefined ? description : existing.description,
       question_type ?? existing.question_type,
       answer !== undefined ? answer : existing.answer,
+      unit !== undefined ? unit : existing.unit,
       id,
     ]
   );
@@ -134,6 +163,7 @@ module.exports = {
   QUESTION_TYPES,
   OBJECTIVE_CHOICES,
   listProblems,
+  listUnits,
   getProblem,
   createProblem,
   updateProblem,

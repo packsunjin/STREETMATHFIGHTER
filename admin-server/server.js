@@ -13,6 +13,7 @@ const {
   QUESTION_TYPES,
   OBJECTIVE_CHOICES,
   listProblems,
+  listUnits,
   getProblem,
   createProblem,
   updateProblem,
@@ -127,6 +128,7 @@ function toPublicProblem(problem) {
     description: problem.description,
     questionType: problem.question_type,
     answer: problem.answer,
+    unit: problem.unit || null,
     createdAt: problem.created_at,
     updatedAt: problem.updated_at,
   };
@@ -145,6 +147,15 @@ app.get('/api/problems', requireAuth, async (req, res, next) => {
   }
 });
 
+app.get('/api/units', requireAuth, async (req, res, next) => {
+  try {
+    const units = await listUnits({});
+    res.json({ units });
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.get('/api/problems/:id', requireAuth, async (req, res, next) => {
   try {
     const problem = await getProblem(req.params.id);
@@ -157,7 +168,7 @@ app.get('/api/problems/:id', requireAuth, async (req, res, next) => {
 
 app.post('/api/problems', requireAuth, upload.single('image'), async (req, res, next) => {
   try {
-    const { title, difficulty, description, questionType, answer } = req.body || {};
+    const { title, difficulty, description, questionType, answer, unit } = req.body || {};
 
     if (!title || !title.trim()) {
       return res.status(400).json({ error: '제목을 입력해주세요.' });
@@ -186,6 +197,7 @@ app.post('/api/problems', requireAuth, upload.single('image'), async (req, res, 
       description: description ? description.trim() : null,
       question_type: questionType || 'subjective',
       answer: normalizedAnswer.value,
+      unit: unit ? unit.trim() : null,
     });
 
     res.status(201).json({ problem: toPublicProblem(problem) });
@@ -199,7 +211,7 @@ app.put('/api/problems/:id', requireAuth, upload.single('image'), async (req, re
     const existing = await getProblem(req.params.id);
     if (!existing) return res.status(404).json({ error: '문제를 찾을 수 없습니다.' });
 
-    const { title, difficulty, description, questionType, answer } = req.body || {};
+    const { title, difficulty, description, questionType, answer, unit } = req.body || {};
 
     if (difficulty && !DIFFICULTIES.includes(difficulty)) {
       return res.status(400).json({ error: '난이도는 상/중/하 중 하나여야 합니다.' });
@@ -230,6 +242,7 @@ app.put('/api/problems/:id', requireAuth, upload.single('image'), async (req, re
       description: description !== undefined ? description.trim() : undefined,
       question_type: questionType || undefined,
       answer: normalizedAnswer.value,
+      unit: unit !== undefined ? unit.trim() : undefined,
     });
 
     res.json({ problem: toPublicProblem(problem) });

@@ -13,6 +13,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
       </button>
       <h2 class="solve-title">문제 풀이</h2>
+      <span class="timer-badge" id="timerBadge">--:--</span>
       <button class="icon-btn" id="listBtn" title="문제 목록">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg>
       </button>
@@ -32,27 +33,31 @@
           <span class="badge type" id="typeBadge" style="display:none;"></span>
           <span class="problem-card-title" id="problemCardTitle">문제 불러오는 중...</span>
           <div class="tool-icons">
-            <button class="icon-btn" id="zoomOutBtn" title="축소">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M8 11h6"/></svg>
-            </button>
-            <span class="zoom-level" id="zoomLevel">100%</span>
-            <button class="icon-btn" id="zoomInBtn" title="확대">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6"/><path d="M8 11h6"/></svg>
-            </button>
+            <span class="zoom-level" id="zoomLevel" title="두 손가락으로 벌리거나 오므려서 확대/축소">100%</span>
             <span class="tool-divider"></span>
-            <button class="icon-btn tool-btn active" id="penBtn" title="펜">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            <button class="icon-btn tool-btn" id="selectBtn" title="선택 모드(그리기 없이 보기만)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3l7 17 2-7 7-2z"/></svg>
             </button>
-            <button class="icon-btn tool-btn" id="eraserBtn" title="지우개">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H9l-6.5-6.5a1.5 1.5 0 0 1 0-2L11 3l9 9-6 6"/><path d="M6 12l6 6"/></svg>
-            </button>
-            <div class="size-control">
-              <span>굵기</span>
-              <input type="range" id="sizeRange" min="1" max="30" value="4" />
+            <div class="pen-tool-wrap">
+              <button class="icon-btn tool-btn active" id="penBtn" title="펜(다시 누르면 두께/색상)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+              </button>
+              <div class="pen-popup" id="penPopup" hidden>
+                <div class="pen-popup-row">
+                  <span class="pen-preview" id="penPreview"><span class="pen-preview-dot" id="penPreviewDot"></span></span>
+                  <input type="range" id="sizeRange" min="1" max="30" value="4" />
+                </div>
+                <div class="pen-color-row" id="penColorRow">
+                  <button type="button" class="color-swatch active" data-color="#191b1f" style="background:#191b1f" title="검정"></button>
+                  <button type="button" class="color-swatch" data-color="#e0393e" style="background:#e0393e" title="빨강"></button>
+                  <button type="button" class="color-swatch" data-color="#3d6bff" style="background:#3d6bff" title="파랑"></button>
+                  <button type="button" class="color-swatch" data-color="#16a34a" style="background:#16a34a" title="초록"></button>
+                  <button type="button" class="color-swatch" data-color="#d97706" style="background:#d97706" title="주황"></button>
+                </div>
+              </div>
             </div>
-            <span class="tool-divider"></span>
-            <button class="icon-btn tool-btn danger" id="clearBtn" title="전체 지우기">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            <button class="icon-btn tool-btn" id="eraserBtn" title="지우개(두 번 탭: 전체 지우기)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H9l-6.5-6.5a1.5 1.5 0 0 1 0-2L11 3l9 9-6 6"/><path d="M6 12l6 6"/></svg>
             </button>
           </div>
         </div>
@@ -64,11 +69,11 @@
 
         <div class="answer-panel" id="answerPanel" style="display:none;">
           <div class="answer-choices" id="answerChoices">
-            <button class="choice-btn" type="button" data-choice="1">①</button>
-            <button class="choice-btn" type="button" data-choice="2">②</button>
-            <button class="choice-btn" type="button" data-choice="3">③</button>
-            <button class="choice-btn" type="button" data-choice="4">④</button>
-            <button class="choice-btn" type="button" data-choice="5">⑤</button>
+            <button class="choice-btn" type="button" data-choice="1">1</button>
+            <button class="choice-btn" type="button" data-choice="2">2</button>
+            <button class="choice-btn" type="button" data-choice="3">3</button>
+            <button class="choice-btn" type="button" data-choice="4">4</button>
+            <button class="choice-btn" type="button" data-choice="5">5</button>
           </div>
           <form class="answer-form" id="answerForm">
             <input type="number" id="answerInput" placeholder="정답 숫자 입력" inputmode="numeric" autocomplete="off" />
@@ -79,6 +84,8 @@
 
         <div class="resize-handle resize-e" data-dir="e"></div>
         <div class="resize-handle resize-w" data-dir="w"></div>
+        <div class="resize-handle resize-n" data-dir="n"></div>
+        <div class="resize-handle resize-s" data-dir="s"></div>
       </div>
 
       <div class="description-toggle" id="descriptionToggleWrap" style="display:none;">

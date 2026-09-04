@@ -1,4 +1,4 @@
-// 난이도별로 "이미 나온 문제는 전부 나올 때까지 다시 안 나오는" 셔플백(shuffle-bag) 큐.
+// 난이도(+단원)별로 "이미 나온 문제는 전부 나올 때까지 다시 안 나오는" 셔플백(shuffle-bag) 큐.
 // localStorage에 남은 문제 id 목록을 저장해두고, 다 떨어지면 전체를 다시 섞어서 채운다.
 
 function smfShuffle(arr) {
@@ -10,12 +10,12 @@ function smfShuffle(arr) {
   return a;
 }
 
-function smfQueueKey(difficulty) {
-  return `smf_queue_${difficulty}`;
+function smfQueueKey(difficulty, unit) {
+  return `smf_queue_${difficulty}_${unit || 'all'}`;
 }
 
-async function getNextProblemId(difficulty, excludeId) {
-  const key = smfQueueKey(difficulty);
+async function getNextProblemId(difficulty, excludeId, unit) {
+  const key = smfQueueKey(difficulty, unit);
   let queue = [];
   try {
     queue = JSON.parse(localStorage.getItem(key) || '[]');
@@ -24,7 +24,9 @@ async function getNextProblemId(difficulty, excludeId) {
   }
 
   if (!Array.isArray(queue) || queue.length === 0) {
-    const res = await fetch(`/api/problems?difficulty=${encodeURIComponent(difficulty)}`);
+    let url = `/api/problems?difficulty=${encodeURIComponent(difficulty)}`;
+    if (unit) url += `&unit=${encodeURIComponent(unit)}`;
+    const res = await fetch(url);
     const data = await res.json();
     const ids = (data.problems || []).map((p) => p.id);
     if (ids.length === 0) return null;
