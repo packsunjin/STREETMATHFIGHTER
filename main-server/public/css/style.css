@@ -105,201 +105,77 @@ button,
   height: 19px;
 }
 
-/* ---- 홈: 난이도 선택 (흰 배경 + 검은 선, 세로 리스트형) ---- */
+/* ---- 홈: 난이도 선택 (버튼만 남긴 최소 상태) ---- */
 
 .home-wrap {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: clamp(20px, 4vw, 48px);
-  padding-bottom: clamp(40px, 8vh, 100px);
-  text-align: center;
+  justify-content: center;
+  padding: 24px;
   background: #ffffff;
-  background-image: radial-gradient(rgba(25, 27, 31, 0.07) 1.5px, transparent 1.5px);
-  background-size: 24px 24px;
-}
-
-.home-hero {
-  margin-top: clamp(16px, 5vh, 56px);
-  margin-bottom: clamp(32px, 6vh, 64px);
-}
-
-.home-hero .siren {
-  font-size: clamp(36px, 5.5vw, 68px);
-  line-height: 1;
-  margin-bottom: clamp(6px, 1vw, 14px);
-  display: inline-block;
-  animation: siren-pulse 1.6s ease-in-out infinite;
-}
-
-@keyframes siren-pulse {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.08);
-  }
-}
-
-.home-hero .brand-en {
-  color: var(--text);
-  margin: 0 0 clamp(2px, 0.6vw, 6px);
-  font-size: clamp(11px, 1.3vw, 15px);
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  animation: rise-in 0.5s ease both;
-}
-
-.home-hero h1 {
-  font-size: clamp(28px, 4.5vw, 56px);
-  margin: 0 0 clamp(6px, 1vw, 12px);
-  font-weight: 900;
-  letter-spacing: -0.02em;
-  animation: rise-in 0.5s ease 0.05s both;
-}
-
-.home-hero p {
-  color: var(--text-secondary);
-  margin: 0;
-  font-size: clamp(13px, 1.4vw, 18px);
-  font-weight: 600;
-  animation: rise-in 0.5s ease 0.12s both;
 }
 
 .difficulty-list {
   width: 100%;
-  max-width: 720px;
+  max-width: 420px;
   display: flex;
   flex-direction: column;
-  gap: clamp(14px, 2.2vh, 22px);
-  margin: auto 0;
+  gap: 12px;
 }
 
 .unit-select-wrap {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 10px;
-  animation: rise-in 0.4s ease both;
+  gap: 8px;
 }
 
 .unit-select-label {
   font-size: 13px;
-  font-weight: 800;
-  color: var(--text-secondary);
+  color: var(--text);
 }
 
 .unit-select {
   flex: 1;
-  max-width: 320px;
-  padding: 10px 14px;
-  border: 2px solid var(--text);
-  border-radius: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
   background: #ffffff;
   color: var(--text);
   font-family: inherit;
   font-size: 14px;
-  font-weight: 700;
   cursor: pointer;
-}
-
-.unit-select:focus {
-  outline: none;
-  box-shadow: 0 0 0 3px var(--blue-light);
 }
 
 .difficulty-bar {
   display: flex;
-  align-items: center;
-  gap: clamp(16px, 3vw, 28px);
+  align-items: baseline;
+  justify-content: space-between;
   width: 100%;
-  padding: clamp(20px, 3.4vh, 34px) clamp(24px, 4vw, 48px);
+  padding: 14px 16px;
   background: #ffffff;
   color: var(--text);
-  border: 3px solid var(--text);
-  border-radius: 14px;
+  border: 1px solid var(--border);
   cursor: pointer;
-  box-shadow: 5px 5px 0 rgba(25, 27, 31, 0.9);
-  animation: rise-in 0.4s ease both;
-  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.15s ease,
-    color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.difficulty-list .difficulty-bar:nth-child(2) {
-  animation-delay: 0.12s;
-}
-
-.difficulty-list .difficulty-bar:nth-child(3) {
-  animation-delay: 0.18s;
-}
-
-.difficulty-list .difficulty-bar:nth-child(4) {
-  animation-delay: 0.24s;
+  font-family: inherit;
 }
 
 .difficulty-bar:hover {
-  background: var(--text);
-  color: #ffffff;
-  transform: translate(3px, 3px);
-  box-shadow: 2px 2px 0 rgba(25, 27, 31, 0.9);
-}
-
-.difficulty-bar:active {
-  transform: translate(5px, 5px);
-  box-shadow: 0 0 0 rgba(25, 27, 31, 0.9);
-  transition-duration: 0.08s;
+  background: var(--bg);
 }
 
 .difficulty-bar:disabled {
   cursor: default;
 }
 
-.difficulty-bar-index {
-  flex-shrink: 0;
-  font-size: clamp(11px, 1.3vw, 13px);
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  color: currentColor;
-  opacity: 0.55;
-  border: 1.5px solid currentColor;
-  border-radius: 8px;
-  padding: 3px 7px;
-}
-
-.difficulty-bar-text {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  text-align: left;
-}
-
 .difficulty-bar-label {
-  font-size: clamp(30px, 5.5vw, 52px);
-  font-weight: 900;
-  line-height: 1;
+  font-size: 18px;
+  font-weight: 700;
 }
 
 .difficulty-bar-caption {
-  font-size: clamp(13px, 1.6vw, 18px);
-  font-weight: 700;
-  opacity: 0.7;
-}
-
-.difficulty-bar-arrow {
-  flex-shrink: 0;
-  width: clamp(20px, 2.6vw, 26px);
-  height: clamp(20px, 2.6vw, 26px);
-  opacity: 0.4;
-  transition: transform 0.15s ease, opacity 0.15s ease;
-}
-
-.difficulty-bar:hover .difficulty-bar-arrow {
-  transform: translateX(4px);
-  opacity: 1;
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
 /* ---- 상단바 (공통) ---- */
@@ -320,32 +196,71 @@ button,
   font-weight: 700;
 }
 
-.timer-badge {
+/* 문제 시작: 화면 가운데에 크게 떴다가(center-start) 왼쪽 위로 날아가서(corner, 기본 상태)
+   작은 배지로 자리잡는 타이머. 항상 화면 위에 고정되고 클릭은 통과시킴(pointer-events:none). */
+.timer-hud {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  transform: translate(0, 0) scale(1);
+  z-index: 50;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   font-variant-numeric: tabular-nums;
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 900;
-  padding: 8px 20px;
+  padding: 8px 18px;
   border-radius: var(--radius-pill);
   background: var(--bg);
   color: var(--text);
   letter-spacing: 0.02em;
+  box-shadow: var(--shadow);
+  pointer-events: none;
   transform-origin: center;
+  transition: top 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), left 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
+    transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), font-size 0.6s ease, padding 0.6s ease,
+    background-color 0.2s ease, color 0.2s ease;
   animation: timer-pulse 1.8s ease-in-out infinite;
 }
 
-.timer-badge.warning {
+.timer-hud.center-start {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(1);
+  font-size: 64px;
+  padding: 28px 52px;
+}
+
+.timer-hud.center-start.shake-start {
+  animation: timer-hud-wobble 0.15s ease-in-out 4;
+}
+
+.timer-hud.warning {
   background: var(--orange-light);
   color: var(--orange);
   animation: timer-pulse-fast 0.6s ease-in-out infinite;
 }
 
-.timer-badge.expired {
+.timer-hud.expired {
+  font-size: 28px;
+  padding: 10px 22px;
+  animation: timer-shake 0.5s ease-in-out infinite;
+}
+
+.timer-hud.expired.result-fail {
   background: var(--red);
   color: #fff;
-  animation: timer-shake 0.5s ease-in-out infinite;
+}
+
+.timer-hud.expired.result-success {
+  background: var(--green);
+  color: #fff;
+}
+
+.timer-hud.expired.result-neutral {
+  background: var(--text);
+  color: #fff;
 }
 
 @keyframes timer-pulse {
@@ -381,6 +296,18 @@ button,
   }
   80% {
     transform: translateX(5px) scale(1.15);
+  }
+}
+
+@keyframes timer-hud-wobble {
+  0%, 100% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  25% {
+    transform: translate(-50%, -50%) rotate(-10deg);
+  }
+  75% {
+    transform: translate(-50%, -50%) rotate(10deg);
   }
 }
 
@@ -751,7 +678,7 @@ button,
 .resize-s {
   left: 0;
   width: 100%;
-  height: 14px;
+  height: 8px;
   cursor: ns-resize;
 }
 
@@ -776,7 +703,7 @@ button,
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
-  padding: 12px 18px;
+  padding: 14px 18px 16px;
   border-top: 1px solid var(--border);
 }
 
@@ -834,8 +761,8 @@ button,
 }
 
 .answer-form input {
-  width: 84px;
-  padding: 7px 10px;
+  width: 130px;
+  padding: 7px 12px;
   border-radius: var(--radius-pill);
   border: 1px solid var(--border);
   font-size: 13px;

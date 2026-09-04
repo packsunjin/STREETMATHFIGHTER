@@ -24,9 +24,9 @@ const fullscreenBtn = document.getElementById('fullscreenBtn');
 const solveWrap = document.querySelector('.solve-wrap');
 const canvasStage = document.querySelector('.canvas-stage');
 const zoomLevelLabel = document.getElementById('zoomLevel');
-const timerBadge = document.getElementById('timerBadge');
-const timerBadgeIcon = document.getElementById('timerBadgeIcon');
-const timerBadgeText = document.getElementById('timerBadgeText');
+const timerHud = document.getElementById('timerHud');
+const timerHudIcon = document.getElementById('timerHudIcon');
+const timerHudText = document.getElementById('timerHudText');
 const nextProblemBtn = document.getElementById('nextProblemBtn');
 const listBtn = document.getElementById('listBtn');
 const answerPanel = document.getElementById('answerPanel');
@@ -47,10 +47,15 @@ let penColor = '#191b1f';
 const ERASER_SIZE = 22;
 
 // ---- 난이도별 제한시간 타이머 ----
+// 문제가 시작되면 화면 가운데에 크게 떴다가(알림음 + 흔들림) 왼쪽 위로 날아가서 자리잡고,
+// 시간이 다 되면 같은 알림음과 함께 그때까지 정답을 맞혔는지에 따라 성공/탈락을 보여준다.
 
 const TIME_LIMITS = { 상: 300, 중: 180, 하: 90 }; // 초 단위: 5분 / 3분 / 1분 30초
 let timerInterval = null;
 let timeRemaining = 0;
+let timerFlyTimeout = null;
+let timerShakeTimeout = null;
+let hasAnsweredCorrectly = false;
 
 function formatTime(sec) {
   const m = Math.floor(sec / 60);
@@ -58,27 +63,91 @@ function formatTime(sec) {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+// Web Audio API로 "따라라라" 느낌의 짧은 팡파르를 직접 만들어 재생(오디오 파일 불필요).
+// 브라우저 자동재생 정책 때문에 재생이 막힐 수도 있는데, 그 경우 조용히 무시한다.
+function playFanfare() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const audioCtx = new AudioCtx();
+    const resumeAndPlay = () => {
+      const notes = [523.25, 659.25, 783.99, 1046.5]; // 도-미-솔-도(한 옥타브 위)
+      const now = audioCtx.currentTime;
+      notes.forEach((freq, i) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.value = freq;
+        const start = now + i * 0.12;
+        const end = start + 0.11;
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(0.22, start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, end);
+        osc.connect(gain).connect(audioCtx.destination);
+        osc.start(start);
+        osc.stop(end + 0.02);
+      });
+      setTimeout(() => audioCtx.close().catch(() => {}), (notes.length * 0.12 + 0.3) * 1000);
+    };
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().then(resumeAndPlay).catch(() => {});
+    } else {
+      resumeAndPlay();
+    }
+  } catch (err) {
+    // 오디오 재생이 막힌 환경이면 조용히 무시
+  }
+}
+
 function startTimer(difficulty) {
   clearInterval(timerInterval);
-  timerBadge.classList.remove('warning', 'expired');
-  timerBadgeIcon.textContent = '⏱';
+  clearTimeout(timerFlyTimeout);
+  clearTimeout(timerShakeTimeout);
+  hasAnsweredCorrectly = false;
+
+  timerHud.classList.remove('warning', 'expired', 'shake-start');
+  timerHud.classList.add('center-start');
+  timerHudIcon.textContent = '⏱';
   timeRemaining = TIME_LIMITS[difficulty] ?? 180;
-  timerBadgeText.textContent = formatTime(timeRemaining);
+  timerHudText.textContent = formatTime(timeRemaining);
+
+  playFanfare();
+  requestAnimationFrame(() => timerHud.classList.add('shake-start'));
+  timerShakeTimeout = setTimeout(() => timerHud.classList.remove('shake-start'), 700);
+  timerFlyTimeout = setTimeout(() => timerHud.classList.remove('center-start'), 1300);
 
   timerInterval = setInterval(() => {
     timeRemaining -= 1;
     if (timeRemaining <= 0) {
       timeRemaining = 0;
-      timerBadgeIcon.textContent = '⏰';
-      timerBadgeText.textContent = '시간 종료!';
-      timerBadge.classList.remove('warning');
-      timerBadge.classList.add('expired');
       clearInterval(timerInterval);
+      finishTimer();
       return;
     }
-    timerBadgeText.textContent = formatTime(timeRemaining);
-    timerBadge.classList.toggle('warning', timeRemaining <= 10);
+    timerHudText.textContent = formatTime(timeRemaining);
+    timerHud.classList.toggle('warning', timeRemaining <= 10);
   }, 1000);
+}
+
+function finishTimer() {
+  timerHud.classList.remove('warning', 'center-start', 'shake-start', 'result-fail', 'result-success', 'result-neutral');
+  timerHud.classList.add('expired');
+  playFanfare();
+
+  const canJudge = Boolean(currentProblem && currentProblem.hasAnswer);
+  if (!canJudge) {
+    timerHud.classList.add('result-neutral');
+    timerHudIcon.textContent = '⏰';
+    timerHudText.textContent = '시간 종료!';
+  } else if (hasAnsweredCorrectly) {
+    timerHud.classList.add('result-success');
+    timerHudIcon.textContent = '🏆';
+    timerHudText.textContent = '성공!';
+  } else {
+    timerHud.classList.add('result-fail');
+    timerHudIcon.textContent = '💥';
+    timerHudText.textContent = '탈락!';
+  }
 }
 
 // ---- 흰색 문제 창을 회색 배경 위에서 통째로 드래그 + 4방향 리사이즈 ----
@@ -563,6 +632,7 @@ async function checkAnswer(value) {
 }
 
 function showAnswerResult(correct, correctAnswer) {
+  if (correct) hasAnsweredCorrectly = true;
   answerResult.classList.remove('correct', 'incorrect');
   answerResult.classList.add(correct ? 'correct' : 'incorrect');
   if (correct) {
