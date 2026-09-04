@@ -5,9 +5,12 @@ const img = document.getElementById('problemImage');
 const canvas = document.getElementById('drawCanvas');
 const ctx = canvas.getContext('2d');
 const frame = document.getElementById('canvasFrame');
+const viewerFrame = document.getElementById('viewerFrame');
+const viewerContent = document.getElementById('viewerContent');
 
 const penBtn = document.getElementById('penBtn');
 const eraserBtn = document.getElementById('eraserBtn');
+const panBtn = document.getElementById('panBtn');
 const clearBtn = document.getElementById('clearBtn');
 const sizeRange = document.getElementById('sizeRange');
 const backBtn = document.getElementById('backBtn');
@@ -30,30 +33,105 @@ const answerInput = document.getElementById('answerInput');
 const submitAnswerBtn = document.getElementById('submitAnswerBtn');
 const answerResult = document.getElementById('answerResult');
 
-let tool = 'pen'; // 'pen' | 'eraser'
+let tool = 'pen'; // 'pen' | 'eraser' | 'pan'
 let drawing = false;
 let lastPoint = null;
 let currentProblem = null;
 let answered = false;
 let selectedChoice = null;
 
-// ---- 확대/축소 ----
+// ---- 문제 창 크기(리사이즈 가능한 고정 프레임) ----
+// 확대/축소는 이 프레임 안에서만 일어나고(overflow:hidden), 프레임 밖으로는 절대 안 커짐.
+
+let viewerWidth = 640;
+let viewerHeight = 420;
+const VIEWER_MIN_WIDTH = 320;
+const VIEWER_MIN_HEIGHT = 240;
+
+function applyViewerSize() {
+  viewerFrame.style.width = `${viewerWidth}px`;
+  viewerFrame.style.height = `${viewerHeight}px`;
+}
+
+function initViewerSize() {
+  const stageRect = canvasStage.getBoundingClientRect();
+  viewerWidth = Math.max(Math.min(stageRect.width - 40, 760), VIEWER_MIN_WIDTH);
+  viewerHeight = Math.max(Math.min(stageRect.height - 140, 560), VIEWER_MIN_HEIGHT);
+  applyViewerSize();
+}
+
+function setupResizeHandle(el) {
+  const dir = el.dataset.dir;
+  el.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    el.setPointerCapture(e.pointerId);
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startW = viewerWidth;
+    const startH = viewerHeight;
+
+    function onMove(ev) {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      if (dir.includes('e')) viewerWidth = Math.max(VIEWER_MIN_WIDTH, startW + dx);
+      if (dir.includes('w')) viewerWidth = Math.max(VIEWER_MIN_WIDTH, startW - dx);
+      if (dir.includes('s')) viewerHeight = Math.max(VIEWER_MIN_HEIGHT, startH + dy);
+      if (dir.includes('n')) viewerHeight = Math.max(VIEWER_MIN_HEIGHT, startH - dy);
+      applyViewerSize();
+      clampPan();
+      applyPan();
+    }
+    function onUp() {
+      el.releasePointerCapture(e.pointerId);
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerup', onUp);
+    }
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onUp);
+  });
+}
+
+document.querySelectorAll('.resize-handle').forEach(setupResizeHandle);
+
+// ---- 확대/축소 + 화면 이동(pan) ----
 
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 3;
 const ZOOM_STEP = 0.2;
 
-let baseWidth = null; // 100% 기준(화면에 맞춘) 너비(px)
+let baseWidth = null; // 100% 기준(뷰어 프레임에 맞춘) 너비(px)
 let zoomLevel = 1;
+let panX = 0;
+let panY = 0;
 
 function computeFitWidth() {
-  const stageRect = canvasStage.getBoundingClientRect();
-  const availableWidth = Math.max(stageRect.width - 40, 200);
-  const availableHeight = Math.max(stageRect.height - 140, 200);
+  const availableWidth = Math.max(viewerWidth - 24, 200);
+  const availableHeight = Math.max(viewerHeight - 24, 200);
   const naturalW = img.naturalWidth || availableWidth;
   const naturalH = img.naturalHeight || availableHeight;
   const scale = Math.min(availableWidth / naturalW, availableHeight / naturalH);
   return Math.max(naturalW * scale, 200);
+}
+
+function applyPan() {
+  viewerContent.style.transform = `translate(${panX}px, ${panY}px)`;
+}
+
+// 프레임보다 콘텐츠가 작으면 가운데 정렬, 크면 프레임 밖으로 안 벗어나게 clamp
+function clampPan() {
+  const contentW = frame.offsetWidth;
+  const contentH = frame.offsetHeight;
+
+  if (contentW <= viewerWidth) {
+    panX = (viewerWidth - contentW) / 2;
+  } else {
+    panX = Math.min(0, Math.max(viewerWidth - contentW, panX));
+  }
+  if (contentH <= viewerHeight) {
+    panY = (viewerHeight - contentH) / 2;
+  } else {
+    panY = Math.min(0, Math.max(viewerHeight - contentH, panY));
+  }
 }
 
 let zoomResizeTimer = null;
@@ -65,7 +143,16 @@ function applyZoom() {
   // 캔버스 프레임의 width 트랜지션(0.2s)이 끝난 뒤에 실제 해상도를 다시 샘플링해
   // 확대/축소 중에도 부드럽게 보이면서 최종적으로는 선명하게 유지되도록 함
   clearTimeout(zoomResizeTimer);
-  zoomResizeTimer = setTimeout(resizeCanvas, 220);
+  zoomResizeTimer = setTimeout(() => {
+    resizeCanvas();
+    clampPan();
+    applyPan();
+  }, 220);
+  // 트랜지션 중에도 프레임 밖으로 안 나가도록 즉시 한 번 clamp
+  requestAnimationFrame(() => {
+    clampPan();
+    applyPan();
+  });
 }
 
 function setZoom(next) {
@@ -75,6 +162,38 @@ function setZoom(next) {
 
 zoomInBtn.addEventListener('click', () => setZoom(zoomLevel + ZOOM_STEP));
 zoomOutBtn.addEventListener('click', () => setZoom(zoomLevel - ZOOM_STEP));
+
+// 화면 이동(팬) 드래그 - '이동' 툴이 선택돼 있을 때만 동작
+let panning = false;
+let panStart = null;
+
+canvas.addEventListener('pointerdown', (e) => {
+  if (tool !== 'pan') return;
+  panning = true;
+  canvas.classList.add('panning');
+  canvas.setPointerCapture(e.pointerId);
+  panStart = { x: e.clientX, y: e.clientY, panX, panY };
+});
+
+canvas.addEventListener('pointermove', (e) => {
+  if (tool !== 'pan' || !panning) return;
+  panX = panStart.panX + (e.clientX - panStart.x);
+  panY = panStart.panY + (e.clientY - panStart.y);
+  clampPan();
+  applyPan();
+});
+
+function stopPanning(e) {
+  if (!panning) return;
+  panning = false;
+  canvas.classList.remove('panning');
+  if (e && canvas.hasPointerCapture(e.pointerId)) {
+    canvas.releasePointerCapture(e.pointerId);
+  }
+}
+
+canvas.addEventListener('pointerup', stopPanning);
+canvas.addEventListener('pointercancel', stopPanning);
 
 // ---- 전체화면 ----
 
@@ -88,10 +207,14 @@ fullscreenBtn.addEventListener('click', () => {
 
 document.addEventListener('fullscreenchange', () => {
   fullscreenBtn.classList.toggle('active', Boolean(document.fullscreenElement));
-  if (img.naturalWidth) {
-    baseWidth = computeFitWidth();
-    applyZoom();
-  }
+  requestAnimationFrame(() => {
+    initViewerSize();
+    if (img.naturalWidth) {
+      zoomLevel = 1;
+      baseWidth = computeFitWidth();
+      applyZoom();
+    }
+  });
 });
 
 backBtn.addEventListener('click', () => {
@@ -102,6 +225,8 @@ function setTool(newTool) {
   tool = newTool;
   penBtn.classList.toggle('active', tool === 'pen');
   eraserBtn.classList.toggle('active', tool === 'eraser');
+  panBtn.classList.toggle('active', tool === 'pan');
+  canvas.classList.toggle('pan-mode', tool === 'pan');
   sizeRange.min = tool === 'eraser' ? 10 : 1;
   if (tool === 'eraser' && Number(sizeRange.value) < 10) {
     sizeRange.value = 20;
@@ -110,6 +235,7 @@ function setTool(newTool) {
 
 penBtn.addEventListener('click', () => setTool('pen'));
 eraserBtn.addEventListener('click', () => setTool('eraser'));
+panBtn.addEventListener('click', () => setTool('pan'));
 
 clearBtn.addEventListener('click', () => {
   if (confirm('그린 내용을 모두 지울까요?')) {
@@ -152,6 +278,7 @@ function strokeStyleFor() {
 }
 
 canvas.addEventListener('pointerdown', (e) => {
+  if (tool === 'pan') return;
   drawing = true;
   canvas.setPointerCapture(e.pointerId);
   lastPoint = getPoint(e);
@@ -193,6 +320,13 @@ canvas.addEventListener('pointercancel', stopDrawing);
 canvas.addEventListener('pointerleave', stopDrawing);
 
 window.addEventListener('resize', () => {
+  const stageRect = canvasStage.getBoundingClientRect();
+  const maxW = Math.max(stageRect.width - 40, VIEWER_MIN_WIDTH);
+  const maxH = Math.max(stageRect.height - 140, VIEWER_MIN_HEIGHT);
+  viewerWidth = Math.min(viewerWidth, maxW);
+  viewerHeight = Math.min(viewerHeight, maxH);
+  applyViewerSize();
+
   if (img.naturalWidth) {
     baseWidth = computeFitWidth();
     applyZoom();
@@ -357,6 +491,8 @@ async function loadProblem() {
     img.src = problem.imageUrl;
     img.onload = () => {
       zoomLevel = 1;
+      panX = 0;
+      panY = 0;
       baseWidth = computeFitWidth();
       applyZoom();
     };
@@ -366,4 +502,5 @@ async function loadProblem() {
 }
 
 setTool('pen');
+initViewerSize();
 loadProblem();
