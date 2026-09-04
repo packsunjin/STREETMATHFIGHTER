@@ -25,6 +25,8 @@ const solveWrap = document.querySelector('.solve-wrap');
 const canvasStage = document.querySelector('.canvas-stage');
 const zoomLevelLabel = document.getElementById('zoomLevel');
 const timerBadge = document.getElementById('timerBadge');
+const timerBadgeIcon = document.getElementById('timerBadgeIcon');
+const timerBadgeText = document.getElementById('timerBadgeText');
 const nextProblemBtn = document.getElementById('nextProblemBtn');
 const listBtn = document.getElementById('listBtn');
 const answerPanel = document.getElementById('answerPanel');
@@ -59,20 +61,22 @@ function formatTime(sec) {
 function startTimer(difficulty) {
   clearInterval(timerInterval);
   timerBadge.classList.remove('warning', 'expired');
+  timerBadgeIcon.textContent = '⏱';
   timeRemaining = TIME_LIMITS[difficulty] ?? 180;
-  timerBadge.textContent = formatTime(timeRemaining);
+  timerBadgeText.textContent = formatTime(timeRemaining);
 
   timerInterval = setInterval(() => {
     timeRemaining -= 1;
     if (timeRemaining <= 0) {
       timeRemaining = 0;
-      timerBadge.textContent = '시간 종료';
+      timerBadgeIcon.textContent = '⏰';
+      timerBadgeText.textContent = '시간 종료!';
       timerBadge.classList.remove('warning');
       timerBadge.classList.add('expired');
       clearInterval(timerInterval);
       return;
     }
-    timerBadge.textContent = formatTime(timeRemaining);
+    timerBadgeText.textContent = formatTime(timeRemaining);
     timerBadge.classList.toggle('warning', timeRemaining <= 10);
   }, 1000);
 }
