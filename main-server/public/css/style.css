@@ -147,6 +147,15 @@ button,
   }
 }
 
+.home-hero .brand-en {
+  color: var(--red);
+  margin: 0 0 clamp(2px, 0.6vw, 6px);
+  font-size: clamp(11px, 1.3vw, 15px);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  animation: rise-in 0.5s ease both;
+}
+
 .home-hero h1 {
   font-size: clamp(28px, 4.5vw, 56px);
   margin: 0 0 clamp(6px, 1vw, 12px);
