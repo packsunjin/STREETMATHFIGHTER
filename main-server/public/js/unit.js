@@ -10,9 +10,16 @@ backBtn.addEventListener('click', () => {
 });
 SMFAnim.pressable(backBtn);
 
+const ARROW_SVG =
+  '<svg class="difficulty-bar-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>';
+
 function makeUnitButton(label, caption, unitValue) {
   const btn = document.createElement('button');
   btn.className = 'difficulty-bar';
+  btn.dataset.level = difficulty; // 왼쪽 색 띠를 고른 난이도 색으로
+
+  const main = document.createElement('span');
+  main.className = 'difficulty-bar-main';
 
   const labelSpan = document.createElement('span');
   labelSpan.className = 'difficulty-bar-label';
@@ -22,7 +29,14 @@ function makeUnitButton(label, caption, unitValue) {
   captionSpan.className = 'difficulty-bar-caption';
   captionSpan.textContent = caption;
 
-  btn.append(labelSpan, captionSpan);
+  main.append(labelSpan, captionSpan);
+
+  // 화살표는 우리가 만든 고정 마크업이라 innerHTML을 써도 안전함
+  const meta = document.createElement('span');
+  meta.className = 'difficulty-bar-meta';
+  meta.innerHTML = ARROW_SVG;
+
+  btn.append(main, meta);
   btn.addEventListener('click', async () => {
     if (btn.disabled) return;
     unitList.querySelectorAll('.difficulty-bar').forEach((b) => (b.disabled = true));
@@ -43,6 +57,9 @@ async function loadUnits() {
     return;
   }
   unitPageTitle.textContent = `단원 선택 (${difficulty})`;
+  const heroBadge = document.getElementById('heroLevelBadge');
+  heroBadge.textContent = difficulty;
+  heroBadge.dataset.level = difficulty;
 
   unitList.appendChild(makeUnitButton('전체', '모든 단원에서 출제', ''));
 

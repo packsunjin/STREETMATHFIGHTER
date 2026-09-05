@@ -8,19 +8,44 @@
 </head>
 <body>
   <div class="home-wrap">
-    <div class="difficulty-list">
-      <button class="difficulty-bar" data-difficulty="하">
-        <span class="difficulty-bar-label">하</span>
-        <span class="difficulty-bar-caption">쉬움</span>
-      </button>
-      <button class="difficulty-bar" data-difficulty="중">
-        <span class="difficulty-bar-label">중</span>
-        <span class="difficulty-bar-caption">보통</span>
-      </button>
-      <button class="difficulty-bar" data-difficulty="상">
-        <span class="difficulty-bar-label">상</span>
-        <span class="difficulty-bar-caption">어려움</span>
-      </button>
+    <div class="home-inner">
+      <header class="home-hero">
+        <h1 class="home-title">스트릿<em>매쓰</em>파이터</h1>
+        <p class="home-subtitle">난이도를 고르면 바로 한 판 시작</p>
+      </header>
+
+      <div class="difficulty-list">
+        <button class="difficulty-bar" data-difficulty="하" data-level="하">
+          <span class="difficulty-bar-main">
+            <span class="difficulty-bar-label">하</span>
+            <span class="difficulty-bar-caption">쉬움</span>
+          </span>
+          <span class="difficulty-bar-meta">
+            <span class="difficulty-bar-time">⏱ 1분 30초</span>
+            <svg class="difficulty-bar-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          </span>
+        </button>
+        <button class="difficulty-bar" data-difficulty="중" data-level="중">
+          <span class="difficulty-bar-main">
+            <span class="difficulty-bar-label">중</span>
+            <span class="difficulty-bar-caption">보통</span>
+          </span>
+          <span class="difficulty-bar-meta">
+            <span class="difficulty-bar-time">⏱ 3분</span>
+            <svg class="difficulty-bar-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          </span>
+        </button>
+        <button class="difficulty-bar" data-difficulty="상" data-level="상">
+          <span class="difficulty-bar-main">
+            <span class="difficulty-bar-label">상</span>
+            <span class="difficulty-bar-caption">어려움</span>
+          </span>
+          <span class="difficulty-bar-meta">
+            <span class="difficulty-bar-time">⏱ 5분</span>
+            <svg class="difficulty-bar-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          </span>
+        </button>
+      </div>
     </div>
   </div>
 

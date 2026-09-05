@@ -130,9 +130,64 @@ button,
   background: #ffffff;
 }
 
+.home-inner {
+  width: 100%;
+  max-width: 460px;
+}
+
+.home-hero {
+  margin-bottom: 28px;
+}
+
+.home-title {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+}
+
+/* 이름 가운데 글자만 색을 줘서 밋밋하지 않게(정답 색과 같은 계열) */
+.home-title em {
+  font-style: normal;
+  color: var(--blue);
+}
+
+.home-subtitle {
+  margin: 8px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* 단원 선택 화면에서 지금 고른 난이도를 색으로 알려주는 작은 배지 */
+.hero-level-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  font-weight: 800;
+  color: #fff;
+  background: var(--text-secondary);
+}
+
+.hero-level-badge[data-level='하'] {
+  background: var(--green);
+}
+
+.hero-level-badge[data-level='중'] {
+  background: var(--orange);
+}
+
+.hero-level-badge[data-level='상'] {
+  background: var(--red);
+}
+
 .difficulty-list {
   width: 100%;
-  max-width: 420px;
+  max-width: 460px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -153,35 +208,101 @@ button,
   overflow-y: auto;
 }
 
+/* 난이도/단원 선택 버튼: 왼쪽에 난이도 색 띠를 두고, 큼직하게 눌리는 카드 형태 */
 .difficulty-bar {
+  position: relative;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
+  gap: 12px;
   width: 100%;
-  padding: 14px 16px;
+  padding: 18px 18px 18px 24px;
   background: #ffffff;
   color: var(--text);
-  border: 1px solid var(--border);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
   cursor: pointer;
   font-family: inherit;
+  overflow: hidden;
+  text-align: left;
+}
+
+/* 왼쪽 색 띠 (난이도별로 색이 다름) */
+.difficulty-bar::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  background: var(--text-secondary);
+}
+
+.difficulty-bar[data-level='하']::before {
+  background: var(--green);
+}
+
+.difficulty-bar[data-level='중']::before {
+  background: var(--orange);
+}
+
+.difficulty-bar[data-level='상']::before {
+  background: var(--red);
 }
 
 .difficulty-bar:hover {
   background: var(--bg);
+  border-color: #dcdde1;
 }
 
 .difficulty-bar:disabled {
   cursor: default;
+  opacity: 0.55;
+}
+
+.difficulty-bar-main {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
 }
 
 .difficulty-bar-label {
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .difficulty-bar-caption {
   font-size: 13px;
+  font-weight: 600;
   color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.difficulty-bar-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.difficulty-bar-time {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--bg);
+  white-space: nowrap;
+}
+
+.difficulty-bar-arrow {
+  width: 18px;
+  height: 18px;
 }
 
 /* ---- 상단바 (공통) ---- */
@@ -659,6 +780,11 @@ button,
   width: 100%;
   height: 100%;
   overflow: hidden;
+  /* 사진 바깥 여백도 필기가 되는 공간이라, 연습장처럼 옅은 점 격자를 깔아
+     "여기도 쓸 수 있다"는 걸 눈으로 바로 알 수 있게 함 */
+  background-color: #fff;
+  background-image: radial-gradient(circle, rgba(25, 27, 31, 0.11) 1px, transparent 1px);
+  background-size: 22px 22px;
 }
 
 .canvas-frame-inner {
