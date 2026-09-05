@@ -16,6 +16,19 @@ const adminApp = require('./admin-server/server');
 
 const PORT = process.env.PORT || 3000;
 
+// 어디서도 못 잡은 예외/거부된 프라미스가 있으면 Node가 아무 설명 없이 그냥
+// 죽어버리는데, 그러면 나중에 로그만 보고 원인을 알기 어려움. 무슨 일이
+// 있었는지 남기고 나서(상태가 이미 망가졌을 수 있으니) 프로세스를 확실히 종료함
+// -> 이후 Render 등의 플랫폼이 새 인스턴스로 재시작해줌.
+process.on('uncaughtException', (err) => {
+  console.error('[server] 처리되지 않은 예외로 종료합니다:', err);
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[server] 처리되지 않은 Promise 거부로 종료합니다:', reason);
+  process.exit(1);
+});
+
 const app = express();
 
 app.use('/admin', adminApp);
