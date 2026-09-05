@@ -526,6 +526,8 @@ button,
   gap: 16px;
 }
 
+/* 등장 애니메이션은 js/anim.js(enterList)가 담당. 여기서 CSS 애니메이션을 같이 걸면
+   CSS 애니메이션이 인라인 스타일보다 우선이라 JS 연출을 덮어써버림 */
 .problem-card {
   position: relative;
   background: var(--card);
@@ -533,11 +535,10 @@ button,
   overflow: hidden;
   cursor: pointer;
   box-shadow: var(--shadow);
-  animation: rise-in 0.35s ease both;
 }
 
+/* 떠오르는 움직임은 Motion(hoverLift)이 처리하고, CSS는 그림자만 담당 */
 .problem-card:hover {
-  transform: translateY(-3px);
   box-shadow: 0 6px 20px rgba(16, 24, 40, 0.1);
 }
 
@@ -897,22 +898,22 @@ button,
 
 .answer-choices {
   display: flex;
-  gap: 6px;
+  gap: 8px;
 }
 
 .choice-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   flex-shrink: 0;
   border-radius: 50%;
   border: none;
   background: var(--bg);
   color: var(--text);
-  font-size: 17px;
+  font-size: 19px;
   line-height: 1;
   font-weight: 800;
   cursor: pointer;
@@ -949,11 +950,12 @@ button,
 }
 
 .answer-form input {
-  width: 130px;
-  padding: 7px 12px;
+  width: 150px;
+  height: 44px;
+  padding: 0 16px;
   border-radius: var(--radius-pill);
-  border: 1px solid var(--border);
-  font-size: 13px;
+  border: 1.5px solid var(--border);
+  font-size: 15px;
   font-family: inherit;
 }
 
@@ -967,10 +969,11 @@ button,
   border: none;
   background: var(--blue);
   color: #fff;
-  padding: 8px 14px;
+  height: 44px;
+  padding: 0 20px;
   border-radius: var(--radius-pill);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 800;
   cursor: pointer;
 }
 

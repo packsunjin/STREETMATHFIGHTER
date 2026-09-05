@@ -9,7 +9,7 @@
 <body>
   <div class="list-page">
     <div class="top-bar">
-      <button class="icon-btn" onclick="window.location.href='index.html'" title="난이도 선택으로">
+      <button class="icon-btn" id="backBtn" title="난이도 선택으로">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
       </button>
       <h2 id="pageTitle">문제 목록</h2>
@@ -21,6 +21,9 @@
     </div>
   </div>
 
+  <script src="vendor/anime.umd.min.js"></script>
+  <script src="vendor/motion.min.js"></script>
+  <script src="js/anim.js"></script>
   <script src="js/list.js"></script>
 </body>
 </html>

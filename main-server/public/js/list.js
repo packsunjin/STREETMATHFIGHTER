@@ -1,6 +1,10 @@
 const params = new URLSearchParams(window.location.search);
 const difficulty = params.get('difficulty') || '';
 
+const backBtn = document.getElementById('backBtn');
+backBtn.addEventListener('click', () => SMFAnim.navigate('index.html'));
+SMFAnim.pressable(backBtn);
+
 document.getElementById('pageTitle').textContent = difficulty
   ? `난이도 "${difficulty}" 문제 목록`
   : '전체 문제 목록';
@@ -31,10 +35,16 @@ async function loadProblems() {
       </div>
     `;
     card.addEventListener('click', () => {
-      window.location.href = `solve.html?id=${problem.id}`;
+      SMFAnim.navigate(`solve.html?id=${problem.id}`);
     });
     grid.appendChild(card);
   });
+
+  // 카드가 순서대로 톡톡 나타나게
+  const cards = grid.querySelectorAll('.problem-card');
+  SMFAnim.enterList(cards, { each: 40, y: 18 });
+  SMFAnim.pressable(cards, { scale: 0.97 });
+  SMFAnim.hoverLift(cards);
 }
 
 function escapeHtml(str) {
