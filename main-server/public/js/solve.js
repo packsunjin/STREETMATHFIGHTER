@@ -13,6 +13,7 @@ const selectBtn = document.getElementById('selectBtn');
 const penBtn = document.getElementById('penBtn');
 const eraserBtn = document.getElementById('eraserBtn');
 const clearBtn = document.getElementById('clearBtn');
+const undoBtn = document.getElementById('undoBtn');
 const penPopup = document.getElementById('penPopup');
 const penPreviewDot = document.getElementById('penPreviewDot');
 const penColorRow = document.getElementById('penColorRow');
@@ -74,40 +75,82 @@ function formatTime(sec) {
 
 // Web Audio API로 짧은 알림음을 직접 만들어 재생(오디오 파일 불필요).
 // 브라우저 자동재생 정책 때문에 재생이 막힐 수도 있는데, 그 경우 조용히 무시한다.
+// 브라우저는 사용자가 화면을 한 번이라도 건드리기 전에는 소리를 못 내게 막는다
+// (자동재생 정책). 문제를 열자마자 울리는 시작 팡파레는 바로 이 시점에 걸려서
+// 그동안 한 번도 안 들렸음. 그래서
+//   1) AudioContext를 소리마다 새로 만들지 않고 하나만 공유하고,
+//   2) 못 낸 소리는 잠깐 기억해뒀다가 첫 터치/키 입력 때 바로 들려준다.
+let sharedAudioCtx = null;
+let pendingSound = null;
+const PENDING_SOUND_MAX_AGE = 6000; // 너무 늦게(예: 30초 뒤) 뒤늦은 팡파레가 울리면 이상하니 제한
+
+function getAudioCtx() {
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) return null;
+  if (!sharedAudioCtx) sharedAudioCtx = new AudioCtx();
+  return sharedAudioCtx;
+}
+
+function emitTones(ctx, notes, waveType) {
+  let cursor = ctx.currentTime;
+  notes.forEach(({ freq, dur }) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = waveType || 'sine';
+    osc.frequency.value = freq;
+    const start = cursor;
+    const end = start + dur;
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(0.25, start + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, end);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(start);
+    osc.stop(end + 0.02);
+    cursor = end;
+  });
+}
+
+function flushPendingSound(ctx) {
+  if (!pendingSound) return;
+  const sound = pendingSound;
+  pendingSound = null;
+  if (Date.now() - sound.queuedAt > PENDING_SOUND_MAX_AGE) return;
+  emitTones(ctx, sound.notes, sound.waveType);
+}
+
 function playTones(notes, waveType) {
   try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-    const audioCtx = new AudioCtx();
-    const run = () => {
-      let cursor = audioCtx.currentTime;
-      notes.forEach(({ freq, dur }) => {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = waveType || 'sine';
-        osc.frequency.value = freq;
-        const start = cursor;
-        const end = start + dur;
-        gain.gain.setValueAtTime(0.0001, start);
-        gain.gain.exponentialRampToValueAtTime(0.25, start + 0.015);
-        gain.gain.exponentialRampToValueAtTime(0.0001, end);
-        osc.connect(gain).connect(audioCtx.destination);
-        osc.start(start);
-        osc.stop(end + 0.02);
-        cursor = end;
-      });
-      const totalDur = notes.reduce((sum, n) => sum + n.dur, 0);
-      setTimeout(() => audioCtx.close().catch(() => {}), (totalDur + 0.3) * 1000);
-    };
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume().then(run).catch(() => {});
-    } else {
-      run();
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') {
+      pendingSound = { notes, waveType, queuedAt: Date.now() };
+      ctx.resume().then(() => flushPendingSound(ctx)).catch(() => {});
+      return;
     }
+    emitTones(ctx, notes, waveType);
   } catch (err) {
-    // 오디오 재생이 막힌 환경이면 조용히 무시
+    // 오디오를 쓸 수 없는 환경이면 조용히 무시
   }
 }
+
+// 첫 사용자 조작이 들어오면 오디오 잠금을 풀고, 밀려 있던 소리를 바로 들려준다.
+function unlockAudio() {
+  try {
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(() => flushPendingSound(ctx)).catch(() => {});
+    } else {
+      flushPendingSound(ctx);
+    }
+  } catch (err) {
+    /* 무시 */
+  }
+}
+
+['pointerdown', 'keydown', 'touchstart'].forEach((type) => {
+  window.addEventListener(type, unlockAudio, { passive: true });
+});
 
 // "따라라라" 느낌의 팡파르(타이머 시작/종료 때)
 function playFanfare() {
@@ -577,6 +620,20 @@ function clearAllStrokes() {
   strokes = [];
   currentStroke = null;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  updateUndoState();
+}
+
+// 마지막에 그은 획 하나만 되돌리기. 획을 벡터로 들고 있어서 하나 빼고 다시 그리면 끝.
+// (지우개질도 하나의 획으로 쌓이므로 잘못 지운 것도 되살아남)
+function undoLastStroke() {
+  if (!strokes.length) return;
+  strokes.pop();
+  redrawAllStrokes();
+  updateUndoState();
+}
+
+function updateUndoState() {
+  undoBtn.disabled = strokes.length === 0;
 }
 
 eraserBtn.addEventListener('click', () => setTool('eraser'));
@@ -585,6 +642,14 @@ eraserBtn.addEventListener('dblclick', (e) => {
   clearAllStrokes();
 });
 clearBtn.addEventListener('click', clearAllStrokes);
+undoBtn.addEventListener('click', undoLastStroke);
+
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+    e.preventDefault();
+    undoLastStroke();
+  }
+});
 
 document.addEventListener('pointerdown', (e) => {
   if (!penPopup.hidden && !e.target.closest('.pen-tool-wrap')) closePenPopup();
@@ -761,6 +826,7 @@ function stopDrawing(e) {
   drawing = false;
   if (currentStroke && currentStroke.points.length) {
     strokes.push(currentStroke);
+    updateUndoState();
   }
   currentStroke = null;
   if (e && canvas.hasPointerCapture(e.pointerId)) {
@@ -1008,6 +1074,7 @@ async function loadProblem() {
 // ---- 화면 등장 연출 + 버튼 촉감 ----
 
 SMFAnim.dropIn([topInfoHud, topToolsHud], { delay: 260, each: 90 });
+updateUndoState();
 SMFAnim.pressable([
   ...document.querySelectorAll('.tool-btn'),
   ...document.querySelectorAll('.top-bar .icon-btn'),

@@ -711,6 +711,16 @@ button,
   color: var(--red);
 }
 
+/* 되돌릴 획이 없으면 되돌리기 버튼을 흐리게 */
+.tool-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.tool-btn:disabled:hover {
+  background: transparent;
+}
+
 .pen-tool-wrap {
   position: relative;
   display: inline-flex;
