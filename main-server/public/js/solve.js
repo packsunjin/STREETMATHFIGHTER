@@ -221,6 +221,12 @@ let cardLeft = 0;
 let cardTop = 0;
 let imgWidth = 640; // 사진의 실제 표시 크기(핀치로만 바뀜)
 let imgHeight = 460;
+let imgOffsetLeft = 0; // 창(필기 공간) 안에서 사진 왼쪽에 있는 여백 크기
+let imgOffsetTop = 0; // 창 안에서 사진 위쪽에 있는 여백 크기
+
+function clampNum(v, min, max) {
+  return Math.min(Math.max(v, min), max);
+}
 
 function headerHeight() {
   return problemCardHeader.offsetHeight || 18;
@@ -230,14 +236,27 @@ function answerPanelHeight() {
   return answerPanel.style.display !== 'none' ? answerPanel.offsetHeight || 0 : 0;
 }
 
+function frameContentHeight() {
+  return Math.max(cardHeight - headerHeight() - answerPanelHeight(), 80);
+}
+
 function layoutCanvasFrame() {
-  const h = Math.max(cardHeight - headerHeight() - answerPanelHeight(), 80);
-  canvasFrame.style.height = `${h}px`;
+  canvasFrame.style.height = `${frameContentHeight()}px`;
 }
 
 function applyImageSize() {
   canvasFrameInner.style.width = `${imgWidth}px`;
   canvasFrameInner.style.height = `${imgHeight}px`;
+  canvasFrameInner.style.left = `${imgOffsetLeft}px`;
+  canvasFrameInner.style.top = `${imgOffsetTop}px`;
+}
+
+// 사진 자동 맞춤(최초 로드/핀치/전체화면/창 크기 변경 등)일 때만 사진을 창 안에서
+// 가운데로 재정렬함. 리사이즈 핸들 드래그 중에는 이 함수를 부르지 않고, 대신
+// setupResizeHandle 안에서 늘어난 쪽에만 여백이 생기도록 offset을 직접 계산한다.
+function centerImageInFrame() {
+  imgOffsetLeft = Math.max((cardWidth - imgWidth) / 2, 0);
+  imgOffsetTop = Math.max((frameContentHeight() - imgHeight) / 2, 0);
 }
 
 function applyCardBox() {
@@ -293,6 +312,8 @@ function centerCard() {
   const cardRect = problemCard.getBoundingClientRect();
   cardLeft = Math.max(CARD_MARGIN, (stageRect.width - cardRect.width) / 2);
   cardTop = Math.max(CARD_MARGIN, (stageRect.height - cardRect.height) / 2);
+  centerImageInFrame();
+  applyImageSize();
   applyCardBox();
 }
 
@@ -348,6 +369,8 @@ function setupResizeHandle(el) {
     const startH = cardHeight;
     const startLeft = cardLeft;
     const startTop = cardTop;
+    const startOffsetLeft = imgOffsetLeft;
+    const startOffsetTop = imgOffsetTop;
 
     function onMove(ev) {
       const dx = ev.clientX - startX;
@@ -366,10 +389,27 @@ function setupResizeHandle(el) {
         cardHeight = nextHeight;
       }
       // 리사이즈는 "확대"가 아니라 필기 공간을 늘리는 것뿐이라 확대율(%) 표시는 건드리지 않음.
-      // 드래그 도중에는 매번 다시 그리지 않고(느려짐/깜빡임 방지), 손을 뗄 때 한 번만 선명하게 다시 그림.
       clampCardWidth();
       clampCardHeight();
+
+      // 사진은 화면에서 절대 움직이면 안 되므로, 늘어난 만큼을 잡아당긴 쪽의 여백에만 더해줌.
+      // (예: 왼쪽 핸들을 당기면 창의 왼쪽 경계가 왼쪽으로 이동하는 동시에 사진 왼쪽 여백도
+      // 같은 만큼 늘어나서, 결과적으로 사진의 화면상 절대 위치는 그대로 유지됨)
+      if (dir === 'e') {
+        imgOffsetLeft = clampNum(startOffsetLeft, 0, Math.max(cardWidth - imgWidth, 0));
+      } else if (dir === 'w') {
+        const grown = cardWidth - startW;
+        imgOffsetLeft = clampNum(startOffsetLeft + grown, 0, Math.max(cardWidth - imgWidth, 0));
+      } else if (dir === 's') {
+        imgOffsetTop = clampNum(startOffsetTop, 0, Math.max(frameContentHeight() - imgHeight, 0));
+      } else if (dir === 'n') {
+        const grown = cardHeight - startH;
+        imgOffsetTop = clampNum(startOffsetTop + grown, 0, Math.max(frameContentHeight() - imgHeight, 0));
+      }
+
+      // 드래그 도중에는 매번 다시 그리지 않고(느려짐/깜빡임 방지), 손을 뗄 때 한 번만 선명하게 다시 그림.
       applyCardBox();
+      applyImageSize();
     }
     function onUp() {
       el.releasePointerCapture(e.pointerId);
@@ -633,11 +673,12 @@ canvas.addEventListener('pointermove', (e) => {
     imgWidth = Math.max(pinchStartImgWidth * scale, IMG_MIN_SIZE);
     imgHeight = Math.max(pinchStartImgHeight * scale, IMG_MIN_SIZE);
     clampImageToStage();
-    applyImageSize();
     cardWidth = imgWidth;
     cardHeight = imgHeight + headerHeight() + answerPanelHeight();
     clampCardWidth();
     clampCardHeight();
+    centerImageInFrame();
+    applyImageSize();
     applyCardBox();
     clampCardPosition();
     applyCardBox();
@@ -700,9 +741,10 @@ window.addEventListener('resize', () => {
     baseFitWidth = computeFitWidth();
   }
   clampImageToStage();
-  applyImageSize();
   clampCardWidth();
   clampCardHeight();
+  centerImageInFrame();
+  applyImageSize();
   applyCardBox();
   clampCardPosition();
   applyCardBox();

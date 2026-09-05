@@ -692,21 +692,19 @@ button,
 }
 
 /* 사진은 실제 크기(canvas-frame-inner)만큼만 차지하고, 창(canvas-frame)이 그보다 크면
-   가운데 정렬되어 남는 공간은 그냥 여백(=필기 공간)이 됨. 창 리사이즈는 이 여백만 바꾸고,
-   사진 자체 크기는 핀치 확대/축소에서만 바뀐다. */
+   남는 공간은 그냥 여백(=필기 공간)이 됨. canvas-frame-inner의 위치(left/top)는 JS가
+   직접 계산해서 정하는데, 이렇게 해야 리사이즈 핸들로 늘어난 쪽에만 여백이 생기고
+   사진 자체는 화면에서 절대 움직이지 않는다(flex 중앙정렬을 쓰면 창이 커질 때마다
+   사진이 재정렬되면서 화면상 위치가 밀려버림). 사진 자체 크기는 핀치 확대/축소에서만 바뀐다. */
 .canvas-frame {
   position: relative;
   width: 100%;
   height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   overflow: hidden;
 }
 
 .canvas-frame-inner {
-  position: relative;
-  flex-shrink: 0;
+  position: absolute;
 }
 
 .canvas-frame-inner img {
