@@ -64,6 +64,7 @@ const TIME_LIMITS = { 상: 300, 중: 180, 하: 90 }; // 초 단위: 5분 / 3분 
 let timerInterval = null;
 let timeRemaining = 0;
 let timerPulse = null; // 좌상단에 자리잡은 뒤 계속 도는 은은한 박동(Motion 애니메이션 핸들)
+let timerLanded = false; // 인트로가 끝나 구석에 자리잡았는지(화면 크기 바뀔 때 위치 재조정용)
 let hasAnsweredCorrectly = false;
 
 function formatTime(sec) {
@@ -157,8 +158,14 @@ function showCenterPopup(text, kind) {
   }, 1500);
 }
 
-// 타이머가 가운데에서 출발해 좌상단에 착지하는 위치 값(좌상단 값은 CSS의 .timer-hud와 맞춤)
-const TIMER_CORNER = { left: 20, top: 76, fontSize: 22, padding: '8px 18px' };
+// 타이머가 가운데에서 출발해 좌상단에 착지하는 위치. 좁은 화면에서는 문제 정보 HUD와
+// 겹치지 않도록 더 작고 왼쪽 위에 붙는데, 이 값들은 style.css의 미디어쿼리와 짝을 이룬다.
+function timerCornerState() {
+  return window.innerWidth <= 700
+    ? { left: 12, top: 62, fontSize: 18, padding: '6px 12px' }
+    : { left: 20, top: 76, fontSize: 22, padding: '8px 18px' };
+}
+
 function timerCenterState() {
   return {
     left: window.innerWidth / 2,
@@ -175,6 +182,7 @@ function startTimer(difficulty) {
     timerPulse = null;
   }
   hasAnsweredCorrectly = false;
+  timerLanded = false;
 
   timerHud.classList.remove('warning', 'expired', 'resolved', 'result-fail', 'result-success', 'result-neutral');
   timerHudIcon.textContent = '⏰';
@@ -182,9 +190,10 @@ function startTimer(difficulty) {
   timerHudText.textContent = formatTime(timeRemaining);
 
   playFanfare();
-  SMFAnim.timerIntro(timerHud, timerCenterState(), TIMER_CORNER, {
+  SMFAnim.timerIntro(timerHud, timerCenterState(), timerCornerState(), {
     holdMs: 700,
     onLanded: () => {
+      timerLanded = true;
       timerPulse = SMFAnim.idlePulse(timerHud);
     },
   });
@@ -778,6 +787,16 @@ canvas.addEventListener('pointercancel', (e) => {
 canvas.addEventListener('pointerleave', stopDrawing);
 
 window.addEventListener('resize', () => {
+  // 기기를 돌리거나 창 크기가 바뀌어 좁은 화면 배치로 넘어가면, 이미 자리잡은
+  // 타이머의 좌표(인라인 스타일)도 새 배치에 맞춰 다시 잡아준다.
+  if (timerLanded) {
+    const corner = timerCornerState();
+    timerHud.style.left = `${corner.left}px`;
+    timerHud.style.top = `${corner.top}px`;
+    timerHud.style.fontSize = `${corner.fontSize}px`;
+    timerHud.style.padding = corner.padding;
+  }
+
   if (img.naturalWidth) {
     baseFitWidth = computeFitWidth();
   }

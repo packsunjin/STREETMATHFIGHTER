@@ -420,6 +420,30 @@ button,
   box-shadow: var(--shadow);
 }
 
+/* 좁은 화면(휴대폰)에서는 타이머·문제정보·도구를 한 줄에 다 넣을 수 없어서
+   서로 겹쳐버림. 위 줄에 [타이머][문제 정보], 아래 줄에 [도구]로 2단 배치한다.
+   (타이머의 좌표는 JS가 잡으므로 solve.js의 timerCornerState()와 값을 맞춤) */
+@media (max-width: 700px) {
+  .top-info-hud {
+    top: 62px;
+    left: 126px;
+    right: 12px;
+    max-width: none;
+    padding: 6px 12px;
+  }
+
+  .top-tools-hud {
+    top: 108px;
+    left: 12px;
+    right: 12px;
+    padding: 6px 10px;
+  }
+
+  .top-tools-hud .tool-icons {
+    justify-content: center;
+  }
+}
+
 /* 정답/오답, 성공/실패처럼 화면 중앙에 확 튀어나오는 큰 알림. 테두리/그림자 없이 flat하게.
    바깥(.answer-result-hud)은 화면 전체를 덮으며 가운데 정렬만 담당하고, 실제로 튀어나오는
    애니메이션은 안쪽 알약(.answer-result-pill)과 파동(.answer-result-ring)에 JS(Anime.js)가
