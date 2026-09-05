@@ -10,7 +10,8 @@
     "dev:main": "node --watch main-server/server.js",
     "dev:admin": "node --watch admin-server/server.js",
     "dev": "concurrently -n MAIN,ADMIN -c blue,magenta \"npm:dev:main\" \"npm:dev:admin\"",
-    "build": "npm install --prefix admin-server/admin-dashboard-app && npm run build --prefix admin-server/admin-dashboard-app"
+    "build": "npm install --prefix admin-server/admin-dashboard-app && npm run build --prefix admin-server/admin-dashboard-app",
+    "test": "node --test tests/*.test.js"
   },
   "dependencies": {
     "cloudinary": "^2.10.1",
@@ -26,6 +27,7 @@
     "pg": "^8.23.0"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "supertest": "^7.2.2"
   }
 }
