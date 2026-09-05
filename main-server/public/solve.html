@@ -75,11 +75,13 @@
       <div class="problem-card-solve" id="problemCardSolve">
         <div class="problem-card-header" id="problemCardHeader" title="드래그해서 창 이동"></div>
 
+        <!-- 캔버스는 사진 박스가 아니라 창(canvas-frame) 전체를 덮는다.
+             그래야 사진 바깥의 흰 여백에도 펜으로 쓸 수 있음. -->
         <div class="canvas-frame" id="canvasFrame">
           <div class="canvas-frame-inner" id="canvasFrameInner">
             <img id="problemImage" alt="문제 이미지" />
-            <canvas id="drawCanvas"></canvas>
           </div>
+          <canvas id="drawCanvas"></canvas>
         </div>
 
         <div class="answer-panel" id="answerPanel" style="display:none;">

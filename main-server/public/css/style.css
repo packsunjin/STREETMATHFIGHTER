@@ -722,7 +722,8 @@ button,
   -webkit-user-drag: none;
 }
 
-.canvas-frame-inner canvas {
+/* 필기 캔버스는 사진 위가 아니라 창 전체를 덮음 -> 사진 옆 흰 여백에도 써짐 */
+.canvas-frame > canvas {
   position: absolute;
   top: 0;
   left: 0;
@@ -732,7 +733,7 @@ button,
   cursor: crosshair;
 }
 
-.canvas-frame-inner canvas.select-mode {
+.canvas-frame > canvas.select-mode {
   cursor: default;
 }
 

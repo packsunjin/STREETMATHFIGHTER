@@ -44,7 +44,7 @@ const answerResultHudText = document.getElementById('answerResultHudText');
 
 let tool = 'pen'; // 'pen' | 'eraser' | 'select'
 let drawing = false;
-let strokes = []; // {points:[{x,y}](0~1 비율), color, widthFrac, composite}
+let strokes = []; // {points:[{x,y}](사진 기준 비율, 여백은 0~1 밖), color, widthFrac, composite}
 let currentStroke = null;
 let currentProblem = null;
 let answered = false;
@@ -407,9 +407,11 @@ function setupResizeHandle(el) {
         imgOffsetTop = clampNum(startOffsetTop + grown, 0, Math.max(frameContentHeight() - imgHeight, 0));
       }
 
-      // 드래그 도중에는 매번 다시 그리지 않고(느려짐/깜빡임 방지), 손을 뗄 때 한 번만 선명하게 다시 그림.
       applyCardBox();
       applyImageSize();
+      // 캔버스가 창 전체를 덮으므로 창 크기가 바뀌면 캔버스도 같이 다시 잡아줘야
+      // 이미 써놓은 필기가 늘어나거나 밀리지 않는다.
+      resizeCanvas();
     }
     function onUp() {
       el.releasePointerCapture(e.pointerId);
@@ -560,16 +562,24 @@ penColorRow.querySelectorAll('.color-swatch').forEach((btn) => {
   });
 });
 
-// 획(스트로크)의 점 좌표는 캔버스 CSS 박스 기준 0~1 비율로 저장한다.
-// 확대/리사이즈로 캔버스 해상도가 바뀌어도 비트맵을 늘리지 않고 이 비율 좌표로
-// 다시 그리기 때문에(redrawAllStrokes) 선이 절대 흐려지지 않는다.
+// 획(스트로크)의 점 좌표는 "사진 기준 0~1 비율"로 저장한다. 캔버스는 창 전체를
+// 덮기 때문에 사진 바깥(흰 여백)에 쓴 획은 0보다 작거나 1보다 큰 값이 되고, 이건
+// 정상이다. 사진을 기준으로 저장해두면 핀치로 사진을 확대/축소했을 때 필기도
+// 사진에 붙어서 같이 커지고, 창만 넓혔을 때는 필기가 그대로 제자리에 있는다.
+// 해상도가 바뀌어도 비트맵을 늘리지 않고 이 비율 좌표로 다시 그리기 때문에
+// (redrawAllStrokes) 선이 절대 흐려지지 않는다.
+
+let canvasDpr = 1;
 
 function toCanvasPx(pt) {
-  return { x: pt.x * canvas.width, y: pt.y * canvas.height };
+  return {
+    x: (imgOffsetLeft + pt.x * imgWidth) * canvasDpr,
+    y: (imgOffsetTop + pt.y * imgHeight) * canvasDpr,
+  };
 }
 
 function strokePixelWidth(stroke) {
-  return stroke.widthFrac * canvas.width;
+  return stroke.widthFrac * imgWidth * canvasDpr;
 }
 
 function drawStroke(stroke) {
@@ -600,20 +610,23 @@ function redrawAllStrokes() {
   ctx.globalCompositeOperation = 'source-over';
 }
 
+// 캔버스는 사진이 아니라 창(canvas-frame) 전체 크기로 잡는다. 사진 옆 여백도
+// 전부 필기 가능한 영역이기 때문.
 function resizeCanvas() {
-  const rect = img.getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
+  const rect = canvasFrame.getBoundingClientRect();
+  canvasDpr = window.devicePixelRatio || 1;
 
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
+  canvas.width = Math.max(Math.round(rect.width * canvasDpr), 1);
+  canvas.height = Math.max(Math.round(rect.height * canvasDpr), 1);
   canvas.style.width = `${rect.width}px`;
   canvas.style.height = `${rect.height}px`;
 
   redrawAllStrokes();
 }
 
+// 좌표는 사진 박스 기준 비율. 사진 바깥이면 0~1을 벗어난 값이 나오는데 그대로 씀.
 function getPoint(e) {
-  const rect = canvas.getBoundingClientRect();
+  const rect = img.getBoundingClientRect();
   return {
     x: (e.clientX - rect.left) / (rect.width || 1),
     y: (e.clientY - rect.top) / (rect.height || 1),
@@ -621,9 +634,8 @@ function getPoint(e) {
 }
 
 function currentLineWidthFraction() {
-  const rect = canvas.getBoundingClientRect();
   const px = tool === 'eraser' ? ERASER_SIZE : Number(sizeRange.value);
-  return px / (rect.width || 1);
+  return px / (imgWidth || 1);
 }
 
 canvas.addEventListener('pointerdown', (e) => {
@@ -683,6 +695,8 @@ canvas.addEventListener('pointermove', (e) => {
     clampCardPosition();
     applyCardBox();
     updateZoomLabel();
+    // 필기는 사진 기준 좌표로 저장돼 있어서, 사진이 커지면 같이 커지도록 다시 그림
+    resizeCanvas();
     return;
   }
 
