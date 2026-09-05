@@ -156,7 +156,7 @@ function startTimer(difficulty) {
   clearTimeout(timerShakeTimeout);
   hasAnsweredCorrectly = false;
 
-  timerHud.classList.remove('warning', 'expired', 'shake-start');
+  timerHud.classList.remove('warning', 'expired', 'shake-start', 'resolved', 'result-fail', 'result-success', 'result-neutral');
   timerHud.classList.add('center-start');
   timerHudIcon.textContent = '⏰';
   timeRemaining = TIME_LIMITS[difficulty] ?? 180;
@@ -770,6 +770,10 @@ async function checkAnswer(value) {
 
 function showAnswerResult(correct, correctAnswer) {
   if (correct) hasAnsweredCorrectly = true;
+  // 이미 한 번 채점됐으므로(제출은 문제당 한 번만 가능) 타이머가 나중에 다 돼도
+  // 또 결과 팝업을 띄우면 안 됨 -> 타이머를 멈추고 구석 배지도 조용히 치움
+  clearInterval(timerInterval);
+  timerHud.classList.add('resolved');
   playAnswerSound(correct);
   showCenterPopup(correct ? '정답! 🎉' : '오답! 💥', correct ? 'correct' : 'incorrect');
   answerResult.classList.remove('correct', 'incorrect');

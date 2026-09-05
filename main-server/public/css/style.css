@@ -219,8 +219,15 @@ button,
   transform-origin: center;
   transition: top 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), left 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
     transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), font-size 0.6s ease, padding 0.6s ease,
-    background-color 0.2s ease, color 0.2s ease;
+    background-color 0.2s ease, color 0.2s ease, opacity 0.3s ease;
   animation: timer-pulse 1.8s ease-in-out infinite;
+}
+
+/* 이미 답을 제출해서 승부가 끝난 뒤에는(정답/오답 상관없이) 화면 중앙 팝업 하나로만
+   결과를 보여주면 충분하므로, 구석의 작은 타이머는 조용히 사라짐(다시 뜨지 않음) */
+.timer-hud.resolved {
+  opacity: 0;
+  animation: none;
 }
 
 .timer-hud-icon {
@@ -250,7 +257,7 @@ button,
 .timer-hud.expired {
   font-size: 28px;
   padding: 10px 22px;
-  animation: timer-shake 0.5s ease-in-out infinite;
+  animation: timer-shake 0.4s ease-in-out 2;
 }
 
 .timer-hud.expired.result-fail {
