@@ -36,7 +36,7 @@
         <input type="hidden" id="problemId" />
         <div class="field">
           <label for="title">문제 제목</label>
-          <input type="text" id="title" name="title" placeholder="예: 이차방정식 활용 - 1" required />
+          <input type="text" id="title" name="title" placeholder="예: 이차방정식 활용 - 1" maxlength="200" required />
         </div>
         <div class="field">
           <label for="difficulty">난이도</label>
@@ -48,7 +48,7 @@
         </div>
         <div class="field">
           <label for="unit">단원 (선택)</label>
-          <input type="text" id="unit" name="unit" list="unitOptions" placeholder="예: 등비수열" />
+          <input type="text" id="unit" name="unit" list="unitOptions" placeholder="예: 등비수열" maxlength="100" />
           <datalist id="unitOptions"></datalist>
         </div>
         <div class="field">
@@ -76,7 +76,7 @@
         </div>
         <div class="field" id="answerFieldSubjective">
           <label for="answerText">정답 (선택, 자동 채점용)</label>
-          <input type="text" id="answerText" name="answerText" placeholder="비워두면 채점 없이 풀이만 가능합니다." />
+          <input type="text" id="answerText" name="answerText" placeholder="비워두면 채점 없이 풀이만 가능합니다." maxlength="500" />
         </div>
         <div class="field">
           <label for="image">문제 이미지</label>
@@ -85,7 +85,7 @@
         </div>
         <div class="field">
           <label for="description">설명 / 해설 (선택)</label>
-          <textarea id="description" name="description" placeholder="학생에게 보여줄 설명이나 정답 해설을 입력하세요."></textarea>
+          <textarea id="description" name="description" placeholder="학생에게 보여줄 설명이나 정답 해설을 입력하세요." maxlength="5000"></textarea>
         </div>
         <div class="form-actions">
           <button type="submit" class="btn-primary" id="submitBtn">등록하기</button>

@@ -120,6 +120,20 @@ function normalizeAnswer(questionType, rawAnswer) {
   return { ok: true, value: trimmed };
 }
 
+// 텍스트 필드 길이 제한: 특별한 제약이 없으면 관리자가 실수로(또는 악의적으로)
+// 지나치게 긴 값을 넣어 DB/화면을 어지럽힐 수 있어 상식적인 상한선을 둠.
+const FIELD_LIMITS = { title: 200, description: 5000, unit: 100, answer: 500 };
+
+function validateFieldLengths(fields) {
+  for (const [key, max] of Object.entries(FIELD_LIMITS)) {
+    const value = fields[key];
+    if (typeof value === 'string' && value.length > max) {
+      return `${key}은(는) ${max}자를 넘을 수 없습니다.`;
+    }
+  }
+  return null;
+}
+
 app.get('/healthz', (req, res) => res.json({ ok: true }));
 
 function parseId(req, res, next) {
@@ -261,6 +275,10 @@ app.post('/api/problems', requireAuth, upload.single('image'), async (req, res, 
     if (!normalizedAnswer.ok) {
       return res.status(400).json({ error: '객관식 정답은 ①~⑤ 중 하나를 선택해주세요.' });
     }
+    const lengthError = validateFieldLengths({ title, description, unit, answer });
+    if (lengthError) {
+      return res.status(400).json({ error: lengthError });
+    }
     if (!req.file) {
       return res.status(400).json({ error: '문제 이미지를 업로드해주세요.' });
     }
@@ -301,6 +319,10 @@ app.put('/api/problems/:id', requireAuth, parseId, upload.single('image'), async
     const normalizedAnswer = normalizeAnswer(effectiveType, answer);
     if (!normalizedAnswer.ok) {
       return res.status(400).json({ error: '객관식 정답은 ①~⑤ 중 하나를 선택해주세요.' });
+    }
+    const lengthError = validateFieldLengths({ title, description, unit, answer });
+    if (lengthError) {
+      return res.status(400).json({ error: lengthError });
     }
 
     let image_path;

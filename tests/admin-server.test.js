@@ -71,6 +71,19 @@ test('올바른 비밀번호로 로그인하면 세션이 생기고, 이후 인�
   assert.ok(Array.isArray(listRes.body.problems));
 });
 
+test('문제 생성 -- 제목이 너무 길면 400(이미지 첨부 없이도 먼저 걸러짐)', async () => {
+  const agent = request.agent(app);
+  await agent.post('/api/login').send({ username: process.env.ADMIN_USERNAME, password: process.env.ADMIN_PASSWORD });
+
+  const res = await agent
+    .post('/api/problems')
+    .field('title', 'a'.repeat(201))
+    .field('difficulty', '상')
+    .field('questionType', 'subjective');
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /title/);
+});
+
 test(':id 검증 -- 잘못된 id는 인증된 요청이어도 400', async () => {
   const agent = request.agent(app);
   await agent.post('/api/login').send({ username: process.env.ADMIN_USERNAME, password: process.env.ADMIN_PASSWORD });
