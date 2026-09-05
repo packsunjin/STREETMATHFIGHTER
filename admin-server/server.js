@@ -78,6 +78,7 @@ function uploadImageToCloudinary(buffer) {
 }
 
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/stats', express.static(path.join(__dirname, 'admin-dashboard-app', 'dist')));
 
 // 정답 문자열 정규화. 미입력이면 null(채점 기능 없음), 객관식이면 1~5만 허용.
 function normalizeAnswer(questionType, rawAnswer) {
@@ -151,6 +152,43 @@ app.get('/api/units', requireAuth, async (req, res, next) => {
   try {
     const units = await listUnits({});
     res.json({ units });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/stats/problem-counts', requireAuth, async (req, res, next) => {
+  try {
+    const problems = await listProblems({});
+    const byDifficulty = {};
+    DIFFICULTIES.forEach((d) => (byDifficulty[d] = 0));
+    const byUnitMap = new Map();
+
+    problems.forEach((p) => {
+      byDifficulty[p.difficulty] = (byDifficulty[p.difficulty] || 0) + 1;
+
+      const unitKey = p.unit && p.unit.trim() ? p.unit.trim() : '(미분류)';
+      if (!byUnitMap.has(unitKey)) {
+        const counts = {};
+        DIFFICULTIES.forEach((d) => (counts[d] = 0));
+        byUnitMap.set(unitKey, counts);
+      }
+      byUnitMap.get(unitKey)[p.difficulty] += 1;
+    });
+
+    const byDifficultyList = DIFFICULTIES.map((difficulty) => ({
+      difficulty,
+      count: byDifficulty[difficulty],
+    }));
+
+    const byUnitList = Array.from(byUnitMap.entries()).map(([unit, counts]) => ({
+      unit,
+      ...counts,
+      total: DIFFICULTIES.reduce((sum, d) => sum + counts[d], 0),
+    }));
+    byUnitList.sort((a, b) => b.total - a.total);
+
+    res.json({ byDifficulty: byDifficultyList, byUnit: byUnitList, total: problems.length });
   } catch (err) {
     next(err);
   }

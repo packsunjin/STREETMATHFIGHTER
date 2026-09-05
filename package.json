@@ -9,7 +9,8 @@
     "start:admin": "node admin-server/server.js",
     "dev:main": "node --watch main-server/server.js",
     "dev:admin": "node --watch admin-server/server.js",
-    "dev": "concurrently -n MAIN,ADMIN -c blue,magenta \"npm:dev:main\" \"npm:dev:admin\""
+    "dev": "concurrently -n MAIN,ADMIN -c blue,magenta \"npm:dev:main\" \"npm:dev:admin\"",
+    "build": "npm install --prefix admin-server/admin-dashboard-app && npm run build --prefix admin-server/admin-dashboard-app"
   },
   "dependencies": {
     "cloudinary": "^2.10.1",

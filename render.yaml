@@ -3,7 +3,7 @@ services:
     name: streetmathfighter
     runtime: node
     plan: free
-    buildCommand: npm install
+    buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
       - key: ADMIN_USERNAME
