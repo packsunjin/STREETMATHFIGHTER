@@ -4,6 +4,7 @@ const path = require('path');
 const { Readable } = require('stream');
 const express = require('express');
 const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
 const multer = require('multer');
 const helmet = require('helmet');
 const compression = require('compression');
@@ -12,6 +13,7 @@ const rateLimit = require('express-rate-limit');
 const cloudinary = require('cloudinary').v2;
 
 const {
+  pool,
   DIFFICULTIES,
   QUESTION_TYPES,
   OBJECTIVE_CHOICES,
@@ -52,6 +54,10 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use(express.json({ limit: '2mb' }));
 app.use(
   session({
+    // 기본 MemoryStore는 메모리가 계속 쌓이고(누수) 재시작하면 로그인이 다 풀리는 데다
+    // 서버 인스턴스가 여러 개면 세션 공유도 안 돼서, 이미 떠 있는 Postgres를 세션
+    // 저장소로 재사용함(연결 정보 그대로, 새 DB를 따로 안 늘려도 됨).
+    store: new pgSession({ pool, tableName: 'session', createTableIfMissing: true }),
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,

@@ -6,6 +6,8 @@ services:
     buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
+      - key: NODE_ENV
+        value: production
       - key: ADMIN_USERNAME
         sync: false
       - key: ADMIN_PASSWORD
