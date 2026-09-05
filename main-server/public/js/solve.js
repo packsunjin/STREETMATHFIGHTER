@@ -23,7 +23,6 @@ const descriptionToggle = document.getElementById('descriptionToggle');
 const descriptionBox = document.getElementById('descriptionBox');
 const descriptionBoxInner = document.getElementById('descriptionBoxInner');
 const fullscreenBtn = document.getElementById('fullscreenBtn');
-const solveWrap = document.querySelector('.solve-wrap');
 const canvasStage = document.querySelector('.canvas-stage');
 const zoomLevelLabel = document.getElementById('zoomLevel');
 const timerHud = document.getElementById('timerHud');
@@ -503,7 +502,10 @@ function touchDistance(p1, p2) {
 
 fullscreenBtn.addEventListener('click', () => {
   if (!document.fullscreenElement) {
-    solveWrap.requestFullscreen?.();
+    // 타이머·문제정보·도구 HUD는 .solve-wrap 바깥(body 직속)에 떠 있는 고정 요소라,
+    // .solve-wrap만 전체화면으로 만들면 전체화면 하위 트리에 없어서 통째로 사라진다
+    // (전체화면에서 펜/지우개 툴바가 아예 안 보이던 문제). 문서 전체를 전체화면으로 띄움.
+    document.documentElement.requestFullscreen?.();
   } else {
     document.exitFullscreen?.();
   }

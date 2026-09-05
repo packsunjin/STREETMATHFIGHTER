@@ -642,9 +642,14 @@ button,
   background: var(--bg);
 }
 
-.solve-wrap:fullscreen {
-  height: 100vh;
+/* 전체화면은 문서 전체(html)를 대상으로 함 — 고정 HUD들이 .solve-wrap 바깥에 있어서
+   .solve-wrap만 전체화면으로 만들면 HUD가 렌더링되지 않기 때문 */
+:root:fullscreen {
   background: var(--bg);
+}
+
+:root:fullscreen body {
+  height: 100%;
 }
 
 .problem-card-solve {
