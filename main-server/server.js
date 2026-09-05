@@ -125,9 +125,17 @@ app.use((err, req, res, next) => {
 });
 
 if (require.main === module) {
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`[main-server] 학생용 서버 실행 중: http://localhost:${PORT}`);
   });
+
+  function shutdown(signal) {
+    console.log(`[main-server] ${signal} 수신, 진행 중인 요청을 마저 처리하고 종료합니다...`);
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(1), 10_000).unref();
+  }
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 module.exports = app;
