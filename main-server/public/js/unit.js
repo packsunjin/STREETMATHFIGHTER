@@ -12,10 +12,16 @@ backBtn.addEventListener('click', () => {
 function makeUnitButton(label, caption, unitValue) {
   const btn = document.createElement('button');
   btn.className = 'difficulty-bar';
-  btn.innerHTML = `
-    <span class="difficulty-bar-label">${label}</span>
-    <span class="difficulty-bar-caption">${caption}</span>
-  `;
+
+  const labelSpan = document.createElement('span');
+  labelSpan.className = 'difficulty-bar-label';
+  labelSpan.textContent = label; // unit은 관리자가 자유 입력하는 값이라 innerHTML에 그대로 넣으면 안 됨(XSS)
+
+  const captionSpan = document.createElement('span');
+  captionSpan.className = 'difficulty-bar-caption';
+  captionSpan.textContent = caption;
+
+  btn.append(labelSpan, captionSpan);
   btn.addEventListener('click', async () => {
     if (btn.disabled) return;
     unitList.querySelectorAll('.difficulty-bar').forEach((b) => (b.disabled = true));
