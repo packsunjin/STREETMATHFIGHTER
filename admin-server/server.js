@@ -5,7 +5,10 @@ const { Readable } = require('stream');
 const express = require('express');
 const session = require('express-session');
 const multer = require('multer');
-const cors = require('cors');
+const helmet = require('helmet');
+const compression = require('compression');
+const morgan = require('morgan');
+const rateLimit = require('express-rate-limit');
 const cloudinary = require('cloudinary').v2;
 
 const {
@@ -36,8 +39,17 @@ const { requireAuth } = require('./middleware/auth');
 
 const app = express();
 
-app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
+// Render 등 리버스 프록시 뒤에서 실행되므로, secure 쿠키 판별/레이트리밋 IP 확인이
+// 프록시가 아니라 실제 클라이언트 기준으로 동작하게 함.
+app.set('trust proxy', 1);
+
+app.use(helmet({ contentSecurityPolicy: false })); // CSP는 인라인 스크립트가 없어질 때까지 보류
+app.use(compression());
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+// 관리자 페이지(정적 파일+API)는 항상 같은 오리진에서만 호출되므로 CORS는 필요 없고,
+// 오히려 켜두면 다른 사이트가 관리자 세션 쿠키를 실어 API를 호출할 수 있어 위험함.
+// (이전에 cors({ origin: true, credentials: true })로 아무 출처나 허용하고 있었음)
+app.use(express.json({ limit: '2mb' }));
 app.use(
   session({
     secret: SESSION_SECRET,
@@ -46,9 +58,20 @@ app.use(
     cookie: {
       maxAge: 1000 * 60 * 60 * 8, // 8시간
       httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
     },
   })
 );
+
+// 로그인 무차별 대입 시도를 막기 위해 IP당 시도 횟수를 제한.
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.' },
+});
 
 const ALLOWED_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp']);
 
@@ -91,9 +114,20 @@ function normalizeAnswer(questionType, rawAnswer) {
   return { ok: true, value: trimmed };
 }
 
+app.get('/healthz', (req, res) => res.json({ ok: true }));
+
+function parseId(req, res, next) {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: '올바르지 않은 문제 번호입니다.' });
+  }
+  req.problemId = id;
+  next();
+}
+
 // ---- 인증 ----
 
-app.post('/api/login', (req, res) => {
+app.post('/api/login', loginLimiter, (req, res) => {
   const { username, password } = req.body || {};
   if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
     req.session.isAdmin = true;
@@ -194,9 +228,9 @@ app.get('/api/stats/problem-counts', requireAuth, async (req, res, next) => {
   }
 });
 
-app.get('/api/problems/:id', requireAuth, async (req, res, next) => {
+app.get('/api/problems/:id', requireAuth, parseId, async (req, res, next) => {
   try {
-    const problem = await getProblem(req.params.id);
+    const problem = await getProblem(req.problemId);
     if (!problem) return res.status(404).json({ error: '문제를 찾을 수 없습니다.' });
     res.json({ problem: toPublicProblem(problem) });
   } catch (err) {
@@ -244,9 +278,9 @@ app.post('/api/problems', requireAuth, upload.single('image'), async (req, res, 
   }
 });
 
-app.put('/api/problems/:id', requireAuth, upload.single('image'), async (req, res, next) => {
+app.put('/api/problems/:id', requireAuth, parseId, upload.single('image'), async (req, res, next) => {
   try {
-    const existing = await getProblem(req.params.id);
+    const existing = await getProblem(req.problemId);
     if (!existing) return res.status(404).json({ error: '문제를 찾을 수 없습니다.' });
 
     const { title, difficulty, description, questionType, answer, unit } = req.body || {};
@@ -272,7 +306,7 @@ app.put('/api/problems/:id', requireAuth, upload.single('image'), async (req, re
       cloudinary.uploader.destroy(existing.image_public_id).catch(() => {});
     }
 
-    const problem = await updateProblem(req.params.id, {
+    const problem = await updateProblem(req.problemId, {
       title: title !== undefined ? title.trim() : undefined,
       difficulty: difficulty || undefined,
       image_path,
@@ -289,9 +323,9 @@ app.put('/api/problems/:id', requireAuth, upload.single('image'), async (req, re
   }
 });
 
-app.delete('/api/problems/:id', requireAuth, async (req, res, next) => {
+app.delete('/api/problems/:id', requireAuth, parseId, async (req, res, next) => {
   try {
-    const deleted = await deleteProblem(req.params.id);
+    const deleted = await deleteProblem(req.problemId);
     if (!deleted) return res.status(404).json({ error: '문제를 찾을 수 없습니다.' });
 
     cloudinary.uploader.destroy(deleted.image_public_id).catch(() => {});

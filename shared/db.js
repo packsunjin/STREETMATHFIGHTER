@@ -13,6 +13,13 @@ const pool = new Pool({
     : { rejectUnauthorized: false },
 });
 
+// pg Pool은 대기 중인(idle) 커넥션에서 발생하는 에러를 'error' 이벤트로 내보내는데,
+// 리스너가 없으면 Node가 처리되지 않은 예외로 보고 프로세스 전체가 죽어버림
+// (일시적인 DB 커넥션 끊김 한 번으로 서버 전체가 다운되는 것을 방지).
+pool.on('error', (err) => {
+  console.error('예상치 못한 DB 커넥션 풀 에러:', err);
+});
+
 const DIFFICULTIES = ['상', '중', '하'];
 const QUESTION_TYPES = ['objective', 'subjective'];
 const OBJECTIVE_CHOICES = ['1', '2', '3', '4', '5'];
@@ -43,6 +50,10 @@ const ready = pool.query(`
 
   ALTER TABLE problems
     ADD COLUMN IF NOT EXISTS unit TEXT;
+
+  CREATE INDEX IF NOT EXISTS idx_problems_difficulty ON problems (difficulty);
+  CREATE INDEX IF NOT EXISTS idx_problems_unit ON problems (unit);
+  CREATE INDEX IF NOT EXISTS idx_problems_difficulty_unit ON problems (difficulty, unit);
 `);
 
 async function listProblems({ difficulty, unit } = {}) {
