@@ -27,6 +27,8 @@ const solveWrap = document.querySelector('.solve-wrap');
 const canvasStage = document.querySelector('.canvas-stage');
 const zoomLevelLabel = document.getElementById('zoomLevel');
 const timerHud = document.getElementById('timerHud');
+const topInfoHud = document.getElementById('topInfoHud');
+const topToolsHud = document.getElementById('topToolsHud');
 const timerHudIcon = document.getElementById('timerHudIcon');
 const timerHudText = document.getElementById('timerHudText');
 const nextProblemBtn = document.getElementById('nextProblemBtn');
@@ -40,6 +42,8 @@ const answerResult = document.getElementById('answerResult');
 const answerResultText = document.getElementById('answerResultText');
 const answerResultNextBtn = document.getElementById('answerResultNextBtn');
 const answerResultHud = document.getElementById('answerResultHud');
+const answerResultPill = document.getElementById('answerResultPill');
+const answerResultRing = document.getElementById('answerResultRing');
 const answerResultHudText = document.getElementById('answerResultHudText');
 
 let tool = 'pen'; // 'pen' | 'eraser' | 'select'
@@ -59,8 +63,7 @@ const ERASER_SIZE = 22;
 const TIME_LIMITS = { 상: 300, 중: 180, 하: 90 }; // 초 단위: 5분 / 3분 / 1분 30초
 let timerInterval = null;
 let timeRemaining = 0;
-let timerFlyTimeout = null;
-let timerShakeTimeout = null;
+let timerPulse = null; // 좌상단에 자리잡은 뒤 계속 도는 은은한 박동(Motion 애니메이션 핸들)
 let hasAnsweredCorrectly = false;
 
 function formatTime(sec) {
@@ -139,33 +142,52 @@ function playAnswerSound(correct) {
 let centerPopupTimeout = null;
 function showCenterPopup(text, kind) {
   clearTimeout(centerPopupTimeout);
-  answerResultHud.classList.remove('show', 'pop-correct', 'pop-incorrect');
+  const positive = kind === 'correct' || kind === 'success';
+
   answerResultHudText.textContent = text;
-  const popClass = kind === 'correct' || kind === 'success' ? 'pop-correct' : 'pop-incorrect';
-  requestAnimationFrame(() => {
-    answerResultHud.classList.add('show', popClass);
-  });
+  answerResultHud.classList.remove('pop-correct', 'pop-incorrect');
+  answerResultHud.classList.add('show', positive ? 'pop-correct' : 'pop-incorrect');
+
+  SMFAnim.burstResult(answerResultPill, answerResultRing, { angry: !positive });
+
   centerPopupTimeout = setTimeout(() => {
-    answerResultHud.classList.remove('show', 'pop-correct', 'pop-incorrect');
-  }, 1400);
+    SMFAnim.fadeOutResult(answerResultPill, () => {
+      answerResultHud.classList.remove('show', 'pop-correct', 'pop-incorrect');
+    });
+  }, 1500);
+}
+
+// 타이머가 가운데에서 출발해 좌상단에 착지하는 위치 값(좌상단 값은 CSS의 .timer-hud와 맞춤)
+const TIMER_CORNER = { left: 20, top: 76, fontSize: 22, padding: '8px 18px' };
+function timerCenterState() {
+  return {
+    left: window.innerWidth / 2,
+    top: window.innerHeight / 2,
+    fontSize: Math.min(64, Math.round(window.innerWidth * 0.14)),
+    padding: '28px 52px',
+  };
 }
 
 function startTimer(difficulty) {
   clearInterval(timerInterval);
-  clearTimeout(timerFlyTimeout);
-  clearTimeout(timerShakeTimeout);
+  if (timerPulse) {
+    timerPulse.stop();
+    timerPulse = null;
+  }
   hasAnsweredCorrectly = false;
 
-  timerHud.classList.remove('warning', 'expired', 'shake-start', 'resolved', 'result-fail', 'result-success', 'result-neutral');
-  timerHud.classList.add('center-start');
+  timerHud.classList.remove('warning', 'expired', 'resolved', 'result-fail', 'result-success', 'result-neutral');
   timerHudIcon.textContent = '⏰';
   timeRemaining = TIME_LIMITS[difficulty] ?? 180;
   timerHudText.textContent = formatTime(timeRemaining);
 
   playFanfare();
-  requestAnimationFrame(() => timerHud.classList.add('shake-start'));
-  timerShakeTimeout = setTimeout(() => timerHud.classList.remove('shake-start'), 700);
-  timerFlyTimeout = setTimeout(() => timerHud.classList.remove('center-start'), 1300);
+  SMFAnim.timerIntro(timerHud, timerCenterState(), TIMER_CORNER, {
+    holdMs: 700,
+    onLanded: () => {
+      timerPulse = SMFAnim.idlePulse(timerHud);
+    },
+  });
 
   timerInterval = setInterval(() => {
     timeRemaining -= 1;
@@ -181,8 +203,13 @@ function startTimer(difficulty) {
 }
 
 function finishTimer() {
-  timerHud.classList.remove('warning', 'center-start', 'shake-start', 'result-fail', 'result-success', 'result-neutral');
+  timerHud.classList.remove('warning', 'result-fail', 'result-success', 'result-neutral');
   timerHud.classList.add('expired');
+  if (timerPulse) {
+    timerPulse.stop();
+    timerPulse = null;
+  }
+  SMFAnim.shake(timerHud, { distance: 6 });
   playFanfare();
 
   const canJudge = Boolean(currentProblem && currentProblem.hasAnswer);
@@ -787,6 +814,10 @@ function showAnswerResult(correct, correctAnswer) {
   // 이미 한 번 채점됐으므로(제출은 문제당 한 번만 가능) 타이머가 나중에 다 돼도
   // 또 결과 팝업을 띄우면 안 됨 -> 타이머를 멈추고 구석 배지도 조용히 치움
   clearInterval(timerInterval);
+  if (timerPulse) {
+    timerPulse.stop();
+    timerPulse = null;
+  }
   timerHud.classList.add('resolved');
   playAnswerSound(correct);
   showCenterPopup(correct ? '정답! 🎉' : '오답! 💥', correct ? 'correct' : 'incorrect');
@@ -834,12 +865,17 @@ answerForm.addEventListener('submit', async (e) => {
     const chosenBtn = answerChoices.querySelector(`[data-choice="${selectedChoice}"]`);
     chosenBtn?.classList.remove('selected');
     chosenBtn?.classList.add(result.correct ? 'correct' : 'incorrect');
-    if (!result.correct) {
+    if (result.correct) {
+      SMFAnim.bounce(chosenBtn); // 맞힌 선택지는 통통 튀고
+    } else {
+      SMFAnim.shake(chosenBtn); // 틀린 선택지는 부르르 떨고, 진짜 정답은 통통 튐
       const correctBtn = answerChoices.querySelector(`[data-choice="${result.correctAnswer}"]`);
       correctBtn?.classList.add('correct');
+      SMFAnim.bounce(correctBtn);
     }
   } else {
     answerInput.disabled = true;
+    if (!result.correct) SMFAnim.shake(answerInput);
   }
   showAnswerResult(result.correct, result.correctAnswer);
 });
@@ -866,13 +902,16 @@ function resetAnswerPanel(problem) {
   const isObjective = problem.questionType === 'objective';
   answerChoices.style.display = isObjective ? 'flex' : 'none';
   answerInput.style.display = isObjective ? 'none' : 'block';
+  if (isObjective) {
+    SMFAnim.enterChoices(answerChoices.querySelectorAll('.choice-btn'));
+  }
 }
 
 // ---- 다음 문제 (셔플백 랜덤) ----
 
 listBtn.addEventListener('click', () => {
   if (!currentProblem) return;
-  window.location.href = `list.html?difficulty=${encodeURIComponent(currentProblem.difficulty)}`;
+  SMFAnim.navigate(`list.html?difficulty=${encodeURIComponent(currentProblem.difficulty)}`);
 });
 
 async function goToNextProblem() {
@@ -881,7 +920,7 @@ async function goToNextProblem() {
   answerResultNextBtn.disabled = true;
   const nextId = await getNextProblemId(currentProblem.difficulty, currentProblem.id, currentProblem.unit);
   if (nextId) {
-    window.location.href = `solve.html?id=${nextId}`;
+    SMFAnim.navigate(`solve.html?id=${nextId}`);
   } else {
     nextProblemBtn.disabled = false;
     answerResultNextBtn.disabled = false;
@@ -936,12 +975,26 @@ async function loadProblem() {
       fitImageAndCardToStage();
       requestAnimationFrame(() => {
         fitImageAndCardToStage();
+        // 크기/위치가 다 잡힌 뒤에 카드가 부드럽게 올라오며 등장
+        SMFAnim.cardIn(problemCard);
       });
     };
   } catch (err) {
     document.getElementById('problemCardTitle').textContent = '서버에 연결할 수 없습니다.';
   }
 }
+
+// ---- 화면 등장 연출 + 버튼 촉감 ----
+
+SMFAnim.dropIn([topInfoHud, topToolsHud], { delay: 260, each: 90 });
+SMFAnim.pressable([
+  ...document.querySelectorAll('.tool-btn'),
+  ...document.querySelectorAll('.top-bar .icon-btn'),
+  ...document.querySelectorAll('.choice-btn'),
+  nextProblemBtn,
+  submitAnswerBtn,
+]);
+SMFAnim.hoverLift(document.querySelectorAll('.top-bar .icon-btn'), { y: -2 });
 
 setTool('pen');
 centerCard();

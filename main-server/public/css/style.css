@@ -70,14 +70,21 @@ button {
   font-family: inherit;
 }
 
+/* 버튼의 transform은 Motion/Anime.js가 매 프레임 인라인 스타일로 제어하므로,
+   여기에 transform transition을 걸면 서로 싸워서 뭉개진다. 색/그림자만 CSS가 담당. */
 button,
 .icon-btn,
-.problem-card,
 .difficulty-card {
+  transition: background-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease,
+    color 0.15s ease;
+}
+
+.problem-card {
   transition: transform 0.12s ease, background-color 0.15s ease, box-shadow 0.15s ease,
     filter 0.15s ease, color 0.15s ease;
 }
 
+/* 라이브러리가 못 뜬 경우를 위한 최소한의 눌림 피드백(정상 상황에선 Motion이 덮어씀) */
 .icon-btn:active,
 .tool-btn:active {
   transform: scale(0.92);
@@ -195,14 +202,15 @@ button,
   font-weight: 700;
 }
 
-/* 문제 시작: 화면 가운데에 크게 떴다가(center-start) 왼쪽 위로 날아가서(corner, 기본 상태)
-   작은 배지로 자리잡는 타이머. 항상 화면 위에 고정되고 클릭은 통과시킴(pointer-events:none). */
+/* 문제 시작: 화면 가운데에 크게 떴다가 왼쪽 위로 날아가서 작은 배지로 자리잡는 타이머.
+   위치/크기/흔들림 연출은 전부 JS(Anime.js, js/anim.js의 timerIntro)가 인라인 스타일로
+   제어하므로 여기서는 겹치는 transition/animation을 두지 않는다. 색상만 CSS가 담당. */
 .timer-hud {
   position: fixed;
-  /* 상단바(뒤로가기 버튼 등)와 안 겹치도록 상단바 아래, 왼쪽 여백에 자리잡음 */
+  /* 상단바(뒤로가기 버튼 등)와 안 겹치도록 상단바 아래, 왼쪽 여백에 자리잡음.
+     이 값은 js/solve.js의 TIMER_CORNER와 반드시 같아야 함 */
   top: 76px;
   left: 20px;
-  transform: translate(0, 0) scale(1);
   z-index: 50;
   display: inline-flex;
   align-items: center;
@@ -217,47 +225,27 @@ button,
   letter-spacing: 0.02em;
   pointer-events: none;
   transform-origin: center;
-  transition: top 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), left 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
-    transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), font-size 0.6s ease, padding 0.6s ease,
-    background-color 0.2s ease, color 0.2s ease, opacity 0.3s ease;
-  animation: timer-pulse 1.8s ease-in-out infinite;
+  transition: background-color 0.2s ease, color 0.2s ease, opacity 0.3s ease;
 }
 
 /* 이미 답을 제출해서 승부가 끝난 뒤에는(정답/오답 상관없이) 화면 중앙 팝업 하나로만
    결과를 보여주면 충분하므로, 구석의 작은 타이머는 조용히 사라짐(다시 뜨지 않음) */
 .timer-hud.resolved {
   opacity: 0;
-  animation: none;
 }
 
 .timer-hud-icon {
   font-size: 1.2em;
 }
 
-/* 뷰포트의 실제 표시 영역(dvh/dvw) 기준으로 중앙 정렬 - 모바일에서 주소창이
-   나타났다 사라져도(뷰포트 크기가 변해도) 항상 화면 정중앙에 오게 함 */
-.timer-hud.center-start {
-  top: 50dvh;
-  left: 50dvw;
-  transform: translate(-50%, -50%) scale(1);
-  font-size: 64px;
-  padding: 28px 52px;
-}
-
-.timer-hud.center-start.shake-start {
-  animation: timer-hud-wobble 0.15s ease-in-out 4;
-}
-
 .timer-hud.warning {
   background: var(--orange-light);
   color: var(--orange);
-  animation: timer-pulse-fast 0.6s ease-in-out infinite;
 }
 
 .timer-hud.expired {
   font-size: 28px;
   padding: 10px 22px;
-  animation: timer-shake 0.4s ease-in-out 2;
 }
 
 .timer-hud.expired.result-fail {
@@ -311,98 +299,61 @@ button,
   box-shadow: var(--shadow);
 }
 
-@keyframes timer-pulse {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.06);
-  }
-}
-
-@keyframes timer-pulse-fast {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.22);
-  }
-}
-
-@keyframes timer-shake {
-  0%, 100% {
-    transform: translateX(0) scale(1.15);
-  }
-  20% {
-    transform: translateX(-5px) scale(1.15);
-  }
-  40% {
-    transform: translateX(5px) scale(1.15);
-  }
-  60% {
-    transform: translateX(-5px) scale(1.15);
-  }
-  80% {
-    transform: translateX(5px) scale(1.15);
-  }
-}
-
-@keyframes timer-hud-wobble {
-  0%, 100% {
-    transform: translate(-50%, -50%) rotate(0deg);
-  }
-  25% {
-    transform: translate(-50%, -50%) rotate(-10deg);
-  }
-  75% {
-    transform: translate(-50%, -50%) rotate(10deg);
-  }
-}
-
-/* 정답/오답, 성공/실패처럼 화면 중앙에 확 튀어나오는 큰 알림. 테두리/그림자 없이 flat하게. */
+/* 정답/오답, 성공/실패처럼 화면 중앙에 확 튀어나오는 큰 알림. 테두리/그림자 없이 flat하게.
+   바깥(.answer-result-hud)은 화면 전체를 덮으며 가운데 정렬만 담당하고, 실제로 튀어나오는
+   애니메이션은 안쪽 알약(.answer-result-pill)과 파동(.answer-result-ring)에 JS(Anime.js)가
+   건다. 이렇게 나눠야 중앙정렬 transform과 애니메이션 transform이 서로 싸우지 않는다. */
 .answer-result-hud {
   position: fixed;
-  top: 50dvh;
-  left: 50dvw;
-  transform: translate(-50%, -50%) scale(0.4);
-  opacity: 0;
+  inset: 0;
   z-index: 70;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.answer-result-hud.show {
+  display: flex;
+}
+
+.answer-result-pill {
+  position: relative;
   padding: 28px 56px;
   border-radius: var(--radius-pill);
   font-size: 56px;
   font-weight: 900;
   letter-spacing: 0.02em;
+  white-space: nowrap;
+  opacity: 0;
+}
+
+/* 팝업 뒤로 한 번 퍼져나가는 동심원(충격파) */
+.answer-result-ring {
+  position: absolute;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  opacity: 0;
   pointer-events: none;
-  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease;
 }
 
-.answer-result-hud.show {
-  transform: translate(-50%, -50%) scale(1);
-  opacity: 1;
-}
-
-.answer-result-hud.show.pop-correct {
+.answer-result-hud.pop-correct .answer-result-pill {
   background: var(--green);
   color: #fff;
-  animation: answer-hud-pop 0.35s ease-out;
 }
 
-.answer-result-hud.show.pop-incorrect {
+.answer-result-hud.pop-correct .answer-result-ring {
+  background: var(--green);
+}
+
+.answer-result-hud.pop-incorrect .answer-result-pill {
   background: var(--red);
   color: #fff;
-  animation: timer-hud-wobble 0.15s ease-in-out 3;
 }
 
-@keyframes answer-hud-pop {
-  0% {
-    transform: translate(-50%, -50%) scale(0.4);
-  }
-  60% {
-    transform: translate(-50%, -50%) scale(1.15);
-  }
-  100% {
-    transform: translate(-50%, -50%) scale(1);
-  }
+.answer-result-hud.pop-incorrect .answer-result-ring {
+  background: var(--red);
 }
 
 .next-btn {

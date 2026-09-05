@@ -6,8 +6,9 @@ const unitList = document.getElementById('unitList');
 const backBtn = document.getElementById('backBtn');
 
 backBtn.addEventListener('click', () => {
-  window.location.href = 'index.html';
+  SMFAnim.navigate('index.html');
 });
+SMFAnim.pressable(backBtn);
 
 function makeUnitButton(label, caption, unitValue) {
   const btn = document.createElement('button');
@@ -27,7 +28,7 @@ function makeUnitButton(label, caption, unitValue) {
     unitList.querySelectorAll('.difficulty-bar').forEach((b) => (b.disabled = true));
     const nextId = await getNextProblemId(difficulty, null, unitValue || null);
     if (nextId) {
-      window.location.href = `solve.html?id=${nextId}`;
+      SMFAnim.navigate(`solve.html?id=${nextId}`);
     } else {
       unitList.querySelectorAll('.difficulty-bar').forEach((b) => (b.disabled = false));
       alert('아직 이 난이도/단원에 등록된 문제가 없어요.');
@@ -54,6 +55,12 @@ async function loadUnits() {
   } catch (err) {
     // 단원 목록을 못 불러와도 "전체"로는 계속 진행 가능
   }
+
+  // 목록이 다 만들어진 다음에 한꺼번에 차례로 등장시킴
+  const buttons = unitList.querySelectorAll('.difficulty-bar');
+  SMFAnim.enterList(buttons, { each: 55 });
+  SMFAnim.pressable(buttons);
+  SMFAnim.hoverLift(buttons);
 }
 
 loadUnits();
