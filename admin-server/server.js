@@ -70,13 +70,19 @@ app.use(
   })
 );
 
-// 로그인 무차별 대입 시도를 막기 위해 IP당 시도 횟수를 제한.
+// 로그인 무차별 대입 시도를 막기 위해 IP당 "틀린" 시도 횟수를 제한.
+//
+// 성공한 로그인까지 세면 안 된다. 학교는 전교생이 공인 IP 하나를 같이 쓰는
+// 경우가 많아서, 제대로 로그인한 것만으로도 한도가 차서 정작 행사 진행자가
+// 강당에서 잠기는 일이 생긴다. 무차별 대입은 "틀린" 시도로 이뤄지므로
+// 실패만 세도 막는 효과는 그대로다.
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 20,
+  limit: 30,
+  skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.' },
+  message: { error: '비밀번호를 너무 많이 틀렸습니다. 15분 뒤에 다시 시도해주세요.' },
 });
 
 const ALLOWED_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp']);

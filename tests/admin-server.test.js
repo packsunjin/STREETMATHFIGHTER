@@ -48,6 +48,18 @@ test('틀린 비밀번호로 로그인하면 401', async () => {
   assert.equal(res.status, 401);
 });
 
+test('제대로 로그인하는 건 아무리 해도 안 막힌다', async () => {
+  // 학교는 전교생이 공인 IP 하나를 같이 쓴다. 성공한 로그인까지 세면
+  // 정작 진행자가 강당에서 잠긴다. 무차별 대입은 "틀린" 시도라서
+  // 실패만 세도 막는 효과는 그대로다.
+  for (let i = 0; i < 40; i += 1) {
+    const res = await request(app)
+      .post('/api/login')
+      .send({ username: process.env.ADMIN_USERNAME, password: process.env.ADMIN_PASSWORD });
+    assert.equal(res.status, 200, `${i + 1}번째 정상 로그인이 막힘`);
+  }
+});
+
 test('CORS 헤더가 더 이상 임의의 출처를 반사하지 않음(취약점 수정 확인)', async () => {
   const res = await request(app)
     .post('/api/login')
