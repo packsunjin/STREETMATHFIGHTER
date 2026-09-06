@@ -5,9 +5,16 @@
 <!-- 전자칠판 전용 화면: 확대/축소 제스처가 진행을 방해하지 않게 막는다 -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>스트릿 매쓰 파이터 - 진행 화면</title>
+<!-- 제목용 명조. 직접 들고 있는다. 행사 당일 학교 네트워크가 구글 폰트를
+     막아두거나 느리면 제목만 다른 글꼴로 튀는데, 그건 무대에서 바로 보인다.
+     글자 범위별로 쪼개져 있어서 브라우저는 실제로 쓰는 조각만 받아 간다. -->
+<link rel="stylesheet" href="/vendor/gowun-batang.css" />
 <link rel="stylesheet" href="css/show.css" />
 </head>
 <body class="show-body">
+
+<!-- 배경에 떠다니는 거품. 내용이 없는 장식이라 화면 낭독기에서는 숨긴다. -->
+<div class="ambient" id="ambient" aria-hidden="true"></div>
 
 <!-- 어느 화면에서든 떠 있는 표시들 -->
 <div class="utility">
@@ -24,15 +31,31 @@
   </div>
 </div>
 
-<!-- 1. 대기 -->
-<section class="stage" id="stageIdle" hidden>
+<!-- 1. 대기.
+     가운데 정렬로 쌓아두면 어느 화면이나 똑같아 보인다. 제목은 왼쪽에 크게 두고
+     오른쪽에 무게추(엠블럼)를 놔서 시선이 한 번 흐르게 짰다. -->
+<section class="stage stage-idle" id="stageIdle" hidden>
   <div class="idle-inner">
-    <h1 class="show-logo">스트릿 매쓰 파이터</h1>
-    <p class="show-tagline">점심시간 강당 수학 대결</p>
+    <div class="idle-copy">
+      <p class="show-tagline"><span class="eyebrow-rule"></span>점심시간 강당 수학 대결</p>
+      <!-- 줄마다 따로 두는 이유: 글자 단위 등장 연출이 줄바꿈을 지우지 않게 -->
+      <h1 class="show-logo" data-solo>
+        <span class="logo-line">스트릿</span>
+        <span class="logo-line logo-accent">매쓰 파이터</span>
+      </h1>
 
-    <div class="idle-actions">
-      <button type="button" class="btn btn-primary btn-huge" id="startBtn">도전 시작</button>
-      <button type="button" class="btn btn-ghost" id="resetBtn">낸 문제 초기화</button>
+      <div class="idle-actions">
+        <button type="button" class="btn btn-primary btn-huge" id="startBtn">도전 시작</button>
+        <button type="button" class="btn btn-ghost" id="resetBtn">낸 문제 초기화</button>
+      </div>
+    </div>
+
+    <!-- 장식. 오른쪽이 비면 제목이 허공에 뜬 것처럼 보인다. -->
+    <div class="idle-emblem" aria-hidden="true">
+      <span class="emblem-ring emblem-ring-1"></span>
+      <span class="emblem-ring emblem-ring-2"></span>
+      <span class="emblem-core"></span>
+      <span class="emblem-glyph">&#8721;</span>
     </div>
   </div>
 </section>

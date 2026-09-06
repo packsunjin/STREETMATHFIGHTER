@@ -249,7 +249,8 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     });
     assert.ok(await page.evaluate(() => document.querySelectorAll('.fx').length > 0));
 
-    await page.waitForTimeout(3200);
+    // 색종이는 솟았다 떨어지느라 2.9초를 쓴다. 그보다 넉넉히 기다린 뒤 본다.
+    await page.waitForTimeout(4500);
     const left = await page.$$eval('.fx', (els) => els.map((e) => e.className));
     assert.deepEqual(left, [], `안 치워진 레이어: ${left.join(', ')}`);
 

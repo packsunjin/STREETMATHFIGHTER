@@ -1,9 +1,13 @@
 /* 진행 화면 연출.
  *
  * 강당 앞 65~86인치 화면이고 뒤에는 학생들이 앉아 있다. 얌전한 페이드는
- * 뒤에서 보이지도 않고 아무 반응도 못 끌어낸다. 그래서 전부 크게 움직인다.
+ * 뒤에서 보이지도 않고 아무 반응도 못 끌어낸다. 그래서 크게 움직인다.
  *
- * Anime.js로 타임라인을 짜고, 소리와 박자를 맞춘다.
+ * 다만 "크게"가 "뚝뚝 끊기게"는 아니다. 움직임은 전부 무게가 있는 것처럼
+ * 굴러야 한다. 그래서 대부분을 스프링(물리 기반)으로 안착시키고, 등장에는
+ * 원근(3D)을 써서 깊이에서 다가오게 만든다. 화면을 흔드는 건 정말 "쿵" 해야
+ * 하는 순간에만 남겼다.
+ *
  * 라이브러리가 없거나 사용자가 "동작 줄이기"를 켰으면 연출 없이 결과 상태만
  * 남는다(연출이 빠져도 행사 진행은 계속돼야 한다).
  */
@@ -14,8 +18,30 @@ window.SMFShowAnim = (function () {
   const enabled = hasAnime && !prefersReduced;
 
   const animate = hasAnime ? window.anime.animate : null;
-  const createTimeline = hasAnime ? window.anime.createTimeline : null;
   const stagger = hasAnime ? window.anime.stagger : null;
+  const createSpring = hasAnime ? window.anime.createSpring : null;
+
+  /* ================= 움직임의 기본 성질 =================
+   * 스프링은 "얼마나 세게 당기고(stiffness) 얼마나 빨리 잦아드는지(damping),
+   * 얼마나 무거운지(mass)"로 정해진다. 값을 이름으로 묶어두고 재사용해서
+   * 화면마다 움직임의 성격이 따로 놀지 않게 한다. */
+  const SPRING = createSpring
+    ? {
+        // 가볍게 떠오르는 것들(글자, 목록)
+        soft: createSpring({ stiffness: 92, damping: 15, mass: 1 }),
+        // 버튼처럼 또렷하게 자리잡아야 하는 것
+        firm: createSpring({ stiffness: 150, damping: 19, mass: 1 }),
+        // 큰 덩어리. 살짝 늦게 멎으면서 무게가 느껴진다.
+        heavy: createSpring({ stiffness: 118, damping: 17, mass: 1.7 }),
+        // 눌렀다 놓을 때 통통 튀는 느낌
+        press: createSpring({ stiffness: 320, damping: 20, mass: 0.8 }),
+      }
+    : {};
+
+  /** 매번 똑같은 간격으로 움직이면 기계가 움직이는 것처럼 보인다. 살짝 흐트러뜨린다. */
+  function jitter(amount) {
+    return (Math.random() - 0.5) * 2 * amount;
+  }
 
   /* ================= 소리 =================
    * 브라우저 자동재생 정책 때문에 사용자가 화면을 한 번 누르기 전에는 소리가 안 난다.
@@ -116,30 +142,144 @@ window.SMFShowAnim = (function () {
     },
   };
 
+  /* ================= 배경 거품 =================
+   * 화면이 완전히 멈춰 있으면 죽은 화면처럼 보인다. 점심시간 내내 켜두는
+   * 물건이라 더 그렇다. 거품은 CSS 애니메이션으로 띄운다. 합성만으로
+   * 처리돼서 저사양 전자칠판에서도 프레임을 안 잡아먹는다. */
+  function ambient(host, count = 22) {
+    if (!host) return;
+    host.textContent = '';
+    if (!enabled) return;
+
+    for (let i = 0; i < count; i += 1) {
+      const bubble = document.createElement('span');
+      bubble.className = 'bubble';
+      // 크기가 제각각이어야 깊이가 있어 보인다. 작을수록 멀리, 느리게.
+      const size = 0.8 + Math.random() * 3.6; // vmin
+      const far = 1 - size / 4.4; // 0(가까움) ~ 1(멂)
+      bubble.style.setProperty('--size', `${size.toFixed(2)}vmin`);
+      bubble.style.setProperty('--x', `${(Math.random() * 100).toFixed(1)}%`);
+      bubble.style.setProperty('--drift', `${jitter(9).toFixed(1)}vw`);
+      bubble.style.setProperty('--dur', `${(15 + far * 22 + Math.random() * 6).toFixed(1)}s`);
+      // 처음부터 화면 곳곳에 흩어져 있어야 한다. 다 같이 바닥에서 출발하면
+      // 첫 20초 동안 화면이 비어 보인다.
+      bubble.style.setProperty('--delay', `${(-Math.random() * 30).toFixed(1)}s`);
+      bubble.style.setProperty('--peak', (0.16 + (1 - far) * 0.4).toFixed(2));
+      host.appendChild(bubble);
+    }
+  }
+
+  /* ================= 글자 단위 등장 =================
+   * 한 덩어리로 밀려 올라오는 것과, 글자가 차례로 일어서는 것은 인상이 아주 다르다.
+   * 제목처럼 "읽히는 순간"이 중요한 곳에만 쓴다. */
+  function splitChars(el) {
+    if (!el) return [];
+    // 이미 쪼개 뒀으면 그대로 쓴다(다시 쪼개면 span 안에 span이 겹친다).
+    // 단, 그 사이에 textContent로 글자를 갈아끼웠으면 조각이 사라졌으므로
+    // 표시만 믿지 말고 실제로 남아 있는지 본다(안 그러면 조용히 연출이 빠진다).
+    if (el.dataset.split === '1' && el.querySelector('.ch')) {
+      return Array.from(el.querySelectorAll('.ch'));
+    }
+
+    const text = el.textContent;
+    el.dataset.plain = text;
+    el.textContent = '';
+    const spans = [];
+    for (const char of text) {
+      const span = document.createElement('span');
+      span.className = 'ch';
+      span.textContent = char;
+      el.appendChild(span);
+      spans.push(span);
+    }
+    el.dataset.split = '1';
+    return spans;
+  }
+
+  /** 쪼갠 글자를 원래 한 덩어리 문자열로 되돌린다(글자를 바꿔 넣기 전에 부른다). */
+  function unsplit(el) {
+    if (!el || el.dataset.split !== '1') return;
+    el.textContent = el.dataset.plain || el.textContent;
+    delete el.dataset.split;
+    delete el.dataset.plain;
+  }
+
+  /**
+   * 글자가 아래에서 하나씩 일어선다.
+   * 요소 하나든 여러 줄이든 받는다. 줄을 따로 넘겨야 하는 이유는,
+   * 한 요소의 textContent를 통째로 쪼개면 줄바꿈이 사라지기 때문이다.
+   */
+  function splitIn(target, each = 0.035) {
+    if (!target || !enabled) return;
+    const els = target instanceof Element ? [target] : Array.from(target);
+    const chars = [];
+    els.forEach((el) => chars.push(...splitChars(el)));
+    if (!chars.length) return;
+    animate(
+      chars,
+      { opacity: [0, 1], y: ['0.55em', 0], rotateX: [-72, 0] },
+      { ease: SPRING.soft, delay: stagger(each) }
+    );
+  }
+
   /* ================= 화면 전환 =================
    * 전체 화면을 scale로 키우면 그 동안 자식(캔버스/사진) 크기를 재는 코드가
-   * 애니메이션 중간값을 읽어서 어긋난다. 그래서 이동/투명도만 쓴다. */
+   * 애니메이션 중간값을 읽어서 어긋난다. 그래서 이동/회전/투명도만 쓴다. */
+  /**
+   * 누를 수 있는 것과 그냥 보는 것은 등장 방식을 달리한다.
+   *
+   * 스프링은 목표를 지나쳤다 되돌아오며 멎는다. 보기에는 좋지만, 그 동안
+   * 버튼은 "눈에 보이는 자리"와 "실제로 눌리는 자리"가 다르다. 전자칠판을
+   * 급하게 두 번 누르면 엉뚱한 게 눌린다(브라우저 테스트에서 실제로 났다).
+   * 그래서 버튼과 카드는 지나침 없이 빠르게 앉히고, 장식만 스프링으로 둔다.
+   */
+  const TAPPABLE = '.btn, .pick-card, .choose-row';
+  const SETTLE_MS = 500;
+
   function stageIn(el) {
     if (!el || !enabled) return;
 
-    // 안에 있는 것들이 아래에서 차례로 밀려 올라온다.
     // data-solo가 붙은 건 제 몫의 등장 연출(titleIn, badgeSlam 등)이 따로 있다.
     // 여기서 같이 움직이면 두 애니메이션이 같은 transform을 두고 싸운다.
-    const items = el.querySelectorAll(
-      '.show-logo:not([data-solo]), .show-tagline, .idle-actions > *, .stage-title, .pick-card, ' +
-        '.center-block > *:not([data-solo]), .choose-row'
+    const all = Array.from(
+      el.querySelectorAll(
+        '.show-logo:not([data-solo]), .show-tagline, .idle-actions > *, .idle-emblem, ' +
+          '.stage-title, .pick-card, .center-block > *:not([data-solo]), .choose-row'
+      )
     );
+    const tappable = all.filter((node) => node.matches(TAPPABLE));
+    const decor = all.filter((node) => !node.matches(TAPPABLE));
 
-    animate(el, { opacity: [0, 1] }, { duration: 0.18, ease: 'outQuad' });
+    animate(el, { opacity: [0, 1] }, { duration: 0.22, ease: 'outQuad' });
 
-    if (items.length) {
+    // 장식: 깊이에서 느긋하게 다가와 스프링으로 안착
+    if (decor.length) {
       animate(
-        items,
-        { opacity: [0, 1], y: [60, 0], scale: [0.9, 1] },
+        decor,
         {
-          duration: 0.55,
-          delay: stagger(0.045),
-          ease: 'out(3)',
+          opacity: [0, 1],
+          y: [() => 46 + jitter(10), 0],
+          z: [() => -260 + jitter(60), 0],
+          rotateX: [() => -14 + jitter(4), 0],
+        },
+        { ease: SPRING.soft, delay: stagger(0.06, { start: 0.04 }) }
+      );
+    }
+
+    // 누르는 것: 더 멀리서 오되 한 번에 멎는다(지나쳤다 돌아오지 않는다)
+    if (tappable.length) {
+      animate(
+        tappable,
+        {
+          opacity: [0, 1],
+          y: [() => 58 + jitter(8), 0],
+          z: [() => -300 + jitter(40), 0],
+          rotateX: [-16, 0],
+        },
+        {
+          duration: SETTLE_MS / 1000,
+          ease: 'outQuint',
+          delay: stagger(0.05, { start: 0.03 }),
         }
       );
     }
@@ -150,8 +290,8 @@ window.SMFShowAnim = (function () {
     if (!enabled || !elements.length) return;
     animate(
       elements,
-      { opacity: [0, 1], x: [-40, 0] },
-      { duration: 0.45, delay: stagger(each / 1000), ease: 'out(3)' }
+      { opacity: [0, 1], y: [26, 0], z: [-120, 0] },
+      { ease: SPRING.soft, delay: stagger(each / 1000) }
     );
   }
 
@@ -161,9 +301,12 @@ window.SMFShowAnim = (function () {
     const list = elements instanceof Element ? [elements] : Array.from(elements);
     list.forEach((el) => {
       el.addEventListener('pointerdown', () => {
-        animate(el, { scale: 0.94 }, { duration: 0.08, ease: 'outQuad' });
+        // 평면에서 줄어들기만 하면 눌린 게 아니라 작아진 것처럼 보인다.
+        // 살짝 뒤로 눕히면 진짜 눌린 것처럼 읽힌다.
+        animate(el, { scale: 0.955, rotateX: 7, z: -26 }, { duration: 0.1, ease: 'outQuad' });
       });
-      const back = () => animate(el, { scale: 1 }, { duration: 0.4, ease: 'outElastic(1, .5)' });
+      const back = () =>
+        animate(el, { scale: 1, rotateX: 0, z: 0 }, { ease: SPRING.press });
       el.addEventListener('pointerup', back);
       el.addEventListener('pointerleave', back);
       el.addEventListener('pointercancel', back);
@@ -179,7 +322,7 @@ window.SMFShowAnim = (function () {
   /**
    * 연출용 겹치는 판을 만든다.
    * behind=true면 무대(.stage)보다 뒤에 깐다. 무대 배경이 투명해서
-   * body의 첫 자식으로 넣으면 내용 뒤에서 비친다(햇살, 배경 글자 등).
+   * body의 첫 자식으로 넣으면 내용 뒤에서 비친다(햇살 등).
    */
   function makeLayer(extra = '', name = 'fx', behind = false) {
     const layer = document.createElement('div');
@@ -194,11 +337,12 @@ window.SMFShowAnim = (function () {
   function flash(color, duration = 0.5) {
     if (!enabled) return;
     const layer = makeLayer(`;background:${color};opacity:0`, 'flash');
-    animate(layer, { opacity: [0, 0.75, 0] }, { duration, ease: 'outQuad' });
+    // 어두운 바탕이라 예전만큼 세게 때리면 눈이 아프다. 살짝 낮췄다.
+    animate(layer, { opacity: [0, 0.55, 0] }, { duration, ease: 'outQuad' });
     setTimeout(() => layer.remove(), duration * 1000 + 100);
   }
 
-  /** 가운데에서 링이 퍼져나간다. */
+  /** 가운데에서 빛 무리가 퍼져나간다. */
   function ring(color, count = 3) {
     if (!enabled) return;
     const layer = makeLayer(';overflow:hidden', 'ring');
@@ -209,27 +353,50 @@ window.SMFShowAnim = (function () {
       r.setAttribute(
         'style',
         `position:absolute;width:20vmin;height:20vmin;border-radius:50%;` +
-          `border:1.2vmin solid ${color};opacity:0`
+          `border:0.8vmin solid ${color};opacity:0;` +
+          `box-shadow:0 0 4vmin ${color}, inset 0 0 4vmin ${color}`
       );
       layer.appendChild(r);
       rings.push(r);
     }
 
+    // 처음엔 빠르게 퍼지다 끝에서 느려진다. 실제로 퍼져나가는 파동처럼.
     animate(
       rings,
-      { scale: [0.2, 6], opacity: [0.9, 0] },
-      { duration: 1.1, delay: stagger(0.14), ease: 'out(3)' }
+      { scale: [0.2, 6.5], opacity: [0.85, 0] },
+      { duration: 1.3, delay: stagger(0.13), ease: 'outExpo' }
     );
-    setTimeout(() => layer.remove(), 1600);
+    setTimeout(() => layer.remove(), 1800);
   }
 
-  /** 화면을 통째로 흔든다. 시간 종료나 오답처럼 "쿵" 하는 순간에. */
-  function shakeScreen(strength = 24) {
+  /** 빛이 확 부풀었다 사그라든다. 뭔가가 "켜지는" 순간에. */
+  function bloom(color = 'rgba(233,193,136,.55)', ms = 900) {
     if (!enabled) return;
+    const layer = makeLayer(';overflow:hidden', 'bloom');
+    const orb = document.createElement('div');
+    orb.setAttribute(
+      'style',
+      `position:absolute;width:60vmin;height:60vmin;border-radius:50%;opacity:0;` +
+        `background:radial-gradient(circle, ${color}, transparent 66%)`
+    );
+    layer.appendChild(orb);
+    animate(
+      orb,
+      { scale: [0.3, 1.9], opacity: [0, 0.9, 0] },
+      { duration: ms / 1000, ease: 'outQuint' }
+    );
+    setTimeout(() => layer.remove(), ms + 200);
+  }
+
+  /** 화면을 통째로 흔든다. 정말 "쿵" 해야 하는 순간에만. */
+  function shakeScreen(strength = 20) {
+    if (!enabled) return;
+    // 한 방향으로 세게 밀렸다가 잦아든다. 좌우로 규칙적으로 흔들면
+    // 진동하는 물건처럼 보이지 충격처럼 안 보인다.
     animate(
       document.body,
-      { x: [0, -strength, strength * 0.8, -strength * 0.5, strength * 0.3, 0] },
-      { duration: 0.55, ease: 'outQuad' }
+      { x: [0, -strength, strength * 0.55, -strength * 0.26, strength * 0.1, 0] },
+      { duration: 0.6, ease: 'outQuart' }
     );
   }
 
@@ -244,39 +411,39 @@ window.SMFShowAnim = (function () {
     if (!el || !enabled) return;
     animate(
       el,
-      { scale: [1, strong ? 1.55 : 1.35, 1] },
-      { duration: strong ? 0.5 : 0.42, ease: 'out(4)' }
+      { scale: [1, strong ? 1.5 : 1.32, 1] },
+      { duration: strong ? 0.52 : 0.44, ease: 'outQuart' }
     );
   }
 
   /**
-   * 화면 한가운데에 큰 글자를 한 번 쾅 띄웠다 지운다("시간 종료!" 같은 것).
+   * 화면 한가운데에 큰 글자를 한 번 띄웠다 지운다("시간 종료!" 같은 것).
    * 학생이 쓴 글씨를 계속 덮고 있으면 안 되므로 반드시 사라진다.
    */
-  function titleCard(text, color = '#111111', ms = 1500) {
+  function titleCard(text, color = 'var(--gold)', ms = 1500) {
     if (!enabled) return;
     const layer = makeLayer(';z-index:66', 'titlecard');
 
     const word = document.createElement('div');
     word.setAttribute(
       'style',
-      `font-size:18vmin;font-weight:900;line-height:1;color:${color};opacity:0;` +
-        `padding:3vmin 7vmin;border-radius:4vmin;background:rgba(255,255,255,.92);` +
-        `box-shadow:0 0 0 1.2vmin ${color}`
+      `font-family:var(--serif);font-size:16vmin;font-weight:700;line-height:1;color:${color};` +
+        `opacity:0;padding:3vmin 8vmin;border-radius:4vmin;` +
+        `background:linear-gradient(168deg, rgba(255,255,255,.13), rgba(255,255,255,.04));` +
+        `backdrop-filter:blur(2.6vmin) saturate(150%);` +
+        `-webkit-backdrop-filter:blur(2.6vmin) saturate(150%);` +
+        `border:0.3vmin solid ${color};` +
+        `box-shadow:0 3vmin 7vmin rgba(2,14,18,.6), 0 0 12vmin ${color}`
     );
     word.textContent = text;
     layer.appendChild(word);
 
+    animate(word, { scale: [1.7, 1], opacity: [0, 1], z: [280, 0] }, { ease: SPRING.heavy });
     animate(
       word,
-      { scale: [3, 1], opacity: [0, 1], rotate: [-8, 0] },
-      { duration: 0.55, ease: 'out(5)' }
+      { opacity: [1, 0], scale: [1, 1.08], filter: ['blur(0px)', 'blur(1.2vmin)'] },
+      { duration: 0.45, delay: ms / 1000 - 0.45, ease: 'inQuad' }
     );
-    animate(word, { opacity: [1, 0], scale: [1, 1.15] }, {
-      duration: 0.4,
-      delay: ms / 1000 - 0.4,
-      ease: 'inQuad',
-    });
 
     // 콜백에 기대지 않는다. 남으면 학생이 쓴 걸 가린 채로 행사가 이어진다.
     setTimeout(() => layer.remove(), ms + 250);
@@ -288,10 +455,14 @@ window.SMFShowAnim = (function () {
   function urgentOn() {
     if (!enabled || urgentLayer) return;
     urgentLayer = makeLayer(
-      ';z-index:20;box-shadow:inset 0 0 12vmin 3vmin rgba(224,57,62,.55);opacity:0',
+      ';z-index:20;box-shadow:inset 0 0 14vmin 3vmin rgba(255,111,107,.5);opacity:0',
       'urgent'
     );
-    animate(urgentLayer, { opacity: [0.2, 1] }, { duration: 0.5, loop: true, alternate: true });
+    animate(
+      urgentLayer,
+      { opacity: [0.15, 0.95] },
+      { duration: 0.55, loop: true, alternate: true, ease: 'inOutSine' }
+    );
   }
 
   function urgentOff() {
@@ -303,23 +474,26 @@ window.SMFShowAnim = (function () {
 
   /* ================= 정답 공개 ================= */
 
-  /** 정답이 위에서 쿵 떨어진다. */
+  /** 정답이 깊이에서 다가와 자리를 잡는다. */
   function slam(el) {
     if (!el || !enabled) return;
+    // 3.2배에서 줄어들면 화면을 뚫고 나온 것처럼 보인다. z로 다가오게 하면
+    // 같은 크기 변화라도 "가까워졌다"로 읽혀서 훨씬 자연스럽다.
     animate(
       el,
-      { scale: [3.2, 1], opacity: [0, 1], rotate: [-10, 0] },
-      { duration: 0.7, ease: 'out(5)' }
+      { z: [520, 0], opacity: [0, 1], rotateX: [-24, 0], scale: [1.25, 1] },
+      { ease: SPRING.heavy }
     );
+    bloom('rgba(233,193,136,.5)', 800);
     setTimeout(() => {
-      shakeScreen(18);
-      ring('#111111', 2);
-    }, 320);
+      shakeScreen(14);
+      ring('rgba(233,193,136,.85)', 2);
+    }, 220);
   }
 
   function shake(el) {
     if (!el || !enabled) return;
-    animate(el, { x: [0, -24, 22, -16, 10, 0] }, { duration: 0.5, ease: 'outQuad' });
+    animate(el, { x: [0, -20, 15, -9, 4, 0] }, { duration: 0.55, ease: 'outQuart' });
   }
 
   /** 두구두구. 정답을 까기 직전의 뜸. 퀴즈쇼에서 제일 중요한 2초다. */
@@ -351,7 +525,7 @@ window.SMFShowAnim = (function () {
 
   /**
    * "정답은..." 하고 뜸을 들인 뒤 resolve.
-   * 화면에는 세 점이 차례로 커졌다 작아지고, 북소리가 점점 빨라진다.
+   * 점 세 개가 차례로 부풀고, 글자에 걸린 빛이 같이 밝아졌다 어두워진다.
    */
   function suspense(labelEl, ms = 1400) {
     drumroll(ms);
@@ -368,54 +542,128 @@ window.SMFShowAnim = (function () {
 
     animate(
       dots.querySelectorAll('.suspense-dot'),
-      { scale: [0.5, 1.6], opacity: [0.3, 1] },
-      { duration: 0.36, delay: stagger(0.12), loop: true, alternate: true }
+      { scale: [0.55, 1.5], opacity: [0.35, 1] },
+      { duration: 0.4, delay: stagger(0.13), loop: true, alternate: true, ease: 'inOutSine' }
     );
 
-    // 뜸 들이는 동안 화면이 잘게 떨린다.
-    // body를 흔들면 고정 배치(전체화면/음소거 버튼)까지 끌려다니므로 무대만 흔든다.
-    const stage = labelEl && labelEl.closest ? labelEl.closest('.stage') : null;
-    if (stage) {
-      animate(stage, { x: [0, -3, 3, 0] }, { duration: 0.12, loop: Math.round(ms / 120) });
+    // 예전에는 무대를 잘게 흔들었는데, 흔들림은 "충격"의 신호라 기다리는
+    // 순간에 쓰면 어색하다. 대신 빛이 차오른다.
+    if (labelEl) {
+      animate(
+        labelEl,
+        { opacity: [0.55, 1] },
+        { duration: 0.55, loop: true, alternate: true, ease: 'inOutSine' }
+      );
     }
 
     return new Promise((resolve) =>
       setTimeout(() => {
         dots.remove();
+        if (labelEl) animate(labelEl, { opacity: 1 }, { duration: 0.2 });
         resolve();
       }, ms)
     );
   }
 
-  /** 난이도 배지가 회전하며 쿵 박힌다. */
+  /** 난이도 배지가 동전처럼 뒤집히며 들어온다. */
   function badgeSlam(el) {
     if (!el || !enabled) return;
+    // 예전엔 4배 크기에서 한 바퀴 돌며 쿵 박혔는데, 그건 눈에만 크고
+    // 물건 같지가 않았다. Y축으로 뒤집으면 두께가 있는 원판처럼 보인다.
     animate(
       el,
-      { scale: [3, 1], rotate: [-360, 0], opacity: [0, 1] },
-      { duration: 0.7, ease: 'out(5)' }
+      { rotateY: [-180, 0], z: [-320, 0], opacity: [0, 1], scale: [0.7, 1] },
+      { ease: SPRING.heavy }
     );
-    setTimeout(() => {
-      boom(0.2);
-      shakeScreen(10);
-    }, 340);
+    setTimeout(() => bloom('rgba(233,193,136,.4)', 700), 260);
   }
 
   /** 타이머가 위에서 떨어지며 자리를 잡는다. */
   function timerIn(el) {
     if (!el || !enabled) return;
-    animate(
-      el,
-      { scale: [2.2, 1], y: [-40, 0], opacity: [0, 1] },
-      { duration: 0.6, ease: 'out(4)' }
+    animate(el, { scale: [1.9, 1], y: [-34, 0], opacity: [0, 1] }, { ease: SPRING.firm });
+  }
+
+  /** "제 N 문제" 같은 제목이 글자 단위로 일어선다. */
+  function titleIn(el) {
+    if (!el || !enabled) return;
+    splitIn(el, 0.045);
+  }
+
+  /* ================= 화면 전환 와이프 =================
+   * 무대가 슬그머니 바뀌면 뒤에 앉은 학생은 넘어간 줄도 모른다.
+   * 어두운 천이 화면을 한 번 쓸고 지나가고, 앞머리에 금빛 선이 달린다. */
+
+  const WIPE_MS = 640;
+
+  function wipe() {
+    if (!enabled) return;
+    sounds.whoosh();
+
+    const layer = makeLayer(';overflow:hidden;z-index:65', 'wipe');
+
+    // left를 안 잡으면 flex 가운데 정렬이 시작 위치가 돼서 띠가 화면 중앙에서 튀어나온다
+    const makeBar = (background, width) => {
+      const bar = document.createElement('div');
+      bar.setAttribute(
+        'style',
+        `position:absolute;left:0;top:-20%;height:140%;width:${width};background:${background}`
+      );
+      layer.appendChild(bar);
+      return bar;
+    };
+
+    // 어두운 천 + 그 앞머리를 달리는 가느다란 금빛
+    const sheet = makeBar(
+      'linear-gradient(100deg, rgba(4,24,30,0) 0%, rgba(4,24,30,.97) 18%, rgba(10,48,56,.97) 82%, rgba(4,24,30,0) 100%)',
+      '92vw'
     );
+    const edge = makeBar(
+      'linear-gradient(90deg, rgba(233,193,136,0), rgba(233,193,136,.85), rgba(233,193,136,0))',
+      '9vw'
+    );
+
+    // skewX는 [값, 값]으로 줘야 기운 채로 고정된다.
+    // anime가 transform을 통째로 다시 쓰기 때문에 인라인 transform은 남지 않는다.
+    // 가속했다 감속하는 이징이라 천이 실제로 당겨지는 것처럼 보인다.
+    animate(
+      [sheet, edge],
+      { x: ['-115vw', '200vw'], skewX: [-11, -11] },
+      { duration: WIPE_MS / 1000, delay: stagger(0.05), ease: 'inOutQuint' }
+    );
+
+    // 애니메이션 콜백에 기대지 않는다. 이 판이 남으면 화면이 덮인다.
+    setTimeout(() => layer.remove(), WIPE_MS + 320);
+  }
+
+  /* ================= 대기 화면 =================
+   * 점심시간 내내 켜둔 채로 학생들이 들어온다. 완전히 멈춘 화면은
+   * 고장 난 것처럼 보인다. 로고가 천천히 숨쉬게 둔다. */
+  let breathing = null;
+
+  function breathe(el) {
+    stopBreathe();
+    if (!el || !enabled) return;
+    // 화면 등장 연출(stageIn)이 끝난 뒤에 시작한다. 겹치면 둘이 같은
+    // transform을 두고 싸워서 로고가 튄다.
+    breathing = animate(
+      el,
+      { scale: [1, 1.035], rotateX: [1.2, -1.2] },
+      { duration: 3.4, delay: 1, loop: true, alternate: true, ease: 'inOutSine' }
+    );
+  }
+
+  function stopBreathe() {
+    if (!breathing) return;
+    if (typeof breathing.pause === 'function') breathing.pause();
+    breathing = null;
   }
 
   /* ================= 3, 2, 1 카운트다운 ================= */
 
   const NUMBER_STYLE =
-    'position:absolute;font-size:52vmin;font-weight:900;color:#111;line-height:1;' +
-    'font-family:inherit;opacity:0';
+    'position:absolute;font-family:var(--serif);font-size:48vmin;font-weight:700;' +
+    'color:#f7f0e2;line-height:1;opacity:0;text-shadow:0 0 10vmin rgba(233,193,136,.45)';
 
   /**
    * 3 → 2 → 1 → 시작! 을 화면 가득 띄우고 끝나면 resolve.
@@ -426,7 +674,10 @@ window.SMFShowAnim = (function () {
     if (!enabled) return Promise.resolve();
 
     return new Promise((resolve) => {
-      const layer = makeLayer(';background:#fff;z-index:70', 'countdown');
+      const layer = makeLayer(
+        ';z-index:70;background:radial-gradient(70vmin 70vmin at 50% 50%, rgba(10,48,56,.97), rgba(4,24,30,.99))',
+        'countdown'
+      );
 
       // 어떤 이유로든 레이어가 남으면 화면을 덮어 진행이 막힌다.
       // 정리는 타이머로 보장하고, 두 번 불려도 안전하게 만든다.
@@ -449,22 +700,24 @@ window.SMFShowAnim = (function () {
         const circle = document.createElement('div');
         circle.setAttribute(
           'style',
-          'position:absolute;width:70vmin;height:70vmin;border-radius:50%;' +
-            'border:1.6vmin solid #111;opacity:0'
+          'position:absolute;width:66vmin;height:66vmin;border-radius:50%;' +
+            'border:0.4vmin solid rgba(233,193,136,.75);opacity:0;' +
+            'box-shadow:0 0 4vmin rgba(233,193,136,.35)'
         );
         layer.appendChild(circle);
 
         sounds.countdown();
 
+        // 깊이에서 다가와 지나쳐 간다
         animate(
           num,
-          { scale: [2.4, 1], opacity: [0, 1, 1, 0], rotate: [index % 2 ? 12 : -12, 0] },
-          { duration: STEP_MS / 1000, ease: 'out(4)' }
+          { z: [-700, 180], opacity: [0, 1, 1, 0], rotateX: [index % 2 ? 16 : -16, 0] },
+          { duration: STEP_MS / 1000, ease: 'outQuint' }
         );
         animate(
           circle,
-          { scale: [1.6, 0.6], opacity: [0.9, 0] },
-          { duration: STEP_MS / 1000, ease: 'out(2)' }
+          { scale: [1.7, 0.62], opacity: [0.85, 0] },
+          { duration: STEP_MS / 1000, ease: 'outQuad' }
         );
 
         setTimeout(() => {
@@ -479,14 +732,14 @@ window.SMFShowAnim = (function () {
       const step = () => {
         if (n <= 0) {
           const go = document.createElement('div');
-          go.setAttribute('style', NUMBER_STYLE + ';font-size:26vmin');
+          go.setAttribute('style', NUMBER_STYLE + ';font-size:24vmin;color:#e9c188');
           go.textContent = '시작!';
           layer.appendChild(go);
 
           boom(0.32);
-          animate(go, { scale: [0.4, 1.15], opacity: [0, 1] }, { duration: 0.35, ease: 'out(5)' });
-          animate(layer, { opacity: [1, 0] }, { duration: 0.45, delay: 0.35, ease: 'outQuad' });
-          setTimeout(finish, 850);
+          animate(go, { scale: [0.45, 1.1], opacity: [0, 1] }, { ease: SPRING.firm });
+          animate(layer, { opacity: [1, 0] }, { duration: 0.5, delay: 0.34, ease: 'outQuad' });
+          setTimeout(finish, 880);
           return;
         }
 
@@ -502,205 +755,158 @@ window.SMFShowAnim = (function () {
 
   /* ================= 축하 ================= */
 
-  const CONFETTI_COLORS = ['#e0393e', '#d97706', '#16a34a', '#1d4ed8', '#111111', '#7c3aed'];
+  const CONFETTI_COLORS = ['#e9c188', '#5ed69b', '#f7f0e2', '#7fd0dd', '#ff9f8b', '#c9975a'];
 
-  /** 가운데에서 색종이가 터져 나와 사방으로 흩어진다. */
+  /**
+   * 가운데에서 색종이가 터져 나온다.
+   * 사방으로 똑같이 흩어지면 폭발 그림이지 색종이가 아니다. 터져 오른 뒤
+   * 중력에 실려 떨어지도록 두 구간으로 나눠 움직인다.
+   */
   function confetti(count = 90) {
     if (!enabled) return;
     const layer = makeLayer(';z-index:50;overflow:hidden', 'confetti');
 
+    const W = window.innerWidth;
+    const H = window.innerHeight;
     const pieces = [];
+
     for (let i = 0; i < count; i += 1) {
       const piece = document.createElement('div');
-      const size = 12 + Math.random() * 20;
+      const size = 10 + Math.random() * 18;
       piece.className = 'fx-piece';
       piece.setAttribute(
         'style',
-        `position:absolute;left:50%;top:45%;width:${size}px;height:${size * (0.35 + Math.random() * 0.5)}px;` +
-          `background:${CONFETTI_COLORS[i % CONFETTI_COLORS.length]};border-radius:2px`
+        `position:absolute;left:50%;top:52%;width:${size}px;` +
+          `height:${size * (0.32 + Math.random() * 0.5)}px;` +
+          `background:${CONFETTI_COLORS[i % CONFETTI_COLORS.length]};border-radius:1px;` +
+          `box-shadow:0 0 1.2vmin rgba(255,255,255,.25)`
       );
       layer.appendChild(piece);
       pieces.push(piece);
     }
 
-    const DURATION_MS = 2600;
+    const DURATION_MS = 2900;
 
-    // 터지듯 사방으로 흩어졌다가 아래로 떨어진다
     animate(
       pieces,
       {
-        x: () => (Math.random() - 0.5) * window.innerWidth * 1.4,
-        y: () => (Math.random() - 0.65) * window.innerHeight * 1.3,
-        rotate: () => (Math.random() - 0.5) * 1440,
-        scale: [() => 0.4 + Math.random(), 0.6],
-        opacity: [1, 1, 0],
+        // 옆으로는 계속 밀려나되 공기 저항으로 점점 느려진다
+        x: () => (Math.random() - 0.5) * W * 1.25,
+        // 위로 솟았다가 떨어진다. 올라갈 때는 감속, 내려올 때는 가속.
+        y: [
+          { to: () => -H * (0.18 + Math.random() * 0.34), duration: 700, ease: 'outQuad' },
+          { to: () => H * (0.6 + Math.random() * 0.4), duration: 2200, ease: 'inQuad' },
+        ],
+        rotate: () => (Math.random() - 0.5) * 900,
+        // 종잇조각이 뒤집히며 반짝인다
+        rotateX: () => Math.random() * 1080,
+        opacity: [{ to: 1, duration: 120 }, { to: 1, duration: 2100 }, { to: 0, duration: 600 }],
       },
-      { duration: DURATION_MS / 1000, ease: 'out(2)' }
+      { duration: DURATION_MS / 1000, ease: 'outQuad' }
     );
 
     // 애니메이션 완료 콜백에 기대지 않고 직접 치운다.
     // 안 치우면 축하할 때마다 레이어가 화면에 쌓인다.
-    setTimeout(() => layer.remove(), DURATION_MS + 300);
-  }
-
-  /**
-   * 정답 순간 전체 연출.
-   * 강당에서 제일 크게 터져야 하는 순간이라 겹칠 수 있는 건 다 겹친다:
-   * 초록 번쩍 -> 뒤에서 퍼지는 햇살 -> 링 -> 색종이 두 번 -> 흔들림.
-   */
-  function celebrate() {
-    if (!enabled) return;
-    flash('#16a34a', 0.55);
-    rays('#16a34a');
-    ring('#16a34a', 4);
-    shakeScreen(16);
-    confetti();
-    // 한 번 터지고 끝나면 금방 조용해진다. 잦아들 때쯤 한 번 더.
-    setTimeout(() => confetti(60), 900);
+    setTimeout(() => layer.remove(), DURATION_MS + 400);
   }
 
   /**
    * 뒤에서 퍼지는 햇살. 무대 배경이 투명해서 body 맨 앞에 깔면
    * 트로피와 글자 뒤에서 돌아간다.
    */
-  function rays(color, ms = 2600) {
+  function rays(color, ms = 2800) {
     if (!enabled) return;
     const layer = makeLayer(';overflow:hidden;z-index:0', 'rays', true);
 
     const sun = document.createElement('div');
     sun.setAttribute(
       'style',
-      'position:absolute;width:300vmax;height:300vmax;opacity:0;' +
-        `background:repeating-conic-gradient(from 0deg, ${color} 0deg 7deg, transparent 7deg 18deg)`
+      `position:absolute;width:300vmax;height:300vmax;opacity:0;` +
+        `background:repeating-conic-gradient(from 0deg, ${color} 0deg 6deg, transparent 6deg 17deg)`
     );
     layer.appendChild(sun);
 
+    // 확 퍼진 뒤 아주 천천히 계속 돈다. 딱 멈추면 그림 한 장 붙여둔 것처럼 보인다.
     animate(
       sun,
-      { scale: [0.1, 1], rotate: [0, 22], opacity: [0, 0.28, 0.28, 0] },
-      { duration: ms / 1000, ease: 'out(2)' }
+      { scale: [0.15, 1], rotate: [0, 26], opacity: [0, 0.3, 0.26, 0] },
+      { duration: ms / 1000, ease: 'outQuint' }
     );
-    setTimeout(() => layer.remove(), ms + 200);
+    setTimeout(() => layer.remove(), ms + 250);
+  }
+
+  /**
+   * 정답 순간 전체 연출.
+   * 강당에서 제일 크게 터져야 하는 순간이라 겹칠 수 있는 건 다 겹친다:
+   * 초록 번쩍 -> 뒤에서 퍼지는 햇살 -> 빛무리 -> 색종이 두 번.
+   */
+  function celebrate() {
+    if (!enabled) return;
+    flash('#5ed69b', 0.6);
+    bloom('rgba(94,214,155,.6)', 1100);
+    rays('rgba(94,214,155,.55)');
+    ring('rgba(94,214,155,.9)', 4);
+    shakeScreen(13);
+    confetti();
+    // 한 번 터지고 끝나면 금방 조용해진다. 잦아들 때쯤 한 번 더.
+    setTimeout(() => confetti(55), 1000);
   }
 
   /** 오답 순간: 붉은 번쩍 + 흔들림. */
   function reject() {
     if (!enabled) return;
-    flash('#e0393e', 0.45);
-    shakeScreen(26);
+    flash('#ff6f6b', 0.45);
+    shakeScreen(24);
   }
 
-  /** 트로피가 튀어 오르고 글자가 뒤따라 커진다. */
+  /** 트로피가 떨어져 튀고, 글자가 뒤따라 선다. */
   function trophyIn(markEl, textEl) {
     if (!enabled) return;
     if (markEl) {
       animate(
         markEl,
-        { scale: [0, 1], rotate: [-180, 0], y: [-200, 0] },
-        { duration: 0.9, ease: 'out(4)' }
+        { scale: [0.2, 1], rotate: [-140, 0], y: [-220, 0] },
+        { ease: SPRING.heavy }
       );
     }
     if (textEl) {
+      // 트로피가 자리잡기 시작할 때쯤 뒤따라온다(따라붙는 맛)
       animate(
         textEl,
-        { scale: [0.3, 1], opacity: [0, 1] },
-        { duration: 0.6, delay: 0.25, ease: 'out(5)' }
+        { scale: [0.5, 1], opacity: [0, 1], z: [-240, 0] },
+        { ease: SPRING.soft, delay: 0.22 }
       );
     }
   }
 
-  /* ================= 화면 전환 와이프 =================
-   * 무대가 슬그머니 바뀌면 뒤에 앉은 학생은 넘어간 줄도 모른다.
-   * 굵은 띠가 화면을 한 번 쓸고 지나가면 "장면이 바뀌었다"가 멀리서도 읽힌다. */
-
-  const WIPE_MS = 620;
-
-  function wipe() {
-    if (!enabled) return;
-    sounds.whoosh();
-
-    const layer = makeLayer(';overflow:hidden;z-index:65', 'wipe');
-
-    // left를 안 잡으면 flex 가운데 정렬이 시작 위치가 돼서 띠가 화면 중앙에서 튀어나온다
-    const makeBar = (color, width) => {
-      const bar = document.createElement('div');
-      bar.setAttribute(
-        'style',
-        `position:absolute;left:0;top:-20%;height:140%;width:${width};background:${color}`
-      );
-      layer.appendChild(bar);
-      return bar;
-    };
-
-    // 굵은 먹색 띠가 지나가고, 얇은 띠가 뒤따라와 잔상을 남긴다
-    const main = makeBar('#111111', '80vw');
-    const trail = makeBar('#e5e7eb', '20vw');
-
-    // skewX는 [값, 값]으로 줘야 기운 채로 고정된다.
-    // anime가 transform을 통째로 다시 쓰기 때문에 인라인 transform은 남지 않는다.
-    animate(
-      [main, trail],
-      { x: ['-105vw', '190vw'], skewX: [-12, -12] },
-      { duration: WIPE_MS / 1000, delay: stagger(0.07), ease: 'inOutQuad' }
-    );
-
-    // 애니메이션 콜백에 기대지 않는다. 이 판이 남으면 화면이 까맣게 덮인다.
-    setTimeout(() => layer.remove(), WIPE_MS + 300);
-  }
-
-  /** "제 N 문제" 같은 제목이 왼쪽에서 밀려 들어온다. */
-  function titleIn(el) {
-    if (!el || !enabled) return;
-    animate(
-      el,
-      { x: [-window.innerWidth * 0.6, 0], opacity: [0, 1], skewX: [-14, 0] },
-      { duration: 0.7, ease: 'out(4)' }
-    );
-  }
-
-  /* ================= 대기 화면 =================
-   * 점심시간 내내 켜둔 채로 학생들이 들어온다. 완전히 멈춘 화면은
-   * 고장 난 것처럼 보인다. 로고가 천천히 숨쉬게 둔다. */
-  let breathing = null;
-
-  function breathe(el) {
-    stopBreathe();
-    if (!el || !enabled) return;
-    // 화면 등장 연출(stageIn)이 끝난 뒤에 시작한다. 겹치면 둘이 같은
-    // transform을 두고 싸워서 로고가 튄다.
-    breathing = animate(
-      el,
-      { scale: [1, 1.05], rotate: [-1.2, 1.2] },
-      { duration: 2.4, delay: 0.9, loop: true, alternate: true, ease: 'inOutQuad' }
-    );
-  }
-
-  function stopBreathe() {
-    if (!breathing) return;
-    // 멈추면서 원래 자리로 돌려놓는다(다음 화면에 기울어진 채로 남지 않게)
-    if (typeof breathing.pause === 'function') breathing.pause();
-    breathing = null;
-  }
-
-  /** 문제 사진이 확 커지며 등장. */
+  /** 문제 사진이 깊이에서 다가오며 등장. */
   function photoIn(el) {
     if (!el || !enabled) return;
     animate(
       el,
-      { scale: [0.82, 1], opacity: [0, 1] },
-      { duration: 0.7, ease: 'out(4)' }
+      { scale: [0.88, 1], opacity: [0, 1], y: [14, 0] },
+      { duration: 0.75, ease: 'outQuint' }
     );
   }
 
   return {
     enabled,
+    /**
+     * 등장 연출이 끝나 눌러도 안전해지기까지 걸리는 시간(ms).
+     * 마지막 버튼의 시작이 밀리는 만큼(차례 등장) 여유를 더한 값이다.
+     * 화면을 잠그는 쪽이 이 값을 보고 맞춘다.
+     */
+    settleMs: SETTLE_MS + 220,
     sounds,
     boom,
     toggleMute,
     unlockAudio,
+    ambient,
     stageIn,
     listIn,
     pressable,
+    splitIn,
+    unsplit,
     timerBeat,
     urgentOn,
     urgentOff,
@@ -709,6 +915,7 @@ window.SMFShowAnim = (function () {
     shakeScreen,
     flash,
     ring,
+    bloom,
     countdown,
     titleCard,
     wipe,

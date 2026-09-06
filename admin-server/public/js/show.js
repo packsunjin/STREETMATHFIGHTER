@@ -47,6 +47,29 @@ const state = {
 
 /* ---------- 화면 전환 ---------- */
 
+// 등장 연출이 끝날 때까지 화면을 잠가둔다.
+// 연출은 transform으로만 움직이기 때문에, 버튼이 눈에 보이는 위치와 실제로
+// 눌리는 위치가 그 사이 다르다. 급하게 두 번 누르면 엉뚱한 버튼이 눌린다
+// (브라우저 테스트에서 "시작!" 대신 옆 버튼이 눌려 화면이 안 넘어갔다).
+// 시간은 연출 쪽이 알고 있으므로 거기서 가져온다. 두 숫자를 따로 두면
+// 한쪽만 고쳤을 때 다시 같은 사고가 난다.
+const STAGE_SETTLE_MS = SMFShowAnim.settleMs || 0;
+let settleTimer = null;
+
+function lockWhileEntering(el) {
+  clearTimeout(settleTimer);
+  // 어떤 경우에도 잠긴 채로 남으면 안 된다. 매번 전부 푼 뒤 이번 것만 잠근다.
+  Object.values(stages).forEach((stage) => {
+    stage.style.pointerEvents = '';
+  });
+  if (!SMFShowAnim.enabled) return;
+
+  el.style.pointerEvents = 'none';
+  settleTimer = setTimeout(() => {
+    el.style.pointerEvents = '';
+  }, STAGE_SETTLE_MS);
+}
+
 function show(name) {
   const already = stages[name] && !stages[name].hidden;
 
@@ -59,10 +82,17 @@ function show(name) {
   // 같은 화면을 다시 그리는 경우(목록 갱신 등)까지 쓸어버리면 산만하다
   if (!already) SMFShowAnim.wipe();
   SMFShowAnim.stageIn(el);
+  lockWhileEntering(el);
 
-  // 대기 화면에서만 로고가 숨쉰다. 다른 화면으로 넘어가면 멈춘다.
-  if (name === 'idle') SMFShowAnim.breathe(document.querySelector('.show-logo'));
-  else SMFShowAnim.stopBreathe();
+  // 대기 화면에서만 로고가 글자 단위로 서고, 그 뒤로 천천히 숨쉰다.
+  if (name === 'idle') {
+    const logo = document.querySelector('.show-logo');
+    // 줄 단위로 넘긴다. 제목 전체를 넘기면 줄바꿈이 사라진다.
+    SMFShowAnim.splitIn(logo.querySelectorAll('.logo-line'), 0.05);
+    SMFShowAnim.breathe(logo);
+  } else {
+    SMFShowAnim.stopBreathe();
+  }
 }
 
 /* ---------- 서버 통신 ---------- */
@@ -609,6 +639,9 @@ async function boot() {
     show('auth');
     return;
   }
+
+  // 배경에 거품을 띄운다. 완전히 멈춘 화면은 고장 난 것처럼 보인다.
+  SMFShowAnim.ambient($('ambient'));
 
   SMFDraw.init({
     board: $('board'),

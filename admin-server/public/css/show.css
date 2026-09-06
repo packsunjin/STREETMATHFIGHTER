@@ -1,17 +1,47 @@
 /* 전자칠판(65~86인치 터치 화면) 전용 스타일.
    - 강당 뒤쪽에서도 읽혀야 하므로 글자를 화면 크기 비례(vmin)로 아주 크게 잡는다.
    - 손가락으로 누르므로 버튼 최소 높이를 크게 잡고, hover에 의존하는 UI를 쓰지 않는다.
-   - 화면 크기가 1920x1080이든 3840x2160이든 같은 비율로 보이도록 px를 거의 안 쓴다. */
+   - 화면 크기가 1920x1080이든 3840x2160이든 같은 비율로 보이도록 px를 거의 안 쓴다.
+
+   화면 톤: 깊은 청록 바탕 + 크림색 글자 + 유리질 카드 + 은은한 빛번짐.
+   단, "필기하는 판"만은 밝은 종이로 남긴다. 어두운 판에 검은 펜으로 쓰면
+   강당 뒤에서 학생 풀이가 아예 안 보인다. 무대는 어둡고 판은 밝은 구성이
+   실제 방송 무대와도 같다. */
 
 :root {
-  --ink: #111111;
-  --paper: #ffffff;
-  --muted: #6b7280;
-  --line: #e5e7eb;
-  --accent: #111111;
-  --correct: #16a34a;
-  --wrong: #e0393e;
-  --gold: #d97706;
+  /* 바탕 */
+  --deep: #04181e;
+  --mid: #0a3038;
+  --glow: #17636f;
+
+  /* 어두운 바탕 위의 글자 */
+  --cream: #f7f0e2;
+  --cream-soft: rgba(247, 240, 226, 0.62);
+  --cream-faint: rgba(247, 240, 226, 0.3);
+
+  /* 필기하는 판(밝은 종이) */
+  --paper: #fbf7ef;
+  --ink: #12262c;
+  --muted: #6f7f85;
+  --line: rgba(18, 38, 44, 0.14);
+
+  /* 강조 */
+  --gold: #e9c188;
+  --gold-deep: #c9975a;
+  --correct: #5ed69b;
+  --wrong: #ff6f6b;
+
+  /* 유리 */
+  --glass: rgba(255, 255, 255, 0.07);
+  --glass-strong: rgba(255, 255, 255, 0.12);
+  --glass-line: rgba(255, 255, 255, 0.16);
+
+  /* 무대 깊이감. 카드가 살짝 눕거나 도는 게 실제 두께처럼 읽히게 한다. */
+  --depth: 1600px;
+
+  --serif: 'Gowun Batang', 'Nanum Myeongjo', 'Apple SD Gothic Neo', serif;
+  --sans: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo',
+    'Malgun Gothic', sans-serif;
 }
 
 * {
@@ -28,25 +58,101 @@ body {
 .show-body {
   height: 100%;
   overflow: hidden; /* 진행 중에 화면이 스크롤되면 안 된다 */
-  background: var(--paper);
-  color: var(--ink);
-  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  color: var(--cream);
+  font-family: var(--sans);
   font-weight: 700;
   /* 필기 중에 브라우저가 스크롤/확대로 가로채지 않게 */
   touch-action: manipulation;
   user-select: none;
+
+  /* 가운데가 밝고 가장자리로 갈수록 잠기는 바탕.
+     단색으로 깔면 65인치에서 아주 밋밋하다. */
+  background-color: var(--deep);
+  background-image:
+    radial-gradient(120vmin 90vmin at 50% 38%, rgba(23, 99, 111, 0.55), transparent 70%),
+    radial-gradient(80vmin 80vmin at 82% 12%, rgba(233, 193, 136, 0.12), transparent 65%),
+    radial-gradient(90vmin 70vmin at 12% 88%, rgba(94, 214, 155, 0.09), transparent 70%),
+    linear-gradient(170deg, #0a333c 0%, #06222a 46%, #04181e 100%);
+}
+
+/* 가장자리를 눌러 가운데로 시선을 모은다(비네팅). */
+.show-body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(120vmin 100vmin at 50% 45%, transparent 40%, rgba(2, 12, 16, 0.72) 100%);
+}
+
+/* 배경에 떠다니는 거품. JS가 여기에 채워 넣는다. */
+.ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.bubble {
+  position: absolute;
+  bottom: -14vh;
+  left: var(--x, 50%);
+  width: var(--size, 2vmin);
+  height: var(--size, 2vmin);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 32% 28%,
+    rgba(255, 255, 255, 0.5),
+    rgba(255, 255, 255, 0.08) 42%,
+    rgba(255, 255, 255, 0.02) 70%
+  );
+  box-shadow: inset 0 0 1.2vmin rgba(255, 255, 255, 0.22);
+  /* JS가 아니라 CSS 애니메이션으로 띄운다. 합성만으로 처리돼서
+     저사양 전자칠판에서도 프레임을 안 잡아먹는다. */
+  animation: bubble-rise var(--dur, 18s) linear var(--delay, 0s) infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes bubble-rise {
+  0% {
+    transform: translate3d(0, 0, 0) scale(0.82);
+    opacity: 0;
+  }
+  14% {
+    opacity: var(--peak, 0.5);
+  }
+  86% {
+    opacity: var(--peak, 0.5);
+  }
+  100% {
+    transform: translate3d(var(--drift, 4vw), -128vh, 0) scale(1.18);
+    opacity: 0;
+  }
+}
+
+/* 동작 줄이기를 켠 사람에게는 거품을 띄우지 않는다 */
+@media (prefers-reduced-motion: reduce) {
+  .bubble {
+    animation: none;
+    opacity: 0.18;
+  }
 }
 
 /* ---- 무대(화면 상태) ---- */
 .stage {
   position: fixed;
   inset: 0;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 2.5vmin;
   padding: 4vmin;
+  /* 자식들이 3D로 눕거나 돌 때 원근이 잡힌다 */
+  perspective: var(--depth);
+  perspective-origin: 50% 45%;
 }
 
 .stage[hidden] {
@@ -59,12 +165,16 @@ body {
   align-items: center;
   gap: 2.5vmin;
   text-align: center;
+  transform-style: preserve-3d;
 }
 
 .stage-title {
   margin: 0;
-  font-size: 5vmin;
-  font-weight: 900;
+  font-family: var(--serif);
+  font-size: 5.6vmin;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--cream);
 }
 
 .stage-back {
@@ -79,22 +189,28 @@ body {
   align-items: center;
   justify-content: center;
   min-height: 9vmin;
-  padding: 0 4vmin;
-  border: 0.4vmin solid var(--ink);
+  padding: 0 4.5vmin;
+  border: 0.22vmin solid var(--glass-line);
   border-radius: 999px;
-  background: var(--paper);
-  color: var(--ink);
+  background: var(--glass);
+  backdrop-filter: blur(1.6vmin) saturate(140%);
+  -webkit-backdrop-filter: blur(1.6vmin) saturate(140%);
+  color: var(--cream);
   font-family: inherit;
   font-size: 2.6vmin;
   font-weight: 800;
   cursor: pointer;
   text-decoration: none;
   white-space: nowrap;
+  /* 유리 위쪽 모서리에 걸리는 빛 */
+  box-shadow:
+    inset 0 0.2vmin 0 rgba(255, 255, 255, 0.22),
+    0 1.4vmin 3vmin rgba(2, 14, 18, 0.45);
 }
 
 .btn-big {
   min-height: 11vmin;
-  padding: 0 6vmin;
+  padding: 0 6.5vmin;
   font-size: 3.2vmin;
 }
 
@@ -111,146 +227,353 @@ body {
   font-size: 2.2vmin;
 }
 
+/* 주 동작(도전 시작 / 시작! / 다음 문제). 금빛 유리. */
 .btn-primary {
-  background: var(--ink);
-  color: var(--paper);
+  border-color: rgba(233, 193, 136, 0.5);
+  background: linear-gradient(168deg, #f3d3a2 0%, #e0aa6d 52%, #c68c4f 100%);
+  color: #2a1a08;
+  text-shadow: 0 0.1vmin 0 rgba(255, 255, 255, 0.35);
+  box-shadow:
+    inset 0 0.25vmin 0 rgba(255, 255, 255, 0.6),
+    inset 0 -0.4vmin 1vmin rgba(120, 74, 26, 0.35),
+    0 1.6vmin 3.4vmin rgba(201, 151, 90, 0.32),
+    0 0 6vmin rgba(233, 193, 136, 0.18);
 }
 
 .btn-ghost {
-  border-color: var(--line);
-  color: var(--muted);
+  border-color: rgba(255, 255, 255, 0.13);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--cream-soft);
+  box-shadow: none;
 }
 
 .btn-correct {
-  background: var(--correct);
-  border-color: var(--correct);
-  color: #fff;
+  border-color: rgba(94, 214, 155, 0.55);
+  background: linear-gradient(168deg, #7ee7b4 0%, #3fbe83 100%);
+  color: #04251a;
+  box-shadow:
+    inset 0 0.25vmin 0 rgba(255, 255, 255, 0.5),
+    0 1.6vmin 3.4vmin rgba(63, 190, 131, 0.3),
+    0 0 6vmin rgba(94, 214, 155, 0.2);
 }
 
 .btn-wrong {
-  background: var(--wrong);
-  border-color: var(--wrong);
-  color: #fff;
-}
-
-.btn:active {
-  transform: scale(0.97);
+  border-color: rgba(255, 111, 107, 0.55);
+  background: linear-gradient(168deg, #ff8f8b 0%, #e04f4b 100%);
+  color: #2b0806;
+  box-shadow:
+    inset 0 0.25vmin 0 rgba(255, 255, 255, 0.45),
+    0 1.6vmin 3.4vmin rgba(224, 79, 75, 0.3),
+    0 0 6vmin rgba(255, 111, 107, 0.18);
 }
 
 .btn[disabled] {
-  opacity: 0.4;
+  opacity: 0.28;
   pointer-events: none;
 }
 
-/* ---- 1. 대기 ---- */
+/* ---- 1. 대기 ----
+   왼쪽에 글, 오른쪽에 엠블럼. 가운데 정렬을 깨야 화면에 방향이 생긴다. */
+.stage-idle {
+  justify-content: center;
+}
+
 .idle-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 6vmin;
+  width: 100%;
+  max-width: 150vmin;
+  transform-style: preserve-3d;
+}
+
+.idle-copy {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 3vmin;
+  text-align: left;
 }
 
 .show-logo {
+  display: flex;
+  flex-direction: column;
   margin: 0;
-  font-size: 9vmin;
-  font-weight: 900;
-  letter-spacing: -0.02em;
+  font-family: var(--serif);
+  font-size: 12.5vmin;
+  font-weight: 700;
+  line-height: 1.02;
+  letter-spacing: -0.01em;
+  color: var(--cream);
+  /* 글자 뒤에 옅게 번지는 빛 */
+  text-shadow:
+    0 0 6vmin rgba(233, 193, 136, 0.22),
+    0 1vmin 4vmin rgba(2, 14, 18, 0.55);
+}
+
+/* 둘째 줄만 금빛으로 써서 한 덩어리로 안 읽히게 한다.
+   그라데이션을 background-clip:text로 넣으면 안 된다. 글자 단위 등장 연출이
+   글자를 자식 span으로 쪼개는 순간 부모에는 글자가 없어져서 아무것도 안 칠해진다.
+   실제로 그렇게 만들었다가 둘째 줄이 통째로 사라졌다. */
+.logo-accent {
+  margin-left: 1.4vmin;
+  color: var(--gold);
+  text-shadow:
+    0 0 5vmin rgba(233, 193, 136, 0.45),
+    0 1vmin 4vmin rgba(2, 14, 18, 0.55);
 }
 
 .show-tagline {
+  display: flex;
+  align-items: center;
+  gap: 1.6vmin;
   margin: 0;
-  font-size: 3vmin;
-  color: var(--muted);
+  font-size: 2.1vmin;
+  font-weight: 700;
+  letter-spacing: 0.36em;
+  color: var(--gold);
+}
+
+/* 눈썹줄 앞에 붙는 짧은 금빛 선 */
+.eyebrow-rule {
+  display: block;
+  width: 8vmin;
+  height: 0.22vmin;
+  background: linear-gradient(90deg, transparent, var(--gold));
 }
 
 .idle-actions {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   gap: 2vmin;
+  margin-top: 1vmin;
+}
+
+/* ---- 대기 화면 엠블럼 ----
+   레퍼런스에서 제품 사진이 하던 역할(오른쪽 무게추). 금테 고리가
+   서로 다른 속도로 천천히 돌면서 깊이를 만든다. */
+.idle-emblem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1;
+  max-height: 62vmin;
+  transform-style: preserve-3d;
+}
+
+.emblem-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 0.25vmin solid transparent;
+  /* 고리 한 곳만 밝게 해서 금속처럼 빛이 걸리게 한다 */
+  background:
+    conic-gradient(
+        from 210deg,
+        rgba(233, 193, 136, 0) 0deg,
+        rgba(233, 193, 136, 0.95) 90deg,
+        rgba(233, 193, 136, 0.1) 200deg,
+        rgba(233, 193, 136, 0.7) 300deg,
+        rgba(233, 193, 136, 0) 360deg
+      )
+      border-box;
+  -webkit-mask:
+    linear-gradient(#000 0 0) padding-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.emblem-ring-1 {
+  width: 88%;
+  height: 88%;
+  animation: emblem-spin 34s linear infinite;
+}
+
+.emblem-ring-2 {
+  width: 66%;
+  height: 66%;
+  border-width: 0.5vmin;
+  animation: emblem-spin 22s linear infinite reverse;
+}
+
+@keyframes emblem-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 가운데 유리 원판 */
+.emblem-core {
+  position: absolute;
+  width: 46%;
+  height: 46%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 26%, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.05) 58%),
+    rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(2vmin) saturate(150%);
+  -webkit-backdrop-filter: blur(2vmin) saturate(150%);
+  box-shadow:
+    inset 0 0.6vmin 2vmin rgba(255, 255, 255, 0.24),
+    0 0 14vmin rgba(233, 193, 136, 0.22);
+}
+
+.emblem-glyph {
+  position: relative;
+  font-family: var(--serif);
+  font-size: 16vmin;
+  line-height: 1;
+  color: var(--cream);
+  text-shadow: 0 0 5vmin rgba(233, 193, 136, 0.55);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .emblem-ring {
+    animation: none;
+  }
 }
 
 /* ---- 2. 난이도 고르기 ---- */
 .pick-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 3vmin;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3.4vmin;
   width: 100%;
-  max-width: 160vmin;
+  max-width: 132vmin;
+  transform-style: preserve-3d;
+  /* 살짝 뒤로 눕혀 탁자 위에 놓인 것처럼 보이게 한다.
+     카드 하나하나는 anime가 transform을 건드리므로, 기울기는
+     anime가 절대 손대지 않는 이 격자에 준다. */
+  transform: rotateX(7deg);
 }
 
 .pick-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1vmin;
-  min-height: 42vmin;
-  border: 0.6vmin solid var(--ink);
-  border-radius: 4vmin;
-  background: var(--paper);
+  gap: 1.2vmin;
+  min-height: 44vmin;
+  border: 0.22vmin solid var(--glass-line);
+  border-radius: 4.5vmin;
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.13) 0%,
+    rgba(255, 255, 255, 0.05) 42%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
+  backdrop-filter: blur(2.4vmin) saturate(150%);
+  -webkit-backdrop-filter: blur(2.4vmin) saturate(150%);
+  color: var(--cream);
   font-family: inherit;
   cursor: pointer;
+  overflow: hidden;
+  box-shadow:
+    inset 0 0.25vmin 0 rgba(255, 255, 255, 0.28),
+    0 3vmin 6vmin rgba(2, 14, 18, 0.5);
 }
 
-.pick-card:active {
-  transform: scale(0.98);
+/* 카드 위쪽을 스치는 빛줄기. 유리에 두께가 있는 것처럼 보이게 한다. */
+.pick-card::before {
+  content: '';
+  position: absolute;
+  top: -55%;
+  left: -20%;
+  width: 140%;
+  height: 90%;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.16),
+    rgba(255, 255, 255, 0)
+  );
+  transform: rotate(-8deg);
+  pointer-events: none;
 }
 
 .pick-card[disabled] {
-  opacity: 0.3;
+  opacity: 0.22;
   pointer-events: none;
 }
 
 .pick-level {
-  font-size: 12vmin;
-  font-weight: 900;
+  font-family: var(--serif);
+  font-size: 13vmin;
+  font-weight: 700;
   line-height: 1;
+  color: var(--cream);
+  text-shadow: 0 0 4vmin rgba(233, 193, 136, 0.2);
 }
 
 .pick-time {
   font-size: 2.4vmin;
-  color: var(--muted);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--gold);
 }
 
 .pick-count {
   font-size: 2vmin;
-  color: var(--muted);
+  color: var(--cream-faint);
 }
 
 /* ---- 3. 문제 예고 ---- */
 .ready-round {
   margin: 0;
-  font-size: 7vmin;
-  font-weight: 900;
-  letter-spacing: -0.02em;
-  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 8vmin;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--cream);
+  text-shadow: 0 0 5vmin rgba(233, 193, 136, 0.2);
 }
 
+/* 난이도 배지는 금테를 두른 유리 원판. 3D로 돌면 두께가 있는 것처럼 보인다. */
 .ready-badge {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28vmin;
-  height: 28vmin;
-  border: 0.8vmin solid var(--ink);
+  width: 30vmin;
+  height: 30vmin;
+  border: 0.3vmin solid rgba(233, 193, 136, 0.55);
   border-radius: 50%;
-  font-size: 14vmin;
-  font-weight: 900;
+  background:
+    radial-gradient(circle at 34% 26%, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.04) 55%),
+    rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(2vmin) saturate(150%);
+  -webkit-backdrop-filter: blur(2vmin) saturate(150%);
+  font-family: var(--serif);
+  font-size: 15vmin;
+  font-weight: 700;
+  color: var(--cream);
+  box-shadow:
+    inset 0 0.5vmin 1.5vmin rgba(255, 255, 255, 0.22),
+    inset 0 -0.6vmin 2vmin rgba(233, 193, 136, 0.14),
+    0 2.5vmin 6vmin rgba(2, 14, 18, 0.55),
+    0 0 9vmin rgba(233, 193, 136, 0.16);
 }
 
 .ready-unit {
   margin: 0;
-  padding: 1vmin 3vmin;
+  padding: 1.1vmin 3.2vmin;
+  border: 0.2vmin solid var(--glass-line);
   border-radius: 999px;
-  background: var(--line);
-  font-size: 2.8vmin;
-  color: var(--ink);
+  background: var(--glass);
+  font-size: 2.6vmin;
+  letter-spacing: 0.06em;
+  color: var(--cream-soft);
 }
 
 .ready-time {
   margin: 0;
-  font-size: 3.4vmin;
+  font-size: 3vmin;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--gold);
 }
 
 /* ---- 4. 문제 풀이 ---- */
@@ -258,6 +581,7 @@ body {
   justify-content: flex-start;
   gap: 0;
   padding: 0;
+  perspective: none; /* 필기 중에는 원근 왜곡이 있으면 안 된다 */
 }
 
 .play-bar {
@@ -274,7 +598,6 @@ body {
   /* 오른쪽 위에 떠 있는 전체화면/소리 버튼과 겹치지 않게 자리를 비운다.
      여기에만 필요한 이유는, 다른 화면은 내용이 가운데에 있기 때문. */
   padding-right: 18vmin;
-  border-bottom: 0.4vmin solid var(--line);
 }
 
 .play-meta {
@@ -285,27 +608,32 @@ body {
 }
 
 .play-round {
-  font-size: 2.8vmin;
-  color: var(--muted);
+  font-family: var(--serif);
+  font-size: 3vmin;
+  color: var(--cream-soft);
 }
 
 .play-badge {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 6vmin;
-  height: 6vmin;
-  border: 0.4vmin solid var(--ink);
+  width: 6.4vmin;
+  height: 6.4vmin;
+  border: 0.22vmin solid rgba(233, 193, 136, 0.5);
   border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
   font-size: 3vmin;
   font-weight: 900;
+  color: var(--gold);
 }
 
 .play-timer {
   font-size: 11vmin;
   font-weight: 900;
   line-height: 1;
+  color: var(--cream);
   font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 4vmin rgba(23, 99, 111, 0.6);
 }
 
 /* 남은 시간이 얼마 없을 때.
@@ -313,7 +641,7 @@ body {
    그러면 이미 쓴 글씨와 캔버스가 어긋난다. 색과 번짐만 쓴다. */
 .play-timer.urgent {
   color: var(--wrong);
-  text-shadow: 0 0 2.5vmin rgba(224, 57, 62, 0.55);
+  text-shadow: 0 0 3.5vmin rgba(255, 111, 107, 0.65);
 }
 
 /* 시간이 다 됐을 때는 글자가 길어지므로 크기를 줄인다 */
@@ -328,13 +656,23 @@ body {
   justify-content: flex-end;
 }
 
-/* 사진과 필기 공간. 캔버스가 이 영역 전체를 덮어서, 사진 옆 흰 여백에도 써진다. */
+/* 사진과 필기 공간. 캔버스가 이 영역 전체를 덮어서, 사진 옆 여백에도 써진다.
+   어두운 무대 위에 떠 있는 밝은 종이 한 장처럼 보이게 한다.
+   테두리(border)는 쓰지 않는다. 캔버스는 inset:0이라 패딩 상자에 맞춰지는데
+   테두리가 생기면 그만큼 어긋난다. 그림자와 바깥선으로만 띄운다. */
 .board {
   position: relative;
   flex: 1 1 auto;
-  width: 100%;
+  width: calc(100% - 5vmin);
+  margin: 0 2.5vmin;
   min-height: 0;
+  border-radius: 2vmin;
   background: var(--paper);
+  overflow: hidden;
+  box-shadow:
+    0 0 0 0.25vmin rgba(233, 193, 136, 0.22),
+    0 3vmin 7vmin rgba(2, 12, 16, 0.6),
+    0 0 12vmin rgba(23, 99, 111, 0.25);
   /* 필기 중 스크롤/확대 제스처를 브라우저가 가져가지 않게 */
   touch-action: none;
 }
@@ -366,61 +704,83 @@ body {
   justify-content: space-between;
   gap: 2vmin;
   width: 100%;
-  padding: 1.6vmin 3vmin;
-  border-top: 0.4vmin solid var(--line);
+  flex: none;
+  padding: 1.8vmin 3vmin;
 }
 
 .tool-group {
   display: flex;
   align-items: center;
   gap: 1.2vmin;
+  padding: 0.8vmin 1.4vmin;
+  border: 0.2vmin solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .swatch {
-  width: 7vmin;
-  height: 7vmin;
-  border: 0.4vmin solid var(--line);
+  width: 6.4vmin;
+  height: 6.4vmin;
+  border: 0.25vmin solid rgba(255, 255, 255, 0.22);
   border-radius: 50%;
   background: var(--c);
   cursor: pointer;
+  box-shadow:
+    inset 0 0.3vmin 0.6vmin rgba(255, 255, 255, 0.4),
+    0 0.6vmin 1.4vmin rgba(2, 14, 18, 0.45);
 }
 
 .swatch.active {
-  border-color: var(--ink);
-  border-width: 0.8vmin;
-  transform: scale(1.12);
+  border-color: var(--gold);
+  border-width: 0.45vmin;
+  box-shadow:
+    inset 0 0.3vmin 0.6vmin rgba(255, 255, 255, 0.45),
+    0 0 3vmin rgba(233, 193, 136, 0.55);
 }
 
 .btn-tool {
-  min-height: 8vmin;
-  padding: 0 3vmin;
-  font-size: 2.4vmin;
-  border-color: var(--line);
+  min-height: 7.6vmin;
+  padding: 0 2.8vmin;
+  font-size: 2.3vmin;
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--cream-soft);
+  box-shadow: none;
 }
 
 .btn-tool[disabled] {
-  opacity: 0.35;
+  opacity: 0.25;
 }
 
 .btn-tool.active {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--paper);
+  border-color: rgba(233, 193, 136, 0.6);
+  background: rgba(233, 193, 136, 0.18);
+  color: var(--gold);
 }
 
 /* ---- 5. 정답 공개 ---- */
 .reveal-label {
   margin: 0;
-  font-size: 5.5vmin;
-  font-weight: 900;
-  color: var(--ink);
+  font-size: 3.4vmin;
+  font-weight: 800;
+  letter-spacing: 0.5em;
+  text-indent: 0.5em;
+  color: var(--gold);
 }
 
+/* 정답은 금테를 두른 유리판에 얹힌다. 이 화면에서 제일 밝은 것이 정답이어야 한다. */
 .reveal-answer {
   max-width: 88vw;
-  padding: 2vmin 6vmin;
-  border: 1vmin solid var(--ink);
-  border-radius: 6vmin;
+  /* "2" 한 글자여도 판이 넉넉해야 무대에서 정답처럼 보인다 */
+  min-width: 52vmin;
+  padding: 3vmin 7vmin;
+  border: 0.3vmin solid rgba(233, 193, 136, 0.6);
+  border-radius: 4vmin;
+  background:
+    linear-gradient(168deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04));
+  backdrop-filter: blur(2.4vmin) saturate(150%);
+  -webkit-backdrop-filter: blur(2.4vmin) saturate(150%);
+  color: var(--cream);
   /* 글자 크기는 정답 길이에 따라 JS가 정한다(짧으면 크게, 길면 줄여서) */
   font-size: 22vmin;
   font-weight: 900;
@@ -428,6 +788,11 @@ body {
   /* 단어 중간을 자르지 않고 되도록 띄어쓰기에서 줄바꿈 */
   overflow-wrap: break-word;
   word-break: keep-all;
+  text-shadow: 0 0 6vmin rgba(233, 193, 136, 0.3);
+  box-shadow:
+    inset 0 0.4vmin 1.4vmin rgba(255, 255, 255, 0.22),
+    0 3vmin 7vmin rgba(2, 14, 18, 0.55),
+    0 0 12vmin rgba(233, 193, 136, 0.22);
 }
 
 .judge-actions {
@@ -438,24 +803,28 @@ body {
 
 /* ---- 6. 정답 ---- */
 .celebrate-mark {
-  font-size: 20vmin;
+  font-size: 21vmin;
   line-height: 1;
+  filter: drop-shadow(0 0 6vmin rgba(233, 193, 136, 0.55));
 }
 
 .celebrate-name {
-  font-size: 11vmin;
-  font-weight: 900;
+  font-family: var(--serif);
+  font-size: 13vmin;
+  font-weight: 700;
   line-height: 1.1;
+  color: var(--cream);
+  text-shadow: 0 0 7vmin rgba(94, 214, 155, 0.4);
 }
 
 .empty-note {
   font-size: 3vmin;
-  color: var(--muted);
+  color: var(--cream-faint);
 }
 
 .big-note {
   font-size: 4vmin;
-  color: var(--muted);
+  color: var(--cream-soft);
 }
 
 /* 화면이 세로로 길거나 아주 작을 때(개발용 브라우저 등) 최소한 깨지진 않게 */
@@ -468,8 +837,8 @@ body {
 /* ---- 어느 화면에서든 떠 있는 표시들 ---- */
 .utility {
   position: fixed;
-  top: 1.5vmin;
-  right: 1.5vmin;
+  top: 1.8vmin;
+  right: 1.8vmin;
   z-index: 30;
   display: flex;
   align-items: center;
@@ -477,16 +846,18 @@ body {
 }
 
 .utility-btn.off {
-  opacity: 0.45;
+  opacity: 0.4;
 }
 
 .utility-btn {
   width: 6vmin;
   height: 6vmin;
-  border: 0.3vmin solid var(--line);
-  border-radius: 1.5vmin;
-  background: var(--paper);
-  color: var(--muted);
+  border: 0.2vmin solid rgba(255, 255, 255, 0.14);
+  border-radius: 1.8vmin;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(1.6vmin);
+  -webkit-backdrop-filter: blur(1.6vmin);
+  color: var(--cream-soft);
   font-size: 2.6vmin;
   line-height: 1;
   cursor: pointer;
@@ -502,7 +873,7 @@ body {
 
 .badge-warn {
   background: var(--wrong);
-  color: #fff;
+  color: #2b0806;
 }
 
 /* ---- 사진 로딩 실패 ---- */
@@ -525,11 +896,11 @@ body {
   min-width: 8vmin;
   text-align: center;
   font-size: 2.2vmin;
-  color: var(--muted);
+  color: var(--cream-soft);
   font-variant-numeric: tabular-nums;
 }
 
-/* ---- 목록이 긴 화면(문제 고르기 / 명예의 전당) ---- */
+/* ---- 목록이 긴 화면(문제 고르기) ---- */
 .stage-list {
   justify-content: flex-start;
   padding-top: 5vmin;
@@ -554,20 +925,18 @@ body {
   gap: 2.5vmin;
   width: 100%;
   padding: 2vmin 3vmin;
-  border: 0.4vmin solid var(--line);
+  border: 0.2vmin solid var(--glass-line);
   border-radius: 2.5vmin;
-  background: var(--paper);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--cream);
   font-family: inherit;
   text-align: left;
   cursor: pointer;
-}
-
-.choose-row:active {
-  transform: scale(0.99);
+  box-shadow: inset 0 0.2vmin 0 rgba(255, 255, 255, 0.14);
 }
 
 .choose-row[disabled] {
-  opacity: 0.35;
+  opacity: 0.28;
   pointer-events: none;
 }
 
@@ -578,10 +947,12 @@ body {
   justify-content: center;
   width: 6vmin;
   height: 6vmin;
-  border: 0.4vmin solid var(--ink);
+  border: 0.2vmin solid rgba(233, 193, 136, 0.5);
   border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
   font-size: 2.8vmin;
   font-weight: 900;
+  color: var(--gold);
 }
 
 .choose-body {
@@ -602,15 +973,14 @@ body {
 
 .choose-meta {
   font-size: 2vmin;
-  color: var(--muted);
+  color: var(--cream-faint);
 }
-
 
 /* ---- 정답 공개 전 뜸 들이기 ---- */
 .suspense-dots {
   display: inline-flex;
-  gap: 1.2vmin;
-  margin-left: 1.5vmin;
+  gap: 1.4vmin;
+  margin-left: 1.8vmin;
   vertical-align: middle;
 }
 
@@ -618,11 +988,27 @@ body {
   width: 2.2vmin;
   height: 2.2vmin;
   border-radius: 50%;
-  background: var(--ink);
+  background: var(--gold);
+  box-shadow: 0 0 2.4vmin rgba(233, 193, 136, 0.7);
 }
 
 /* 정답이 나오기 전에는 자리를 잡아두되 보이지 않게 (레이아웃이 튀지 않도록) */
 .reveal-answer[hidden],
 .judge-actions[hidden] {
   display: none;
+}
+
+/* 글자 단위로 등장시킬 때 JS가 만드는 조각.
+   조각이 눕는 걸 원근으로 보려면 부모가 원근을 잡아줘야 한다. */
+.show-logo,
+.logo-line,
+.ready-round {
+  perspective: 60vmin;
+}
+
+/* inline-block이라야 각 글자에 transform이 먹는다. */
+.ch {
+  display: inline-block;
+  white-space: pre;
+  will-change: transform, opacity;
 }
