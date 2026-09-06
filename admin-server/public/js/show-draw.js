@@ -102,6 +102,8 @@ window.SMFDraw = (function () {
   }
 
   function resize() {
+    // init 전에도 불릴 수 있다(판 크기를 지켜보는 쪽이 먼저 깨어난다).
+    if (!board || !ctx) return;
     // getBoundingClientRect는 transform(애니메이션 중 scale 등)의 영향을 받아서
     // 잘못된 값이 잡힐 수 있다. 레이아웃상의 크기인 offset*를 쓴다.
     const width = board.offsetWidth;

@@ -266,6 +266,10 @@ body {
   justify-content: space-between;
   gap: 2vmin;
   width: 100%;
+  /* 높이를 고정한다. 안에 든 글자 크기가 바뀌면(예: "3:00" -> "시간 종료")
+     바 높이가 따라 변하고, 그만큼 판이 커지면서 이미 쓴 글씨가 어긋난다. */
+  height: 15vmin;
+  flex: none;
   padding: 1.6vmin 3vmin;
   /* 오른쪽 위에 떠 있는 전체화면/소리 버튼과 겹치지 않게 자리를 비운다.
      여기에만 필요한 이유는, 다른 화면은 내용이 가운데에 있기 때문. */
@@ -304,9 +308,12 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* 남은 시간이 얼마 없을 때 */
+/* 남은 시간이 얼마 없을 때.
+   글자 크기는 절대 안 바꾼다. 진행 바 높이가 바뀌면 판 크기가 바뀌고,
+   그러면 이미 쓴 글씨와 캔버스가 어긋난다. 색과 번짐만 쓴다. */
 .play-timer.urgent {
   color: var(--wrong);
+  text-shadow: 0 0 2.5vmin rgba(224, 57, 62, 0.55);
 }
 
 /* 시간이 다 됐을 때는 글자가 길어지므로 크기를 줄인다 */

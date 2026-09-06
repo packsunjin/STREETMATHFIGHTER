@@ -67,19 +67,33 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     await db.pool.end();
   });
 
-  /** 로그인한 상태의 진행 화면을 연다. */
-  async function openShow() {
+  // 로그인은 무차별 대입을 막으려고 IP당 횟수가 제한돼 있다. 테스트마다 새로
+  // 로그인하면 테스트가 늘어날수록 그 제한에 먼저 걸린다(그건 서버가 제대로
+  // 막고 있다는 뜻이지 버그가 아니다). 한 번만 로그인하고 쿠키를 돌려 쓴다.
+  let signedIn = null;
+
+  async function signIn() {
+    if (signedIn) return signedIn;
     const context = await browser.newContext({ viewport: BOARD });
     const page = await context.newPage();
-
-    const errors = [];
-    page.on('pageerror', (e) => errors.push(String(e.message)));
-
     await page.goto(`${baseURL}/index.html`);
     await page.fill('#username', process.env.ADMIN_USERNAME);
     await page.fill('#password', process.env.ADMIN_PASSWORD);
     await page.click('button[type=submit]');
     await page.waitForTimeout(500);
+    signedIn = await context.storageState();
+    await context.close();
+    return signedIn;
+  }
+
+  /** 로그인한 상태의 진행 화면을 연다. */
+  async function openShow() {
+    const storageState = await signIn();
+    const context = await browser.newContext({ viewport: BOARD, storageState });
+    const page = await context.newPage();
+
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e.message)));
 
     await page.goto(`${baseURL}/show.html`);
     await page.waitForSelector('#stageIdle:not([hidden])');
@@ -170,6 +184,55 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     // 덮개가 남아 있으면 이 클릭이 타임아웃난다
     await page.click('.pick-card:not([disabled])', { timeout: 3000 });
     await page.waitForSelector('#stageReady:not([hidden])');
+
+    await context.close();
+  });
+
+  test('시간이 끝나도 판 크기가 안 변해서 쓴 글씨가 어긋나지 않는다', async () => {
+    // 타이머 글자가 "1:30"에서 "시간 종료"로 바뀌면서 진행 바 높이가 변하면,
+    // 판이 그만큼 커지고 학생이 쓴 글씨가 보이는 위치와 틀어진다.
+    const { page, context, errors } = await openShow();
+    await startRound(page);
+
+    const before = await page.evaluate(() => ({
+      board: document.getElementById('board').offsetHeight,
+      canvas: document.getElementById('boardCanvas').offsetHeight,
+    }));
+
+    await page.evaluate(() => {
+      state.secondsLeft = 1;
+      renderTimer();
+    });
+    await page.waitForTimeout(1600);
+
+    const after = await page.evaluate(() => ({
+      board: document.getElementById('board').offsetHeight,
+      canvas: document.getElementById('boardCanvas').offsetHeight,
+      글자: document.getElementById('playTimer').textContent,
+    }));
+
+    assert.equal(after.글자, '시간 종료');
+    assert.equal(after.board, before.board, '시간이 끝나면서 판 높이가 바뀜');
+    assert.equal(after.canvas, after.board, '캔버스가 판을 못 따라감');
+
+    assert.equal(errors.length, 0, `자바스크립트 에러: ${errors.join(', ')}`);
+    await context.close();
+  });
+
+  test('시간 종료 안내는 크게 떴다가 반드시 사라진다', async () => {
+    // 학생이 쓴 걸 계속 덮고 있으면 진행자가 채점을 못 한다.
+    const { page, context } = await openShow();
+    await startRound(page);
+
+    await page.evaluate(() => {
+      state.secondsLeft = 1;
+      renderTimer();
+    });
+    await page.waitForTimeout(1300);
+    assert.equal(await page.evaluate(() => document.querySelectorAll('.fx-titlecard').length), 1);
+
+    await page.waitForTimeout(1800);
+    assert.equal(await page.evaluate(() => document.querySelectorAll('.fx-titlecard').length), 0);
 
     await context.close();
   });

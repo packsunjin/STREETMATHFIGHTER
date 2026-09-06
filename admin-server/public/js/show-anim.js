@@ -235,10 +235,51 @@ window.SMFShowAnim = (function () {
 
   /* ================= 타이머 ================= */
 
-  /** 남은 시간이 얼마 안 남았을 때 타이머가 크게 뛴다. */
-  function timerBeat(el) {
+  /**
+   * 남은 시간이 얼마 안 남았을 때 타이머가 크게 뛴다.
+   * 글자 크기(font-size)를 건드리면 진행 바 높이가 바뀌고, 그러면 판 크기가
+   * 바뀌면서 이미 쓴 글씨와 캔버스가 어긋난다. 그래서 transform만 쓴다.
+   */
+  function timerBeat(el, strong = false) {
     if (!el || !enabled) return;
-    animate(el, { scale: [1, 1.35, 1] }, { duration: 0.42, ease: 'out(4)' });
+    animate(
+      el,
+      { scale: [1, strong ? 1.55 : 1.35, 1] },
+      { duration: strong ? 0.5 : 0.42, ease: 'out(4)' }
+    );
+  }
+
+  /**
+   * 화면 한가운데에 큰 글자를 한 번 쾅 띄웠다 지운다("시간 종료!" 같은 것).
+   * 학생이 쓴 글씨를 계속 덮고 있으면 안 되므로 반드시 사라진다.
+   */
+  function titleCard(text, color = '#111111', ms = 1500) {
+    if (!enabled) return;
+    const layer = makeLayer(';z-index:66', 'titlecard');
+
+    const word = document.createElement('div');
+    word.setAttribute(
+      'style',
+      `font-size:18vmin;font-weight:900;line-height:1;color:${color};opacity:0;` +
+        `padding:3vmin 7vmin;border-radius:4vmin;background:rgba(255,255,255,.92);` +
+        `box-shadow:0 0 0 1.2vmin ${color}`
+    );
+    word.textContent = text;
+    layer.appendChild(word);
+
+    animate(
+      word,
+      { scale: [3, 1], opacity: [0, 1], rotate: [-8, 0] },
+      { duration: 0.55, ease: 'out(5)' }
+    );
+    animate(word, { opacity: [1, 0], scale: [1, 1.15] }, {
+      duration: 0.4,
+      delay: ms / 1000 - 0.4,
+      ease: 'inQuad',
+    });
+
+    // 콜백에 기대지 않는다. 남으면 학생이 쓴 걸 가린 채로 행사가 이어진다.
+    setTimeout(() => layer.remove(), ms + 250);
   }
 
   /** 마지막 10초 동안 화면 가장자리가 붉게 맥동한다(뒤에서도 보이게). */
@@ -669,6 +710,7 @@ window.SMFShowAnim = (function () {
     flash,
     ring,
     countdown,
+    titleCard,
     wipe,
     titleIn,
     rays,

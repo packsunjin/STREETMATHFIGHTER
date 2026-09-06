@@ -228,7 +228,7 @@ function startTimer() {
     if (state.secondsLeft <= 10 && state.secondsLeft > 0 && state.lastTickSecond !== state.secondsLeft) {
       state.lastTickSecond = state.secondsLeft;
       SMFShowAnim.sounds.tick();
-      SMFShowAnim.timerBeat($('playTimer'));
+      SMFShowAnim.timerBeat($('playTimer'), true); // 마지막 10초는 더 크게 뛴다
       SMFShowAnim.urgentOn(); // 화면 가장자리가 붉게 맥동 -> 뒤에서도 보인다
     }
 
@@ -239,6 +239,9 @@ function startTimer() {
       SMFShowAnim.shakeScreen(30);
       SMFShowAnim.flash('#e0393e', 0.4);
       SMFShowAnim.shake($('playTimer'));
+      // 진행 바의 작은 글자만으로는 강당 뒤에서 끝난 걸 모른다.
+      // 한가운데에 크게 띄웠다가 지운다(학생이 쓴 걸 계속 덮으면 안 되므로).
+      SMFShowAnim.titleCard('시간 종료!', '#e0393e');
       // 시간이 끝나도 화면을 강제로 넘기지 않는다. 진행자가 상황 보고 넘기게.
     }
   }, 1000);
@@ -563,6 +566,16 @@ function wireUp() {
 
   $('boardPhoto').addEventListener('load', layoutPhoto);
   window.addEventListener('resize', layoutPhoto);
+
+  // 판 크기는 창 크기 말고도 바뀐다(전체화면 전환, 진행 바 안의 글자 변화 등).
+  // 그때 캔버스를 다시 맞추지 않으면 학생이 쓴 글씨가 보이는 위치와 어긋난다.
+  // 획은 좌표로 들고 있어서 다시 그리면 그대로 살아난다.
+  if (window.ResizeObserver) {
+    new ResizeObserver(() => {
+      SMFDraw.resize();
+      layoutPhoto();
+    }).observe($('board'));
+  }
 
   // 전자칠판에 키보드를 붙여 쓰는 경우를 위한 단축키.
   // 이름/상품을 입력하는 중에는 글자가 단축키로 먹히면 안 되므로 제외한다.
