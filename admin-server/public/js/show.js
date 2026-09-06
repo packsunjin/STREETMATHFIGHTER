@@ -333,6 +333,7 @@ function startWithProblem(problem) {
   const limit = TIME_LIMITS[problem.difficulty] ?? DEFAULT_LIMIT;
   $('readyTime').textContent = `제한시간 ${formatTime(limit)}`;
   show('ready');
+  SMFShowAnim.badgeSlam($('readyBadge'));
 
   // 이 화면이 떠 있는 동안 사진을 미리 받아둔다(시작하자마자 보이도록)
   preloadImage(problem.imageUrl).catch(() => {});
@@ -371,6 +372,7 @@ async function goPlay() {
 
   await SMFShowAnim.countdown(3);
   SMFShowAnim.photoIn($('boardPhoto'));
+  SMFShowAnim.timerIn($('playTimer'));
   state.startedAt = Date.now();
   startTimer();
 }
@@ -392,12 +394,26 @@ function fitAnswerText(el, answer) {
   el.style.fontSize = `${size.vmin}vmin`;
 }
 
-function goReveal() {
+async function goReveal() {
   stopTimer();
   fitAnswerText($('revealAnswer'), String(state.problem.answer ?? ''));
+
+  // 정답을 바로 까면 김이 샌다. "정답은..." 하고 두구두구 뜸을 들인 뒤 쾅.
+  $('revealAnswer').hidden = true;
+  $('revealJudge').hidden = true;
   show('reveal');
+
+  await SMFShowAnim.suspense($('revealLabel'));
+
+  $('revealAnswer').hidden = false;
   SMFShowAnim.sounds.reveal();
   SMFShowAnim.slam($('revealAnswer'));
+
+  // 판정 버튼은 정답이 자리잡은 뒤에 올라온다(성급하게 누르는 것도 막는다)
+  setTimeout(() => {
+    $('revealJudge').hidden = false;
+    SMFShowAnim.listIn($('revealJudge').querySelectorAll('.btn'), 80);
+  }, 700);
 }
 
 // 맞히면 축하 화면, 틀리면 바로 다음 문제. 남기는 기록은 없다.

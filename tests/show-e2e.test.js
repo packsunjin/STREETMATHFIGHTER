@@ -264,7 +264,10 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     const expected = await page.evaluate(() => String(state.problem.answer));
     await page.click('#revealBtn');
     await page.waitForSelector('#stageReveal:not([hidden])');
+    // "정답은..." 하고 뜸을 들인 뒤에야 정답이 나온다
+    await page.waitForSelector('#revealAnswer:not([hidden])', { timeout: 5000 });
     assert.equal(await page.locator('#revealAnswer').textContent(), expected);
+    await page.waitForSelector('#revealJudge:not([hidden])', { timeout: 5000 });
 
     await page.click('#correctBtn');
     await page.waitForSelector('#stageCelebrate:not([hidden])');
@@ -287,6 +290,7 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
 
     await page.click('#revealBtn');
     await page.waitForSelector('#stageReveal:not([hidden])');
+    await page.waitForSelector('#revealJudge:not([hidden])', { timeout: 5000 });
     await page.evaluate(() => {
       state.used.clear();
       updatePickCounts();
@@ -312,6 +316,7 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     await startRound(page);
     await page.click('#revealBtn');
     await page.waitForSelector('#stageReveal:not([hidden])');
+    await page.waitForSelector('#revealJudge:not([hidden])', { timeout: 5000 });
     await page.click('#correctBtn');
     await page.waitForSelector('#stageCelebrate:not([hidden])');
 
@@ -328,7 +333,9 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
         state.problem = { answer: value };
         goReveal();
       }, answer);
-      // 등장 연출(3.2배에서 줄어듦)이 끝난 뒤의 크기를 잰다
+      // 뜸 들이기가 끝나고 등장 연출(3.2배에서 줄어듦)까지 지난 뒤의 크기를 잰다
+      await page.waitForSelector('#revealAnswer:not([hidden])', { timeout: 5000 });
+      await page.waitForSelector('#revealJudge:not([hidden])', { timeout: 5000 });
       await page.waitForTimeout(900);
 
       const fit = await page.evaluate(() => {

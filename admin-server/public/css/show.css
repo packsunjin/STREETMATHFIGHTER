@@ -595,3 +595,24 @@ body {
   color: var(--muted);
 }
 
+
+/* ---- 정답 공개 전 뜸 들이기 ---- */
+.suspense-dots {
+  display: inline-flex;
+  gap: 1.2vmin;
+  margin-left: 1.5vmin;
+  vertical-align: middle;
+}
+
+.suspense-dot {
+  width: 1.6vmin;
+  height: 1.6vmin;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+/* 정답이 나오기 전에는 자리를 잡아두되 보이지 않게 (레이아웃이 튀지 않도록) */
+.reveal-answer[hidden],
+.judge-actions[hidden] {
+  display: none;
+}

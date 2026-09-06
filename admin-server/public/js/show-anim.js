@@ -259,6 +259,95 @@ window.SMFShowAnim = (function () {
     animate(el, { x: [0, -24, 22, -16, 10, 0] }, { duration: 0.5, ease: 'outQuad' });
   }
 
+  /** 두구두구. 정답을 까기 직전의 뜸. 퀴즈쇼에서 제일 중요한 2초다. */
+  function drumroll(ms = 1400) {
+    if (muted) return;
+    const ctx = getAudio();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const seconds = ms / 1000;
+    // 점점 빨라지는 북소리
+    let t = 0;
+    let gap = 0.11;
+    while (t < seconds) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(120, now + t);
+      osc.frequency.exponentialRampToValueAtTime(60, now + t + 0.05);
+      gain.gain.setValueAtTime(0.18, now + t);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.07);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(now + t);
+      osc.stop(now + t + 0.08);
+      t += gap;
+      gap = Math.max(gap * 0.87, 0.035); // 갈수록 촘촘하게
+    }
+  }
+
+  /**
+   * "정답은..." 하고 뜸을 들인 뒤 resolve.
+   * 화면에는 세 점이 차례로 커졌다 작아지고, 북소리가 점점 빨라진다.
+   */
+  function suspense(labelEl, ms = 1400) {
+    drumroll(ms);
+    if (!enabled) return Promise.resolve();
+
+    const dots = document.createElement('span');
+    dots.className = 'suspense-dots';
+    for (let i = 0; i < 3; i += 1) {
+      const dot = document.createElement('span');
+      dot.className = 'suspense-dot';
+      dots.appendChild(dot);
+    }
+    if (labelEl) labelEl.appendChild(dots);
+
+    animate(
+      dots.querySelectorAll('.suspense-dot'),
+      { scale: [0.5, 1.6], opacity: [0.3, 1] },
+      { duration: 0.36, delay: stagger(0.12), loop: true, alternate: true }
+    );
+
+    // 뜸 들이는 동안 화면이 잘게 떨린다.
+    // body를 흔들면 고정 배치(전체화면/음소거 버튼)까지 끌려다니므로 무대만 흔든다.
+    const stage = labelEl && labelEl.closest ? labelEl.closest('.stage') : null;
+    if (stage) {
+      animate(stage, { x: [0, -3, 3, 0] }, { duration: 0.12, loop: Math.round(ms / 120) });
+    }
+
+    return new Promise((resolve) =>
+      setTimeout(() => {
+        dots.remove();
+        resolve();
+      }, ms)
+    );
+  }
+
+  /** 난이도 배지가 회전하며 쿵 박힌다. */
+  function badgeSlam(el) {
+    if (!el || !enabled) return;
+    animate(
+      el,
+      { scale: [4, 1], rotate: [-360, 0], opacity: [0, 1] },
+      { duration: 0.85, ease: 'out(5)' }
+    );
+    setTimeout(() => {
+      boom(0.2);
+      shakeScreen(10);
+    }, 420);
+  }
+
+  /** 타이머가 위에서 떨어지며 자리를 잡는다. */
+  function timerIn(el) {
+    if (!el || !enabled) return;
+    animate(
+      el,
+      { scale: [2.2, 1], y: [-40, 0], opacity: [0, 1] },
+      { duration: 0.6, ease: 'out(4)' }
+    );
+  }
+
   /* ================= 3, 2, 1 카운트다운 ================= */
 
   const NUMBER_STYLE =
@@ -454,6 +543,10 @@ window.SMFShowAnim = (function () {
     flash,
     ring,
     countdown,
+    drumroll,
+    suspense,
+    badgeSlam,
+    timerIn,
     confetti,
     celebrate,
     reject,
