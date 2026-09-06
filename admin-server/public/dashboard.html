@@ -80,8 +80,18 @@
         </div>
         <div class="field">
           <label for="image">문제 이미지</label>
-          <input type="file" id="image" name="image" accept="image/*" />
-          <img id="imagePreview" class="image-preview" alt="미리보기" />
+          <!-- 문제집을 찍거나 캡처해서 올리는 게 대부분이라, 파일 선택 말고
+               붙여넣기(Ctrl+V)와 드래그앤드롭도 받는다 -->
+          <div class="dropzone" id="dropzone" tabindex="0" role="button"
+               aria-label="이미지 선택 (클릭, 드래그앤드롭, Ctrl+V)">
+            <input type="file" id="image" name="image" accept="image/*" hidden />
+            <img id="imagePreview" class="image-preview" alt="미리보기" />
+            <div class="dropzone-hint" id="dropzoneHint">
+              <strong>클릭해서 사진 선택</strong>
+              <span>또는 여기로 끌어다 놓기 · <kbd>Ctrl</kbd>+<kbd>V</kbd>로 캡처 붙여넣기</span>
+            </div>
+            <p class="dropzone-file" id="dropzoneFile" hidden></p>
+          </div>
         </div>
         <div class="field">
           <label for="description">설명 / 해설 (선택)</label>

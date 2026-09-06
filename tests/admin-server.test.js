@@ -112,3 +112,23 @@ test('보안 헤더(helmet)가 적용됨', async () => {
   const res = await request(app).get('/healthz');
   assert.equal(res.headers['x-content-type-options'], 'nosniff');
 });
+
+test('업로드가 실패해도 내부 오류 메시지가 브라우저로 새지 않는다', async () => {
+  // 테스트 환경의 CLOUDINARY_URL은 가짜라 업로드가 반드시 실패한다.
+  // 이때 "Server returned unexpected status code - 403" 같은 라이브러리 메시지가
+  // 그대로 나가면 안 되고, 사람이 읽고 뭘 할지 아는 문장이어야 한다.
+  const agent = request.agent(app);
+  await agent
+    .post('/api/login')
+    .send({ username: process.env.ADMIN_USERNAME, password: process.env.ADMIN_PASSWORD });
+
+  const res = await agent
+    .post('/api/problems')
+    .field('title', '[test] 업로드 실패')
+    .field('difficulty', '중')
+    .attach('image', Buffer.from([0x89, 0x50, 0x4e, 0x47]), 'x.png');
+
+  assert.equal(res.status, 502);
+  assert.equal(res.body.error, '사진 업로드에 실패했습니다. 잠시 후 다시 시도해주세요.');
+  assert.ok(!/403|status code|cloudinary/i.test(JSON.stringify(res.body)), '내부 정보가 없어야 함');
+});

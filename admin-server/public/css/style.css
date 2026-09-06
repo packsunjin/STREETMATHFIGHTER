@@ -416,3 +416,63 @@ a {
 .toast.show {
   opacity: 1;
 }
+
+/* ---- 이미지 넣기(클릭 / 드래그앤드롭 / 붙여넣기) ---- */
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 140px;
+  padding: 16px;
+  border: 2px dashed #d4d4d8;
+  border-radius: 12px;
+  background: #fafafa;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.dropzone:hover,
+.dropzone:focus-visible {
+  border-color: #111;
+  outline: none;
+}
+
+.dropzone.dragging {
+  border-color: #111;
+  border-style: solid;
+  background: #f0f0f0;
+}
+
+.dropzone-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: center;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.dropzone-hint strong {
+  font-size: 14px;
+  color: #111;
+}
+
+.dropzone-hint kbd {
+  padding: 1px 5px;
+  border: 1px solid #d4d4d8;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.dropzone-file {
+  margin: 0;
+  font-size: 12px;
+  color: #6b7280;
+  word-break: break-all;
+  text-align: center;
+}

@@ -102,12 +102,24 @@ const upload = multer({
   },
 });
 
+// 업로드가 실패하는 이유는 대부분 Cloudinary 키가 잘못됐거나 용량 초과인데,
+// 라이브러리 메시지("Server returned unexpected status code - 403")를 그대로
+// 보여주면 선생님이 뭘 해야 하는지 알 수 없다. 사람이 읽을 문장으로 바꾼다.
+class ImageUploadError extends Error {
+  constructor(cause) {
+    super('사진 업로드에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    this.name = 'ImageUploadError';
+    this.status = 502;
+    this.cause = cause;
+  }
+}
+
 function uploadImageToCloudinary(buffer) {
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
       { folder: 'streetmathfighter', resource_type: 'image' },
       (err, result) => {
-        if (err) return reject(err);
+        if (err) return reject(new ImageUploadError(err));
         resolve(result);
       }
     );
@@ -559,12 +571,29 @@ app.delete('/api/problems/:id', requireAuth, parseId, async (req, res, next) => 
   }
 });
 
+// 파일 업로드 관련 오류는 무엇을 고쳐야 하는지 알려줘야 의미가 있다.
+const MULTER_MESSAGES = {
+  LIMIT_FILE_SIZE: '사진 용량이 너무 큽니다. 더 작은 사진으로 올려주세요.',
+  LIMIT_FILE_COUNT: '사진은 한 장만 올릴 수 있습니다.',
+  LIMIT_UNEXPECTED_FILE: '예상하지 못한 파일이 들어왔습니다.',
+};
+
 app.use((err, req, res, next) => {
-  if (err instanceof multer.MulterError || err) {
-    console.error(err);
-    return res.status(400).json({ error: err.message || '요청을 처리할 수 없습니다.' });
+  console.error(err);
+
+  if (err instanceof multer.MulterError) {
+    return res
+      .status(400)
+      .json({ error: MULTER_MESSAGES[err.code] || '파일을 처리할 수 없습니다.' });
   }
-  next(err);
+
+  // 우리가 직접 만든 오류만 메시지를 그대로 내보낸다.
+  // 그 외에는 라이브러리/DB 내부 메시지가 브라우저로 새지 않도록 막는다.
+  if (err instanceof ImageUploadError) {
+    return res.status(err.status).json({ error: err.message });
+  }
+
+  res.status(500).json({ error: '요청을 처리할 수 없습니다. 잠시 후 다시 시도해주세요.' });
 });
 
 if (require.main === module) {
