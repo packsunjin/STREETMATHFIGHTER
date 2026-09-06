@@ -64,6 +64,12 @@ body {
   touch-action: manipulation;
   user-select: none;
 
+  /* 무대 자체가 돌아설 수 있게 원근을 여기서 잡는다.
+     .stage에 걸린 원근은 그 "자식"에게 적용되므로, 무대 판 자체를 돌리려면
+     한 단계 위에 있어야 한다. */
+  perspective: 2200px;
+  transform-style: preserve-3d;
+
   /* 위에서 빛이 떨어지는 무대. 단색으로 깔면 65인치에서 아주 밋밋하다. */
   background-color: var(--void);
   background-image:

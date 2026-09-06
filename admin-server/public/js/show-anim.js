@@ -256,6 +256,21 @@ window.SMFShowAnim = (function () {
     );
   }
 
+  /**
+   * 이미 화면에 있는 요소의 글자에 두께를 입힌다.
+   * 겹친 층도 글자라서 이 요소의 textContent에는 같은 글자가 여러 번 들어간다.
+   * 값을 읽어 가는 요소에는 쓰지 않는다.
+   */
+  function extrudeElement(el, opts) {
+    if (!el || !enabled) return;
+    if (el.dataset.extruded === '1') return;
+    const text = el.textContent;
+    if (!text) return;
+    el.dataset.extruded = '1';
+    el.textContent = '';
+    el.appendChild(makeExtruded(text, opts));
+  }
+
   /* ================= 카메라 =================
    * 무대의 소실점(perspective-origin)을 옮기면, 물건은 가만히 있는데
    * 보는 자리가 옮겨간 것처럼 보인다. 화면이 바뀔 때마다 살짝 흘려주면
@@ -490,7 +505,7 @@ window.SMFShowAnim = (function () {
         `border:0.3vmin solid ${color};` +
         `box-shadow:0 3vmin 7vmin rgba(2,14,18,.6), 0 0 12vmin ${color}`
     );
-    word.textContent = text;
+    word.appendChild(makeExtruded(text, { layers: 10, step: 3, front: color }));
     layer.appendChild(word);
 
     animate(word, { scale: [1.7, 1], opacity: [0, 1], z: [280, 0] }, { ease: SPRING.heavy });
@@ -647,50 +662,65 @@ window.SMFShowAnim = (function () {
     splitIn(el, 0.045);
   }
 
-  /* ================= 화면 전환 와이프 =================
-   * 무대가 슬그머니 바뀌면 뒤에 앉은 학생은 넘어간 줄도 모른다.
-   * 어두운 천이 화면을 한 번 쓸고 지나가고, 앞머리에 금빛 선이 달린다. */
+  /* ================= 화면 전환 =================
+   * 평평한 띠가 쓸고 지나가는 건 결국 그림 위에 그림을 덮는 것이다.
+   * 물러나는 판은 돌아서면서 뒤로 물러나고, 들어오는 판은 반대쪽에서
+   * 돌아 들어온다. 두 장의 판이 실제로 교대하는 것으로 읽힌다.
+   *
+   * 필기 화면만은 절대 안 돌린다. 캔버스 좌표가 걸려 있어서 어떤 이유로든
+   * transform이 남으면 학생이 쓴 글씨와 펜 끝이 통째로 어긋난다. */
 
-  const WIPE_MS = 640;
+  const SWAP_OUT_MS = 460;
+  const SWAP_IN_MS = 780;
 
-  function wipe() {
-    if (!enabled) return;
+  function isFlatStage(el) {
+    return !!el && el.classList.contains('stage-play');
+  }
+
+  /** 화면을 정리해 원래 상태로 돌려놓는다. 남은 transform은 그 자체로 사고다. */
+  function clearStage(el) {
+    if (!el) return;
+    el.style.transform = '';
+    el.style.opacity = '';
+  }
+
+  function transition3d(outEl, inEl) {
+    if (!enabled) {
+      if (outEl && outEl !== inEl) outEl.hidden = true;
+      return;
+    }
     sounds.whoosh();
 
-    const layer = makeLayer(';overflow:hidden;z-index:65', 'wipe');
-
-    // left를 안 잡으면 flex 가운데 정렬이 시작 위치가 돼서 띠가 화면 중앙에서 튀어나온다
-    const makeBar = (background, width) => {
-      const bar = document.createElement('div');
-      bar.setAttribute(
-        'style',
-        `position:absolute;left:0;top:-20%;height:140%;width:${width};background:${background}`
+    if (outEl && outEl !== inEl) {
+      animate(
+        outEl,
+        isFlatStage(outEl)
+          ? { opacity: [1, 0] }
+          : { rotateY: [0, -17], z: [0, -820], opacity: [1, 0] },
+        { duration: SWAP_OUT_MS / 1000, ease: 'inQuad' }
       );
-      layer.appendChild(bar);
-      return bar;
-    };
+      // 정리는 애니메이션 콜백이 아니라 시계로 보장한다.
+      // 안 닫으면 두 화면이 겹친 채로 행사가 이어진다.
+      setTimeout(() => {
+        outEl.hidden = true;
+        clearStage(outEl);
+      }, SWAP_OUT_MS + 60);
+    }
 
-    // 어두운 천 + 그 앞머리를 달리는 가느다란 금빛
-    const sheet = makeBar(
-      'linear-gradient(100deg, rgba(8,8,10,0) 0%, rgba(8,8,10,.97) 18%, rgba(24,25,29,.97) 82%, rgba(8,8,10,0) 100%)',
-      '92vw'
-    );
-    const edge = makeBar(
-      'linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.9), rgba(255,255,255,0))',
-      '9vw'
-    );
-
-    // skewX는 [값, 값]으로 줘야 기운 채로 고정된다.
-    // anime가 transform을 통째로 다시 쓰기 때문에 인라인 transform은 남지 않는다.
-    // 가속했다 감속하는 이징이라 천이 실제로 당겨지는 것처럼 보인다.
-    animate(
-      [sheet, edge],
-      { x: ['-115vw', '200vw'], skewX: [-11, -11] },
-      { duration: WIPE_MS / 1000, delay: stagger(0.05), ease: 'inOutQuint' }
-    );
-
-    // 애니메이션 콜백에 기대지 않는다. 이 판이 남으면 화면이 덮인다.
-    setTimeout(() => layer.remove(), WIPE_MS + 320);
+    if (inEl) {
+      // 들어오는 판은 끝나고 지우려 해도 안 지워진다. 같은 요소에 걸린
+      // 카메라 연출(1.4초)이 아직 돌고 있어서, 지운 transform을 다음 프레임에
+      // 다시 써넣는다. 그래서 "끝나고 치우기" 대신 "시작 전에 비우고 들어가기"로
+      // 다룬다(show 쪽에서 clearStage를 먼저 부른다).
+      // 어차피 이 연출의 끝값은 기울기 0이라 남아도 기울어 보이지 않는다.
+      animate(
+        inEl,
+        isFlatStage(inEl)
+          ? { opacity: [0, 1] }
+          : { rotateY: [19, 0], z: [-980, 0], opacity: [0, 1] },
+        { duration: SWAP_IN_MS / 1000, ease: 'outQuint' }
+      );
+    }
   }
 
   /* ================= 대기 화면 =================
@@ -946,10 +976,12 @@ window.SMFShowAnim = (function () {
       );
     }
     if (textEl) {
-      // 트로피가 자리잡기 시작할 때쯤 뒤따라온다(따라붙는 맛)
+      extrudeElement(textEl, { layers: 12, step: 3 });
+      // 트로피가 자리잡기 시작할 때쯤 뒤따라온다(따라붙는 맛).
+      // 돌면서 서야 두께가 보인다.
       animate(
         textEl,
-        { scale: [0.5, 1], opacity: [0, 1], z: [-240, 0] },
+        { scale: [0.5, 1], opacity: [0, 1], z: [-240, 0], rotateX: [-46, 0] },
         { ease: SPRING.soft, delay: 0.22 }
       );
     }
@@ -996,7 +1028,9 @@ window.SMFShowAnim = (function () {
     bloom,
     countdown,
     titleCard,
-    wipe,
+    transition3d,
+    clearStage,
+    extrudeElement,
     titleIn,
     rays,
     breathe,

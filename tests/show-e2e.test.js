@@ -167,21 +167,49 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     await context.close();
   });
 
-  test('화면이 바뀔 때 와이프가 지나가고 스스로 치워진다', async () => {
-    // 화면을 덮는 검은 띠라, 안 치워지면 행사가 그대로 끝난다.
+  test('화면이 3D로 교대하고, 물러난 판은 닫히고 기울기도 남지 않는다', async () => {
+    // 화면끼리 돌아가며 교대한다. 물러난 판이 안 닫히면 두 화면이 겹치고,
+    // 들어온 판에 기울기가 남으면 다음 연출이 기울어진 채로 시작한다.
     const { page, context } = await openShow();
 
     await page.click('#startBtn');
     await page.waitForSelector('#stagePick:not([hidden])');
-    assert.ok(
-      await page.evaluate(() => document.querySelectorAll('.fx-wipe').length > 0),
-      '전환 연출이 아예 안 나옴'
-    );
 
-    await page.waitForTimeout(1200);
-    assert.equal(await page.evaluate(() => document.querySelectorAll('.fx-wipe').length), 0);
+    // 교대 중에는 물러나는 판이 아직 보이고, 기울어져 있다
+    const 교대중 = await page.evaluate(() => {
+      const idle = document.getElementById('stageIdle');
+      return { 대기아직보임: !idle.hidden, 기울었나: idle.style.transform !== '' };
+    });
+    assert.equal(교대중.대기아직보임, true, '물러나는 판이 바로 사라져 교대가 안 보임');
+    assert.equal(교대중.기울었나, true, '물러나는 판이 3D로 돌지 않음');
 
-    // 덮개가 남아 있으면 이 클릭이 타임아웃난다
+    await page.waitForTimeout(1400);
+
+    const 정리후 = await page.evaluate(() => {
+      const stages = Array.from(document.querySelectorAll('.stage'));
+      // 인라인 문자열이 아니라 실제로 그려지는 값을 본다. 끝값이 기울기 0이면
+      // 문자열이 남아 있어도 화면은 똑바르다. 중요한 건 "똑바로 서 있는가"다.
+      const 기울었나 = (el) => {
+        const m = getComputedStyle(el).transform;
+        if (m === 'none') return false;
+        // 함수 이름("matrix3d")에도 숫자가 들어 있어서 통째로 숫자만 뽑으면
+        // 자리가 한 칸씩 밀린다. 괄호 안만 잘라서 본다.
+        const args = m.slice(m.indexOf('(') + 1, m.lastIndexOf(')')).split(',').map(Number);
+        const 단위행렬 =
+          args.length === 16
+            ? [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
+            : [1, 0, 0, 1, 0, 0];
+        return args.some((v, i) => Math.abs(v - 단위행렬[i]) > 0.5);
+      };
+      return {
+        보이는판: stages.filter((s) => !s.hidden).map((s) => s.id),
+        기울어진판: stages.filter((s) => !s.hidden && 기울었나(s)).map((s) => s.id),
+      };
+    });
+    assert.deepEqual(정리후.보이는판, ['stagePick'], '한 화면만 남아 있어야 함');
+    assert.deepEqual(정리후.기울어진판, [], '기울어진 채로 멈춘 판이 있음');
+
+    // 덮개나 겹침이 남아 있으면 이 클릭이 타임아웃난다
     await page.click('.pick-card:not([disabled])', { timeout: 3000 });
     await page.waitForSelector('#stageReady:not([hidden])');
 

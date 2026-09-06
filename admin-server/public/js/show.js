@@ -70,17 +70,32 @@ function lockWhileEntering(el) {
   }, STAGE_SETTLE_MS);
 }
 
+// 지금 떠 있는 화면. 전환 연출은 "물러나는 판"이 있어야 성립하므로,
+// 화면을 전부 닫아버리지 않고 직전 것을 하나 들고 있는다.
+let currentStage = null;
+
 function show(name) {
-  const already = stages[name] && !stages[name].hidden;
-
-  Object.values(stages).forEach((el) => {
-    el.hidden = true;
-  });
   const el = stages[name];
-  el.hidden = false;
+  // 같은 화면을 다시 그리는 경우(목록 갱신 등)는 전환하지 않는다. 산만하다.
+  const already = el === currentStage;
+  const prev = already ? null : currentStage;
 
-  // 같은 화면을 다시 그리는 경우(목록 갱신 등)까지 쓸어버리면 산만하다
-  if (!already) SMFShowAnim.wipe();
+  // 목표와 물러나는 판만 남기고 전부 닫는다.
+  // 어떤 경우에도 화면 세 개가 겹쳐 있는 상태로 가지 않는다.
+  Object.values(stages).forEach((stage) => {
+    if (stage !== el && stage !== prev) {
+      stage.hidden = true;
+      SMFShowAnim.clearStage(stage);
+    }
+  });
+  el.hidden = false;
+  currentStage = el;
+  // 들어가기 전에 이 판을 비운다. 지난번 물러날 때의 기울기가 남아 있으면
+  // 기울어진 채로 시작한다. 연출이 끝난 뒤에 지우는 방식은 안 통한다
+  // (같은 판에 걸린 카메라 연출이 지운 값을 다시 써넣는다).
+  SMFShowAnim.clearStage(el);
+
+  if (!already) SMFShowAnim.transition3d(prev, el);
   SMFShowAnim.stageIn(el);
   lockWhileEntering(el);
 
