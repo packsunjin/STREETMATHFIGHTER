@@ -354,26 +354,37 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     await context.close();
   });
 
-  test('반 대항 순위가 이름 앞의 반으로 집계된다', async () => {
+  test('반 대항 순위가 서버가 준 순위대로 그려진다', async () => {
+    // 집계 규칙 자체는 tests/class-ranking.test.js에서 검증한다.
+    // 여기서는 화면이 그 결과를 그대로 그리는지만 본다.
     const { page, context } = await openShow();
 
-    const ranking = await page.evaluate(() =>
-      classRanking([
-        { studentName: '2-3 김민수', correct: true },
-        { studentName: '2-3 이지훈', correct: true },
-        { studentName: '1-1 박서준', correct: true },
-        { studentName: '1-1 최유리', correct: false },
-        { studentName: '이름만', correct: true }, // 반을 못 뽑으므로 빠진다
-      ])
+    await page.evaluate(() => {
+      state.classRanking = [
+        { klass: '2-3', wins: 4, tries: 5 },
+        { klass: '1-1', wins: 2, tries: 4 },
+      ];
+      renderClassRace(state.classRanking);
+    });
+
+    const rows = await page.$$eval('.class-item', (items) =>
+      items.map((item) => ({
+        name: item.querySelector('.class-name').textContent,
+        wins: item.querySelector('.class-wins').textContent,
+        width: item.querySelector('.class-bar-fill').style.width,
+        leading: item.classList.contains('leading'),
+      }))
     );
 
-    assert.deepEqual(
-      ranking.map((r) => [r.klass, r.wins]),
-      [
-        ['2-3', 2],
-        ['1-1', 1],
-      ]
-    );
+    assert.deepEqual(rows, [
+      { name: '2-3반', wins: '4승', width: '100%', leading: true },
+      { name: '1-1반', wins: '2승', width: '50%', leading: false },
+    ]);
+
+    // 반이 하나뿐이면 "대항"이 아니므로 안 보여준다
+    await page.evaluate(() => renderClassRace([{ klass: '2-3', wins: 1, tries: 1 }]));
+    assert.ok(await page.locator('#classRace').isHidden());
+
     await context.close();
   });
 

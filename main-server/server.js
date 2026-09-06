@@ -7,6 +7,7 @@ const compression = require('compression');
 const morgan = require('morgan');
 
 const { listShowRounds } = require('../shared/db');
+const { rankClasses } = require('../shared/class-ranking');
 
 const PORT = process.env.MAIN_PORT || 3000;
 
@@ -38,6 +39,11 @@ app.get('/api/today', async (req, res, next) => {
     res.json({
       total: rounds.length,
       wins: winners.length,
+      // 반 대항 순위. 진행 화면과 같은 계산을 써서 두 화면의 순위가 어긋나지 않게 한다.
+      classRanking: rankClasses(rounds.map((row) => ({
+        studentName: row.student_name,
+        correct: row.correct,
+      }))),
       winners: winners.map((row) => ({
         name: row.student_name,
         prize: row.prize || null,

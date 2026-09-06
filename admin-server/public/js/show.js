@@ -459,8 +459,9 @@ async function goIdle() {
 
 async function loadToday() {
   try {
-    const { rounds } = await getJSON(API.rounds);
+    const { rounds, classRanking } = await getJSON(API.rounds);
     state.rounds = rounds;
+    state.classRanking = classRanking || [];
     $('todayRounds').textContent = rounds.length;
     $('todayWins').textContent = rounds.filter((r) => r.correct).length;
     $('todayPrizes').textContent = rounds.filter((r) => r.correct && r.prize).length;
@@ -484,34 +485,13 @@ async function loadPrizes() {
   }
 }
 
-// 이름을 "2-3 김민수" 형식으로 넣으면 앞부분이 반이 된다.
-// 형식이 안 맞으면(그냥 "김민수") 반을 못 뽑으므로 집계에서 빠진다.
-const CLASS_RE = /^\s*(\d{1,2}\s*-\s*\d{1,2})/;
-
-function classOf(name) {
-  const matched = CLASS_RE.exec(name || '');
-  return matched ? matched[1].replace(/\s+/g, '') : null;
-}
-
-/** 반별 성공 수를 세어 많이 맞힌 순으로 준다. */
-function classRanking(rounds) {
-  const byClass = new Map();
-  rounds.forEach((round) => {
-    const klass = classOf(round.studentName);
-    if (!klass) return;
-    const entry = byClass.get(klass) || { klass, wins: 0, tries: 0 };
-    entry.tries += 1;
-    if (round.correct) entry.wins += 1;
-    byClass.set(klass, entry);
-  });
-  return [...byClass.values()].sort((a, b) => b.wins - a.wins || b.tries - a.tries);
-}
-
-function renderClassRace(rounds) {
+// 순위 계산은 서버(shared/class-ranking.js)에서 한다. 학생용 공개 페이지와
+// 같은 결과가 나와야 해서 계산을 두 군데 두지 않는다.
+function renderClassRace(ranking) {
   const box = $('classRace');
   box.textContent = '';
 
-  const ranking = classRanking(rounds).slice(0, 6);
+  ranking = (ranking || []).slice(0, 6);
   // 반이 하나뿐이면 "대항"이 아니라 굳이 안 보여준다
   box.hidden = ranking.length < 2;
   if (box.hidden) return;
@@ -545,10 +525,9 @@ function renderClassRace(rounds) {
 
 async function goHall() {
   await loadToday();
-  const rounds = state.rounds || [];
-  renderClassRace(rounds);
+  renderClassRace(state.classRanking);
 
-  const winners = rounds.filter((r) => r.correct);
+  const winners = (state.rounds || []).filter((r) => r.correct);
   const list = $('hallList');
   list.textContent = '';
 

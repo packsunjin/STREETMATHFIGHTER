@@ -119,3 +119,57 @@ body {
   font-weight: 800;
   cursor: pointer;
 }
+
+/* ---- 반 대항 ---- */
+.class-race {
+  margin-bottom: 28px;
+}
+
+.class-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.class-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.class-name {
+  flex: 0 0 auto;
+  min-width: 48px;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.class-bar {
+  flex: 1 1 auto;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.class-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--muted);
+}
+
+.class-item.leading .class-bar-fill { background: var(--gold); }
+.class-item.leading .class-name { color: var(--gold); }
+
+.class-wins {
+  flex: 0 0 auto;
+  min-width: 36px;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
