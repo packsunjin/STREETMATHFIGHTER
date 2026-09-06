@@ -92,7 +92,9 @@ test(':id 검증 -- 잘못된 id는 인증된 요청이어도 400', async () => 
   assert.equal(res.status, 400);
 });
 
-test('/api/stats/problem-counts -- 새로 추가한 문제만큼 정확히 증가함', async () => {
+test('/api/stats/problem-counts -- 새로 추가한 문제가 집계에 들어간다', async () => {
+  // 다른 테스트 파일도 같은 DB에 문제를 만들기 때문에 전체 개수를 정확히
+  // 예측할 수는 없다. "최소한 내가 넣은 만큼은 늘었는가"로 확인한다.
   const agent = request.agent(app);
   await agent.post('/api/login').send({ username: process.env.ADMIN_USERNAME, password: process.env.ADMIN_PASSWORD });
 
@@ -104,8 +106,16 @@ test('/api/stats/problem-counts -- 새로 추가한 문제만큼 정확히 증�
   await makeProblem({ title: '통계 테스트2', difficulty: '상' });
 
   const afterRes = await agent.get('/api/stats/problem-counts');
-  assert.equal(afterRes.body.total, beforeTotal + 2);
-  assert.equal(afterRes.body.byDifficulty.find((d) => d.difficulty === '상').count, beforeHard + 2);
+  assert.ok(afterRes.body.total >= beforeTotal + 2, '전체 개수가 최소 2 늘어야 함');
+  assert.ok(
+    afterRes.body.byDifficulty.find((d) => d.difficulty === '상').count >= beforeHard + 2,
+    '난이도 상이 최소 2 늘어야 함'
+  );
+  assert.equal(
+    afterRes.body.byDifficulty.reduce((sum, d) => sum + d.count, 0),
+    afterRes.body.total,
+    '난이도별 합이 전체와 맞아야 함'
+  );
 });
 
 test('보안 헤더(helmet)가 적용됨', async () => {

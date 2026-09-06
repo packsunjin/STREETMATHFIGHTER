@@ -163,34 +163,6 @@ body {
   color: var(--muted);
 }
 
-.today-strip {
-  display: flex;
-  gap: 2vmin;
-  margin: 1vmin 0;
-}
-
-.today-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 22vmin;
-  padding: 2.5vmin;
-  border: 0.4vmin solid var(--line);
-  border-radius: 3vmin;
-}
-
-.today-num {
-  font-size: 7vmin;
-  font-weight: 900;
-  line-height: 1;
-}
-
-.today-label {
-  margin-top: 0.8vmin;
-  font-size: 2.2vmin;
-  color: var(--muted);
-}
-
 .idle-actions {
   display: flex;
   flex-direction: column;
@@ -234,10 +206,6 @@ body {
   font-size: 12vmin;
   font-weight: 900;
   line-height: 1;
-}
-
-.pick-random .pick-level {
-  font-size: 7vmin;
 }
 
 .pick-time {
@@ -458,49 +426,7 @@ body {
   margin-top: 2vmin;
 }
 
-/* ---- 6. 정답자 등록 ---- */
-.award-form {
-  width: min(110vmin, 100%);
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 1vmin;
-  width: 100%;
-  text-align: left;
-}
-
-.field-label {
-  font-size: 2.4vmin;
-  color: var(--muted);
-}
-
-.field-input {
-  width: 100%;
-  min-height: 11vmin;
-  padding: 0 3vmin;
-  border: 0.5vmin solid var(--ink);
-  border-radius: 2.5vmin;
-  font-family: inherit;
-  font-size: 4vmin;
-  font-weight: 800;
-  background: var(--paper);
-  color: var(--ink);
-}
-
-.field-input:focus {
-  outline: 0.5vmin solid var(--muted);
-  outline-offset: 0.3vmin;
-}
-
-.award-actions {
-  display: flex;
-  gap: 2vmin;
-  margin-top: 2vmin;
-}
-
-/* ---- 7. 축하 ---- */
+/* ---- 6. 정답 ---- */
 .celebrate-mark {
   font-size: 20vmin;
   line-height: 1;
@@ -512,80 +438,7 @@ body {
   line-height: 1.1;
 }
 
-.celebrate-prize {
-  padding: 1.5vmin 5vmin;
-  border-radius: 999px;
-  background: var(--gold);
-  color: #fff;
-  font-size: 4.5vmin;
-  font-weight: 900;
-}
-
-.celebrate-prize:empty {
-  display: none;
-}
-
-/* ---- 8. 명예의 전당 ---- */
-.hall-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5vmin;
-  width: min(150vmin, 100%);
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 0.5vmin;
-}
-
-.hall-row {
-  display: flex;
-  align-items: center;
-  gap: 2.5vmin;
-  padding: 2vmin 3vmin;
-  border: 0.4vmin solid var(--line);
-  border-radius: 2.5vmin;
-}
-
-.hall-rank {
-  font-size: 4vmin;
-  font-weight: 900;
-  min-width: 8vmin;
-  color: var(--gold);
-}
-
-.hall-name {
-  flex: 1 1 auto;
-  font-size: 4vmin;
-  font-weight: 900;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.hall-problem {
-  font-size: 2.2vmin;
-  color: var(--muted);
-  max-width: 40vmin;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.hall-prize {
-  padding: 1vmin 2.5vmin;
-  border-radius: 999px;
-  background: var(--gold);
-  color: #fff;
-  font-size: 2.4vmin;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.hall-prize:empty {
-  display: none;
-}
-
-.hall-empty {
+.empty-note {
   font-size: 3vmin;
   color: var(--muted);
 }
@@ -635,11 +488,6 @@ body {
   font-size: 1.9vmin;
   font-weight: 800;
   white-space: nowrap;
-}
-
-.badge-info {
-  background: var(--line);
-  color: var(--muted);
 }
 
 .badge-warn {

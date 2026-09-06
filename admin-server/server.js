@@ -23,15 +23,6 @@ const {
   createProblem,
   updateProblem,
   deleteProblem,
-  listStudentStats,
-  listHardestProblems,
-  listDailyActivity,
-  listRoundsWithWork,
-  getRoundWork,
-  recordShowRound,
-  listShowRounds,
-  listUsedProblemIds,
-  listRecentPrizes,
 } = require('../shared/db');
 
 const PORT = process.env.ADMIN_PORT || 4000;
@@ -277,48 +268,6 @@ app.get('/api/stats/problem-counts', requireAuth, async (req, res, next) => {
 // 진행 화면은 정답을 미리 알고 있어야 한다(타이머 끝나면 그 자리에서 공개).
 // 그래서 이 API들은 전부 로그인한 진행자만 쓸 수 있다.
 
-// 학생이 칠판에 쓴 풀이(획)는 브라우저가 보내는 값이라 그대로 저장하지 않는다.
-// 저장 형식: { v:1, strokes:[{ c: 색, w: 굵기(판 폭 대비), e: 지우개, p:[x,y,x,y,...] }] }
-// 좌표는 판 가로폭 대비 비율이라 0~1을 크게 벗어날 수 없다.
-const WORK_LIMITS = {
-  strokes: 3000,
-  numbers: 120000, // 좌표 숫자 총개수(= 점 6만 개). DB가 불필요하게 커지는 것도 막는다.
-  coord: 8,
-};
-const WORK_COLOR_RE = /^#[0-9a-fA-F]{3,8}$/;
-
-/** 받은 풀이를 검증해 저장해도 되는 형태로 만든다. 이상하면 null(그냥 저장하지 않음). */
-function normalizeWork(raw) {
-  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.strokes)) return null;
-  if (raw.strokes.length === 0 || raw.strokes.length > WORK_LIMITS.strokes) return null;
-
-  let numbers = 0;
-  const strokes = [];
-
-  for (const stroke of raw.strokes) {
-    if (!stroke || typeof stroke !== 'object' || !Array.isArray(stroke.p)) return null;
-    if (stroke.p.length < 2 || stroke.p.length % 2 !== 0) return null;
-
-    numbers += stroke.p.length;
-    if (numbers > WORK_LIMITS.numbers) return null;
-
-    for (const value of stroke.p) {
-      if (typeof value !== 'number' || !Number.isFinite(value)) return null;
-      if (Math.abs(value) > WORK_LIMITS.coord) return null;
-    }
-
-    const width = Number(stroke.w);
-    if (!Number.isFinite(width) || width <= 0 || width > 1) return null;
-
-    const color = typeof stroke.c === 'string' && WORK_COLOR_RE.test(stroke.c) ? stroke.c : '#111111';
-    strokes.push({ c: color, w: width, e: stroke.e ? 1 : 0, p: stroke.p });
-  }
-
-  return { v: 1, strokes };
-}
-
-const SHOW_SINCE_HOURS = 12; // "이번 회차" = 최근 12시간. 점심시간 행사 한 번을 덮는다.
-
 app.get('/api/show/problems', requireAuth, async (req, res, next) => {
   try {
     const difficulty = req.query.difficulty;
@@ -326,12 +275,8 @@ app.get('/api/show/problems', requireAuth, async (req, res, next) => {
       return res.status(400).json({ error: '올바르지 않은 난이도입니다.' });
     }
 
-    const [problems, usedIds] = await Promise.all([
-      listProblems({ difficulty: difficulty || undefined }),
-      listUsedProblemIds(SHOW_SINCE_HOURS),
-    ]);
+    const problems = await listProblems({ difficulty: difficulty || undefined });
 
-    const used = new Set(usedIds);
     res.json({
       problems: problems
         .filter((p) => p.answer) // 정답이 없으면 쇼에서 쓸 수 없다
@@ -343,154 +288,7 @@ app.get('/api/show/problems', requireAuth, async (req, res, next) => {
           imageUrl: p.image_path,
           questionType: p.question_type,
           answer: p.answer,
-          used: used.has(p.id),
         })),
-    });
-  } catch (err) {
-    next(err);
-  }
-});
-
-app.post('/api/show/rounds', requireAuth, async (req, res, next) => {
-  try {
-    const studentName = String(req.body?.studentName ?? '').trim();
-    if (!studentName) return res.status(400).json({ error: '학생 이름이 필요합니다.' });
-    if (studentName.length > 40) return res.status(400).json({ error: '학생 이름이 너무 깁니다.' });
-
-    const problemId = req.body?.problemId ? Number(req.body.problemId) : null;
-    if (problemId !== null && (!Number.isInteger(problemId) || problemId <= 0)) {
-      return res.status(400).json({ error: '올바르지 않은 문제 번호입니다.' });
-    }
-
-    const round = await recordShowRound({
-      problem_id: problemId,
-      problem_title: req.body?.problemTitle,
-      difficulty: req.body?.difficulty,
-      student_name: studentName,
-      correct: Boolean(req.body?.correct),
-      prize: req.body?.prize,
-      duration_ms: Number(req.body?.durationMs),
-      // 필기는 있으면 좋은 부가 정보다. 형식이 이상하면 저장만 건너뛰고
-      // 라운드 기록 자체는 남긴다(행사 중에 기록이 통째로 날아가면 안 된다).
-      work: normalizeWork(req.body?.work),
-    });
-
-    res.status(201).json({ id: round.id });
-  } catch (err) {
-    next(err);
-  }
-});
-
-app.get('/api/show/rounds', requireAuth, async (req, res, next) => {
-  try {
-    const rounds = await listShowRounds({ sinceHours: SHOW_SINCE_HOURS, limit: 200 });
-    res.json({
-      rounds: rounds.map((row) => ({
-        id: row.id,
-        problemId: row.problem_id,
-        problemTitle: row.problem_title,
-        difficulty: row.difficulty,
-        studentName: row.student_name,
-        correct: row.correct,
-        prize: row.prize,
-        durationMs: row.duration_ms,
-        createdAt: row.created_at,
-      })),
-    });
-  } catch (err) {
-    next(err);
-  }
-});
-
-app.get('/api/show/prizes', requireAuth, async (req, res, next) => {
-  try {
-    res.json({ prizes: await listRecentPrizes(12) });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// ---- 학생이 칠판에 쓴 풀이 보기 ----
-// 정답률만 봐서는 "왜 틀렸는지"를 알 수 없어서, 그때 칠판에 쓴 필기를 그대로 본다.
-// 목록에는 필기 본문을 싣지 않는다(한 건당 수십 KB라 목록이 무거워짐).
-
-app.get('/api/rounds', requireAuth, async (req, res, next) => {
-  try {
-    const studentName = typeof req.query.studentName === 'string' ? req.query.studentName : null;
-    const rows = await listRoundsWithWork({ studentName, limit: 30 });
-    res.json({
-      rounds: rows.map((row) => ({
-        id: row.id,
-        problemId: row.problem_id,
-        problemTitle: row.problem_title,
-        difficulty: row.difficulty,
-        studentName: row.student_name,
-        correct: row.correct,
-        prize: row.prize,
-        durationMs: row.duration_ms,
-        createdAt: row.created_at,
-      })),
-    });
-  } catch (err) {
-    next(err);
-  }
-});
-
-app.get('/api/rounds/:id', requireAuth, async (req, res, next) => {
-  try {
-    const roundId = Number(req.params.id);
-    if (!Number.isInteger(roundId) || roundId <= 0) {
-      return res.status(400).json({ error: '올바르지 않은 기록 번호입니다.' });
-    }
-
-    const row = await getRoundWork(roundId);
-    if (!row) return res.status(404).json({ error: '기록을 찾을 수 없습니다.' });
-
-    res.json({
-      id: row.id,
-      problemId: row.problem_id,
-      problemTitle: row.problem_title,
-      difficulty: row.difficulty,
-      studentName: row.student_name,
-      correct: row.correct,
-      prize: row.prize,
-      durationMs: row.duration_ms,
-      createdAt: row.created_at,
-      // 문제가 지워졌으면 사진이 없다. 그래도 필기는 보여줄 수 있어야 한다.
-      imageUrl: row.image_path || null,
-      work: row.work,
-    });
-  } catch (err) {
-    next(err);
-  }
-});
-
-app.get('/api/stats/students', requireAuth, async (req, res, next) => {
-  try {
-    const [students, hardest, daily] = await Promise.all([
-      listStudentStats(100),
-      listHardestProblems(8),
-      listDailyActivity(14),
-    ]);
-
-    res.json({
-      students: students.map((s) => ({
-        name: s.student_name,
-        total: s.total,
-        correct: s.correct,
-        prizes: s.prizes,
-        accuracy: s.total ? Math.round((s.correct / s.total) * 100) : 0,
-        lastSolvedAt: s.last_solved_at,
-      })),
-      hardestProblems: hardest.map((p) => ({
-        id: p.id,
-        title: p.title,
-        difficulty: p.difficulty,
-        total: p.total,
-        correct: p.correct,
-        accuracy: p.total ? Math.round((p.correct / p.total) * 100) : 0,
-      })),
-      dailyActivity: daily,
     });
   } catch (err) {
     next(err);

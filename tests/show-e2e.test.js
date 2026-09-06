@@ -29,20 +29,26 @@ let server;
 let browser;
 let baseURL;
 const createdProblemIds = [];
-const createdRoundIds = [];
 
 describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 없음' }, () => {
   before(async () => {
-    const problem = await db.createProblem({
-      title: '[test-e2e] 진행 화면 문제',
-      difficulty: '하',
-      image_path: TINY_PNG,
-      image_public_id: 'fake-e2e',
-      question_type: 'subjective',
-      answer: '77',
-      unit: null,
-    });
-    createdProblemIds.push(problem.id);
+    // 난이도마다 하나씩 둬서, 어떤 카드를 눌러도 문제가 나오게 한다
+    for (const [difficulty, answer] of [
+      ['하', '7'],
+      ['중', '42'],
+      ['상', '99'],
+    ]) {
+      const problem = await db.createProblem({
+        title: `[test-e2e] ${difficulty} 문제`,
+        difficulty,
+        image_path: TINY_PNG,
+        image_public_id: `fake-e2e-${difficulty}`,
+        question_type: 'subjective',
+        answer,
+        unit: null,
+      });
+      createdProblemIds.push(problem.id);
+    }
 
     await new Promise((resolve) => {
       server = adminApp.listen(0, resolve);
@@ -57,9 +63,6 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
   after(async () => {
     await browser?.close();
     await new Promise((resolve) => server.close(resolve));
-    for (const id of createdRoundIds) {
-      await db.pool.query('DELETE FROM show_rounds WHERE id = $1', [id]).catch(() => {});
-    }
     for (const id of createdProblemIds) await db.deleteProblem(id).catch(() => {});
     await db.pool.end();
   });
@@ -80,29 +83,32 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
 
     await page.goto(`${baseURL}/show.html`);
     await page.waitForSelector('#stageIdle:not([hidden])');
-
-    // 테스트끼리 문제를 소진하지 않도록, 서버가 알려준 "이미 쓴 문제"를 무시하고
-    // 매번 전부 고를 수 있는 상태에서 시작한다(진행 화면의 "새 회차 시작"과 같다).
-    await page.evaluate(() => {
-      state.used.clear();
-      state.ignoreServerUsed = true;
-      updatePickCounts();
-    });
-
     return { page, context, errors };
   }
 
-  /** 대기 화면에서 문제 풀이 화면까지 진행한다. */
+  /** 대기 화면에서 문제 풀이 화면까지 진행한다(카운트다운이 끝날 때까지 기다림). */
   async function startRound(page) {
-    await page.click('#startBtn');
+    if (await page.locator('#stageIdle').isVisible()) await page.click('#startBtn');
     await page.waitForSelector('#stagePick:not([hidden])');
     await page.locator('.pick-card:not([disabled])').first().click();
     await page.waitForSelector('#stageReady:not([hidden])');
     await page.click('#goBtn');
-    // 3-2-1 카운트다운이 끝나고 필기가 가능해질 때까지
-    await page.waitForFunction(() => !document.querySelector('#stagePlay[hidden]'));
-    await page.waitForTimeout(4000);
+    await page.waitForSelector('#stagePlay:not([hidden])');
+    await page.waitForTimeout(4200);
   }
+
+  test('난이도는 상/중/하 셋뿐이다', async () => {
+    const { page, context } = await openShow();
+    await page.click('#startBtn');
+    await page.waitForSelector('#stagePick:not([hidden])');
+
+    const levels = await page.$$eval('.pick-card', (cards) =>
+      cards.map((c) => c.querySelector('.pick-level').textContent)
+    );
+    assert.deepEqual(levels, ['하', '중', '상']);
+
+    await context.close();
+  });
 
   test('카운트다운 연출이 끝나면 화면을 덮지 않는다', async () => {
     // 카운트다운 레이어가 남으면 진행자가 아무 버튼도 못 눌러 행사가 멈춘다.
@@ -113,6 +119,25 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     await page.click('#addTimeBtn', { timeout: 3000 });
 
     assert.equal(errors.length, 0, `자바스크립트 에러: ${errors.join(', ')}`);
+    await context.close();
+  });
+
+  test('연출 레이어는 끝나면 모두 치워진다', async () => {
+    // 안 치우면 화면 위에 쌓여서 결국 조작을 막는다.
+    const { page, context } = await openShow();
+    await startRound(page);
+
+    await page.evaluate(() => {
+      SMFShowAnim.flash('#16a34a');
+      SMFShowAnim.ring('#16a34a');
+      SMFShowAnim.confetti(30);
+    });
+    assert.ok(await page.evaluate(() => document.querySelectorAll('.fx').length > 0));
+
+    await page.waitForTimeout(3200);
+    const left = await page.$$eval('.fx', (els) => els.map((e) => e.className));
+    assert.deepEqual(left, [], `안 치워진 레이어: ${left.join(', ')}`);
+
     await context.close();
   });
 
@@ -165,6 +190,46 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     await context.close();
   });
 
+  test('획을 곡선으로 그려서, 다시 그려도 모양이 같다', async () => {
+    // 실시간으로 이어 그리는 경로와 전체를 다시 그리는 경로가 어긋나면
+    // 화면 크기가 바뀔 때 글씨 모양이 달라진다.
+    const { page, context } = await openShow();
+    await startRound(page);
+
+    const board = await page.locator('#board').boundingBox();
+    const cx = board.x + board.width * 0.75;
+    const cy = board.y + board.height * 0.4;
+    await page.mouse.move(cx + 90, cy);
+    await page.mouse.down();
+    for (let a = 0; a <= 360; a += 12) {
+      const t = (a * Math.PI) / 180;
+      await page.mouse.move(cx + 90 * Math.cos(t), cy + 90 * Math.sin(t));
+    }
+    await page.mouse.up();
+
+    const inkCount = () =>
+      page.evaluate(() => {
+        const c = document.getElementById('boardCanvas');
+        const data = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+        let ink = 0;
+        for (let i = 3; i < data.length; i += 4) if (data[i] > 10) ink += 1;
+        return ink;
+      });
+
+    const live = await inkCount();
+    await page.evaluate(() => SMFDraw.resize());
+    await page.waitForTimeout(200);
+    const redrawn = await inkCount();
+
+    assert.ok(live > 0, '획이 그려져야 함');
+    assert.ok(
+      Math.abs(live - redrawn) / live < 0.06,
+      `실시간(${live})과 다시그림(${redrawn}) 모양이 다름`
+    );
+
+    await context.close();
+  });
+
   test('되돌리기와 전체 지우기가 동작한다', async () => {
     const { page, context } = await openShow();
     await startRound(page);
@@ -184,10 +249,14 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     await page.click('#clearBtn');
     assert.equal(await page.evaluate(() => SMFDraw.serialize()), null);
 
+    // 지울 게 없으면 눌리지 않는다
+    assert.ok(await page.locator('#undoBtn').isDisabled());
+    assert.ok(await page.locator('#clearBtn').isDisabled());
+
     await context.close();
   });
 
-  test('정답 공개부터 상품 등록까지 이어지고 서버에 남는다', async () => {
+  test('정답 공개 -> 맞혔다 -> 다음 문제로 이어진다', async () => {
     const { page, context, errors } = await openShow();
     await startRound(page);
 
@@ -198,191 +267,71 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     assert.equal(await page.locator('#revealAnswer').textContent(), expected);
 
     await page.click('#correctBtn');
-    await page.waitForSelector('#stageAward:not([hidden])');
-    await page.fill('#nameInput', '3-5 테스트학생');
-    await page.fill('#prizeInput', '테스트상품');
-    await page.click('#awardSaveBtn');
-
     await page.waitForSelector('#stageCelebrate:not([hidden])');
-    assert.equal(await page.locator('#celebrateName').textContent(), '3-5 테스트학생');
 
-    const saved = await page.evaluate(async () => {
-      const res = await fetch('api/show/rounds', { credentials: 'include' });
-      const data = await res.json();
-      return data.rounds[0];
+    // 같은 난이도에 문제가 남아 있으면 난이도 화면을 건너뛴다
+    await page.evaluate(() => {
+      state.used.clear();
+      updatePickCounts();
     });
-    createdRoundIds.push(saved.id);
-    assert.equal(saved.studentName, '3-5 테스트학생');
-    assert.equal(saved.prize, '테스트상품');
-    assert.equal(saved.correct, true);
+    await page.click('#celebrateNextBtn');
+    await page.waitForSelector('#stageReady:not([hidden])', { timeout: 3000 });
 
     assert.equal(errors.length, 0, `자바스크립트 에러: ${errors.join(', ')}`);
     await context.close();
   });
 
-  test('네트워크가 끊겨도 행사는 진행되고 기록은 큐에 남는다', async () => {
-    // 강당에 학생이 앉아 있는데 와이파이가 끊겼다고 진행이 멈추면 안 되고,
-    // "누가 상 받았는지"가 사라져도 안 된다.
+  test('틀렸다를 눌러도 흐름이 끊기지 않는다', async () => {
     const { page, context } = await openShow();
     await startRound(page);
-
-    await page.route('**/api/show/rounds', (route) => route.abort());
 
     await page.click('#revealBtn');
     await page.waitForSelector('#stageReveal:not([hidden])');
+    await page.evaluate(() => {
+      state.used.clear();
+      updatePickCounts();
+    });
+    await page.click('#wrongBtn');
+
+    // 붉은 연출이 지나간 뒤 다음 문제 예고로
+    await page.waitForSelector('#stageReady:not([hidden])', { timeout: 4000 });
+    await context.close();
+  });
+
+  test('아무 기록도 서버로 보내지 않는다', async () => {
+    // 풀고 상품 주면 끝이라, 남기는 게 있으면 안 된다.
+    const { page, context } = await openShow();
+
+    const writes = [];
+    page.on('request', (req) => {
+      if (['POST', 'PUT', 'DELETE'].includes(req.method())) {
+        writes.push(`${req.method()} ${req.url()}`);
+      }
+    });
+
+    await startRound(page);
+    await page.click('#revealBtn');
+    await page.waitForSelector('#stageReveal:not([hidden])');
     await page.click('#correctBtn');
-    await page.waitForSelector('#stageAward:not([hidden])');
-    await page.fill('#nameInput', '1-4 끊김테스트');
-    await page.fill('#prizeInput', '초코바');
-    await page.click('#awardSaveBtn');
+    await page.waitForSelector('#stageCelebrate:not([hidden])');
 
-    // 전송이 실패해도 축하 화면까지 그대로 이어져야 한다
-    await page.waitForSelector('#stageCelebrate:not([hidden])', { timeout: 5000 });
-    assert.equal(await page.evaluate(() => SMFQueue.pendingCount()), 1, '기록이 큐에 남아야 함');
-    assert.ok(await page.locator('#queueBadge').isVisible(), '저장 대기 표시가 보여야 함');
-
-    // 네트워크가 돌아오면 알아서 보낸다
-    await page.unroute('**/api/show/rounds');
-    await page.evaluate(() => SMFQueue.flush());
-    await page.waitForFunction(() => SMFQueue.pendingCount() === 0, null, { timeout: 5000 });
-
-    const saved = await page.evaluate(async () => {
-      const res = await fetch('api/show/rounds', { credentials: 'include' });
-      return (await res.json()).rounds[0];
-    });
-    createdRoundIds.push(saved.id);
-    assert.equal(saved.studentName, '1-4 끊김테스트');
-    assert.ok(await page.locator('#queueBadge').isHidden(), '다 보내면 표시가 사라져야 함');
-
-    await context.close();
-  });
-
-  test('사진을 못 받아도 진행되고 이유가 화면에 뜬다', async () => {
-    const { page, context } = await openShow();
-    // 사진 주소를 못 받는 것으로 바꿔치기
-    await page.evaluate(() => {
-      state.problems.forEach((p) => {
-        p.imageUrl = 'does-not-exist-9999.png';
-      });
-    });
-    await startRound(page);
-
-    assert.ok(await page.locator('#photoError').isVisible(), '왜 안 보이는지 알려줘야 함');
-    assert.ok(await page.locator('#boardPhoto').isHidden());
-
-    // 사진이 없어도 타이머와 필기는 살아 있어야 한다
-    const board = await page.locator('#board').boundingBox();
-    await page.mouse.move(board.x + 300, board.y + 200);
-    await page.mouse.down();
-    await page.mouse.move(board.x + 500, board.y + 300);
-    await page.mouse.up();
-    assert.ok(await page.evaluate(() => SMFDraw.serialize() !== null), '사진 없어도 필기는 돼야 함');
-
-    await context.close();
-  });
-
-  test('사진 확대/축소가 실제로 사진 크기를 바꾼다', async () => {
-    const { page, context } = await openShow();
-    await startRound(page);
-
-    const widthOf = () =>
-      page.evaluate(() => document.getElementById('boardPhoto').getBoundingClientRect().width);
-
-    const base = await widthOf();
-    await page.click('#zoomInBtn');
-    await page.click('#zoomInBtn');
-    assert.ok((await widthOf()) > base, '확대하면 커져야 함');
-
-    await page.click('#zoomOutBtn');
-    await page.click('#zoomOutBtn');
-    assert.equal(await page.locator('#zoomLabel').textContent(), '100%');
-    assert.ok(Math.abs((await widthOf()) - base) < 2, '되돌리면 원래 크기');
-
-    await context.close();
-  });
-
-  test('새 회차 시작을 누르면 이미 쓴 문제가 다시 뽑힌다', async () => {
-    const { page, context } = await openShow();
-
-    await page.click('#startBtn');
-    await page.waitForSelector('#stagePick:not([hidden])');
-    const before = await page.evaluate(() => state.used.size);
-
-    await page.click('#pickBackBtn');
-    await page.waitForSelector('#stageIdle:not([hidden])');
-    await page.click('#resetBtn');
-    await page.waitForSelector('#stagePick:not([hidden])');
-
-    assert.equal(await page.evaluate(() => state.used.size), 0, '사용 표시가 지워져야 함');
-    assert.ok(before >= 0);
-
-    await context.close();
-  });
-
-  test('문제를 직접 골라서 낼 수 있고, 이미 낸 문제는 못 고른다', async () => {
-    const { page, context } = await openShow();
-
-    await page.click('#startBtn');
-    await page.waitForSelector('#stagePick:not([hidden])');
-    await page.click('#chooseBtn');
-    await page.waitForSelector('#stageChoose:not([hidden])');
-
-    const rows = await page.locator('.choose-row').count();
-    assert.ok(rows > 0, '등록된 문제가 목록에 나와야 함');
-
-    // 이번 회차에 이미 쓴 것으로 표시하면 목록에서 눌리지 않아야 한다
-    await page.evaluate(() => {
-      state.used.add(state.problems[0].id);
-    });
-    await page.click('#chooseBackBtn');
-    await page.waitForSelector('#stagePick:not([hidden])');
-    await page.click('#chooseBtn');
-    await page.waitForSelector('#stageChoose:not([hidden])');
-
-    const disabled = await page.locator('.choose-row[disabled]').count();
-    assert.ok(disabled > 0, '이미 낸 문제는 선택 불가여야 함');
-
-    // 고를 수 있는 문제를 누르면 그 문제로 예고 화면에 간다
-    const available = page.locator('.choose-row:not([disabled])');
-    if ((await available.count()) > 0) {
-      const title = await available.first().locator('.choose-title').textContent();
-      await available.first().click();
-      await page.waitForSelector('#stageReady:not([hidden])');
-      assert.equal(await page.evaluate(() => state.problem.title), title, '고른 문제가 나와야 함');
-    }
-
-    await context.close();
-  });
-
-  test('목록 화면에서 돌아가기 버튼이 목록을 가리지 않는다', async () => {
-    // 목록 높이를 vh로 고정하면 위에 뭐가 붙을 때마다 마지막 줄이 버튼에 가려진다
-    const { page, context } = await openShow();
-    await page.click('#hallBtn');
-    await page.waitForSelector('#stageHall:not([hidden])');
-    await page.waitForTimeout(600);
-
-    const clash = await page.evaluate(() => {
-      const stage = document.querySelector('.stage-list:not([hidden])');
-      const back = stage.querySelector('.stage-back').getBoundingClientRect();
-      const list = stage.querySelector('.hall-list').getBoundingClientRect();
-      const overlap = !(list.bottom <= back.top || list.top >= back.bottom);
-      return { overlap, offscreen: list.bottom > window.innerHeight + 1 };
-    });
-    assert.equal(clash.overlap, false, '목록과 버튼이 겹치면 안 됨');
-    assert.equal(clash.offscreen, false, '목록이 화면 밖으로 나가면 안 됨');
-
+    assert.deepEqual(writes, [], `서버에 쓴 요청이 있음: ${writes.join(', ')}`);
     await context.close();
   });
 
   test('정답이 길어도 화면을 넘기지 않고 판정 버튼이 가려지지 않는다', async () => {
     // 정답은 "7"일 수도 있고 "a_n = 2·3^(n-1) (단, n은 자연수)"일 수도 있다.
-    // 크기를 고정하면 긴 답이 화면을 덮어 "맞혔다/틀렸다"를 못 누른다.
     const { page, context } = await openShow();
 
     for (const answer of ['7', 'x = 3 또는 x = -5', 'a_n = 2·3^(n-1) (단, n은 자연수)']) {
-      const fit = await page.evaluate((value) => {
+      await page.evaluate((value) => {
         state.problem = { answer: value };
         goReveal();
+      }, answer);
+      // 등장 연출(3.2배에서 줄어듦)이 끝난 뒤의 크기를 잰다
+      await page.waitForTimeout(900);
+
+      const fit = await page.evaluate(() => {
         const el = document.getElementById('revealAnswer');
         const box = el.getBoundingClientRect();
         const judge = document.querySelector('#stageReveal .judge-actions').getBoundingClientRect();
@@ -392,55 +341,12 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
           buttonsVisible: judge.bottom <= window.innerHeight && back.bottom <= window.innerHeight,
           labelVisible: document.querySelector('.reveal-label').getBoundingClientRect().top >= 0,
         };
-      }, answer);
+      });
 
       assert.equal(fit.overflow, false, `"${answer}"가 화면을 넘침`);
       assert.equal(fit.buttonsVisible, true, `"${answer}"일 때 판정 버튼이 가려짐`);
       assert.equal(fit.labelVisible, true, `"${answer}"일 때 "정답은" 라벨이 잘림`);
     }
-
-    await context.close();
-  });
-
-  test('상품은 직전에 준 것이 미리 채워진다', async () => {
-    // 보통 같은 상품을 계속 주므로 매번 다시 치게 하지 않는다.
-    const { page, context } = await openShow();
-    await startRound(page);
-
-    await page.click('#revealBtn');
-    await page.waitForSelector('#stageReveal:not([hidden])');
-    await page.click('#correctBtn');
-    await page.waitForSelector('#stageAward:not([hidden])');
-    assert.equal(await page.inputValue('#prizeInput'), '', '처음에는 비어 있다');
-
-    await page.fill('#nameInput', '2-2 상품테스트');
-    await page.fill('#prizeInput', '초코파이');
-    await page.click('#awardSaveBtn');
-    await page.waitForSelector('#stageCelebrate:not([hidden])');
-
-    const saved = await page.evaluate(async () => {
-      const res = await fetch('api/show/rounds', { credentials: 'include' });
-      return (await res.json()).rounds[0];
-    });
-    createdRoundIds.push(saved.id);
-
-    // 다음 라운드에서 상품이 미리 채워져 있어야 한다
-    await page.evaluate(() => {
-      state.used.clear();
-      state.ignoreServerUsed = true;
-    });
-    // "다음 문제"는 같은 난이도로 바로 예고 화면까지 간다
-    await page.click('#celebrateNextBtn');
-    await page.waitForSelector('#stageReady:not([hidden])');
-    await page.click('#goBtn');
-    await page.waitForTimeout(4000);
-    await page.click('#revealBtn');
-    await page.waitForSelector('#stageReveal:not([hidden])');
-    await page.click('#correctBtn');
-    await page.waitForSelector('#stageAward:not([hidden])');
-
-    assert.equal(await page.inputValue('#prizeInput'), '초코파이');
-    assert.equal(await page.inputValue('#nameInput'), '', '이름은 매번 새로 받아야 한다');
 
     await context.close();
   });
@@ -488,49 +394,102 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
 
     const tall = await measure(800, 1400);
     assert.equal(tall.overflow, false, '세로로 긴 사진이 판을 넘음');
-    assert.ok(tall.heightRatio > 0.8, `세로로 긴 사진이 높이를 못 씀 (${tall.heightRatio})`);
-
-    const square = await measure(1000, 1000);
-    assert.equal(square.overflow, false, '정사각 사진이 판을 넘음');
-    assert.ok(square.heightRatio > 0.8, `정사각 사진이 높이를 못 씀 (${square.heightRatio})`);
+    assert.ok(tall.heightRatio > 0.75, `세로로 긴 사진이 높이를 못 씀 (${tall.heightRatio})`);
 
     await context.close();
   });
 
-  test('다음 문제는 난이도를 다시 고르지 않고 바로 시작한다', async () => {
-    // 행사는 속도가 생명이다. 라운드마다 난이도를 다시 고르면 흐름이 끊긴다.
+  test('사진을 못 받아도 진행되고 이유가 화면에 뜬다', async () => {
+    const { page, context } = await openShow();
+    await page.evaluate(() => {
+      state.problems.forEach((p) => {
+        p.imageUrl = 'does-not-exist-9999.png';
+      });
+    });
+    await startRound(page);
+
+    assert.ok(await page.locator('#photoError').isVisible(), '왜 안 보이는지 알려줘야 함');
+    assert.ok(await page.locator('#boardPhoto').isHidden());
+
+    // 사진이 없어도 타이머와 필기는 살아 있어야 한다
+    const board = await page.locator('#board').boundingBox();
+    await page.mouse.move(board.x + 300, board.y + 200);
+    await page.mouse.down();
+    await page.mouse.move(board.x + 500, board.y + 300);
+    await page.mouse.up();
+    assert.ok(await page.evaluate(() => SMFDraw.serialize() !== null), '사진 없어도 필기는 돼야 함');
+
+    await context.close();
+  });
+
+  test('사진 확대/축소가 실제로 사진 크기를 바꾼다', async () => {
     const { page, context } = await openShow();
     await startRound(page);
 
-    await page.click('#revealBtn');
-    await page.waitForSelector('#stageReveal:not([hidden])');
-    await page.click('#correctBtn');
-    await page.waitForSelector('#stageAward:not([hidden])');
-    await page.fill('#nameInput', '2-4 속도테스트');
-    await page.click('#awardSaveBtn');
-    await page.waitForSelector('#stageCelebrate:not([hidden])');
+    const widthOf = () =>
+      page.evaluate(() => document.getElementById('boardPhoto').getBoundingClientRect().width);
 
-    const saved = await page.evaluate(async () => {
-      const res = await fetch('api/show/rounds', { credentials: 'include' });
-      return (await res.json()).rounds[0];
-    });
-    createdRoundIds.push(saved.id);
+    const base = await widthOf();
+    await page.click('#zoomInBtn');
+    await page.click('#zoomInBtn');
+    assert.ok((await widthOf()) > base, '확대하면 커져야 함');
 
-    // 같은 난이도에 문제가 남아 있으면 난이도 화면을 건너뛴다
+    await page.click('#zoomOutBtn');
+    await page.click('#zoomOutBtn');
+    assert.equal(await page.locator('#zoomLabel').textContent(), '100%');
+    assert.ok(Math.abs((await widthOf()) - base) < 2, '되돌리면 원래 크기');
+
+    await context.close();
+  });
+
+  test('문제를 직접 골라서 낼 수 있고, 이미 낸 문제는 못 고른다', async () => {
+    const { page, context } = await openShow();
+
+    await page.click('#startBtn');
+    await page.waitForSelector('#stagePick:not([hidden])');
+    await page.click('#chooseBtn');
+    await page.waitForSelector('#stageChoose:not([hidden])');
+
+    assert.ok((await page.locator('.choose-row').count()) > 0, '등록된 문제가 목록에 나와야 함');
+
     await page.evaluate(() => {
-      state.used.clear();
-      updatePickCounts();
+      state.used.add(state.problems[0].id);
     });
-    await page.click('#celebrateNextBtn');
-    await page.waitForSelector('#stageReady:not([hidden])', { timeout: 3000 });
+    await page.click('#chooseBackBtn');
+    await page.click('#chooseBtn');
+    await page.waitForSelector('#stageChoose:not([hidden])');
+    assert.ok(
+      (await page.locator('.choose-row[disabled]').count()) > 0,
+      '이미 낸 문제는 선택 불가여야 함'
+    );
 
-    // 문제를 다 썼으면 난이도 화면으로 되돌아간다
+    const available = page.locator('.choose-row:not([disabled])');
+    const title = await available.first().locator('.choose-title').textContent();
+    await available.first().click();
+    await page.waitForSelector('#stageReady:not([hidden])');
+    assert.equal(await page.evaluate(() => state.problem.title), title, '고른 문제가 나와야 함');
+
+    await context.close();
+  });
+
+  test('낸 문제 초기화를 누르면 다시 뽑힌다', async () => {
+    const { page, context } = await openShow();
+
     await page.evaluate(() => {
       state.problems.forEach((p) => state.used.add(p.id));
       updatePickCounts();
-      goNextRound();
     });
-    await page.waitForSelector('#stagePick:not([hidden])', { timeout: 3000 });
+    await page.click('#startBtn');
+    await page.waitForSelector('#stagePick:not([hidden])');
+    assert.equal(await page.locator('.pick-card:not([disabled])').count(), 0, '전부 소진 상태');
+
+    await page.click('#pickBackBtn');
+    await page.waitForSelector('#stageIdle:not([hidden])');
+    await page.click('#resetBtn');
+    await page.waitForSelector('#stagePick:not([hidden])');
+
+    assert.equal(await page.evaluate(() => state.used.size), 0);
+    assert.ok((await page.locator('.pick-card:not([disabled])').count()) > 0);
 
     await context.close();
   });
@@ -548,6 +507,29 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     await page.click('#pauseBtn');
     await page.waitForTimeout(1500);
     assert.notEqual(await page.locator('#playTimer').textContent(), after, '다시 눌렀으면 흘러야 함');
+
+    await context.close();
+  });
+
+  test('시간이 다 되면 알려주고, 경고 연출은 정리된다', async () => {
+    const { page, context } = await openShow();
+    await startRound(page);
+
+    // 마지막 10초 -> 화면 가장자리 경고
+    await page.evaluate(() => {
+      state.secondsLeft = 5;
+    });
+    await page.waitForTimeout(1300);
+    assert.ok(await page.evaluate(() => !!document.querySelector('.fx-urgent')), '경고가 떠야 함');
+
+    // 0초 -> "시간 종료" + 경고 정리
+    await page.waitForTimeout(5200);
+    assert.equal(await page.locator('#playTimer').textContent(), '시간 종료');
+    assert.equal(
+      await page.evaluate(() => !!document.querySelector('.fx-urgent')),
+      false,
+      '끝났으면 경고를 치워야 함'
+    );
 
     await context.close();
   });

@@ -3,32 +3,24 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>스트릿 매쓰 파이터 - 오늘의 결과</title>
-<link rel="stylesheet" href="css/public.css" />
+<title>스트릿 매쓰 파이터</title>
+<!-- 진행 화면은 관리자 로그인 뒤에 열린다. 여기 들어온 사람은 그리로 보낸다. -->
+<meta http-equiv="refresh" content="0; url=/admin/show.html" />
+<style>
+  body {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+    font-weight: 800;
+    color: #111;
+  }
+  a { color: #111; }
+</style>
 </head>
 <body>
-  <main class="wrap">
-    <header class="hero">
-      <h1 class="title">스트릿 매쓰 파이터</h1>
-      <p class="subtitle">점심시간 강당 수학 대결</p>
-    </header>
-
-    <section class="score" id="score" hidden>
-      <div class="score-item"><span class="score-num" id="statTotal">0</span><span class="score-label">도전</span></div>
-      <div class="score-item"><span class="score-num" id="statWins">0</span><span class="score-label">성공</span></div>
-    </section>
-
-    <h2 class="section-title">오늘의 정답자</h2>
-    <ul class="winners" id="winners"></ul>
-
-    <p class="empty" id="empty" hidden>아직 오늘 정답자가 없어.<br />강당으로 와서 도전해봐 🔥</p>
-    <p class="empty" id="failed" hidden>결과를 불러오지 못했어. 잠시 후 다시 열어줘.</p>
-
-    <footer class="foot">
-      <button type="button" class="refresh" id="refreshBtn">새로고침</button>
-    </footer>
-  </main>
-
-  <script src="js/public.js"></script>
+  <p><a href="/admin/show.html">진행 화면으로 →</a></p>
 </body>
 </html>

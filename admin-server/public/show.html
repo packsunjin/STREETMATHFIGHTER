@@ -12,7 +12,6 @@
 <!-- 어느 화면에서든 떠 있는 표시들 -->
 <div class="utility">
   <span class="badge badge-warn" id="sessionWarning" hidden>로그인이 풀렸어요. 새로고침 후 다시 로그인해주세요</span>
-  <span class="badge badge-info" id="queueBadge" hidden></span>
   <button type="button" class="utility-btn" id="muteBtn" title="소리 끄기/켜기">🔊</button>
   <button type="button" class="utility-btn" id="fullscreenBtn" title="전체화면 (F)">⛶</button>
 </div>
@@ -31,16 +30,9 @@
     <h1 class="show-logo">스트릿 매쓰 파이터</h1>
     <p class="show-tagline">점심시간 강당 수학 대결</p>
 
-    <div class="today-strip" id="todayStrip">
-      <div class="today-item"><span class="today-num" id="todayRounds">0</span><span class="today-label">도전</span></div>
-      <div class="today-item"><span class="today-num" id="todayWins">0</span><span class="today-label">성공</span></div>
-      <div class="today-item"><span class="today-num" id="todayPrizes">0</span><span class="today-label">상품</span></div>
-    </div>
-
     <div class="idle-actions">
       <button type="button" class="btn btn-primary btn-huge" id="startBtn">도전 시작</button>
-      <button type="button" class="btn btn-ghost btn-big" id="hallBtn">명예의 전당</button>
-      <button type="button" class="btn btn-ghost" id="resetBtn">새 회차 시작 (문제 다시 뽑기)</button>
+      <button type="button" class="btn btn-ghost" id="resetBtn">낸 문제 초기화</button>
     </div>
   </div>
 </section>
@@ -64,11 +56,6 @@
       <span class="pick-time">5분</span>
       <span class="pick-count" data-count="상">-</span>
     </button>
-    <button type="button" class="pick-card pick-random" data-level="">
-      <span class="pick-level">랜덤</span>
-      <span class="pick-time">운에 맡긴다</span>
-      <span class="pick-count" data-count="">-</span>
-    </button>
   </div>
   <button type="button" class="btn btn-ghost btn-big" id="chooseBtn">문제 직접 고르기</button>
   <button type="button" class="btn btn-ghost btn-big stage-back" id="pickBackBtn">뒤로</button>
@@ -78,7 +65,7 @@
 <section class="stage stage-list" id="stageChoose" hidden>
   <h2 class="stage-title">낼 문제를 골라</h2>
   <div class="choose-list" id="chooseList"></div>
-  <p class="hall-empty" id="chooseEmpty" hidden>등록된 문제가 없어. 관리자 화면에서 먼저 등록해줘.</p>
+  <p class="empty-note" id="chooseEmpty" hidden>등록된 문제가 없어. 관리자 화면에서 먼저 등록해줘.</p>
   <button type="button" class="btn btn-ghost btn-big stage-back" id="chooseBackBtn">뒤로</button>
 </section>
 
@@ -148,51 +135,20 @@
   </div>
 </section>
 
-<!-- 6. 정답자 등록 -->
-<section class="stage" id="stageAward" hidden>
-  <div class="center-block award-form">
-    <h2 class="stage-title" id="awardTitle">누가 맞혔어?</h2>
-    <label class="field">
-      <span class="field-label">이름 (반 + 이름)</span>
-      <input class="field-input" id="nameInput" type="text" maxlength="40" placeholder="예) 2-3 김민수" autocomplete="off" />
-    </label>
-    <label class="field">
-      <span class="field-label">상품</span>
-      <input class="field-input" id="prizeInput" type="text" maxlength="60" placeholder="예) 컵라면" list="prizeList" autocomplete="off" />
-      <datalist id="prizeList"></datalist>
-    </label>
-    <div class="award-actions">
-      <button type="button" class="btn btn-primary btn-huge" id="awardSaveBtn">등록</button>
-      <button type="button" class="btn btn-ghost btn-big" id="awardSkipBtn">건너뛰기</button>
-    </div>
-  </div>
-</section>
-
-<!-- 7. 축하 -->
+<!-- 6. 정답 (상품은 여기서 손으로 준다) -->
 <section class="stage stage-celebrate" id="stageCelebrate" hidden>
   <div class="center-block">
     <div class="celebrate-mark">🏆</div>
-    <div class="celebrate-name" id="celebrateName">2-3 김민수</div>
-    <div class="celebrate-prize" id="celebratePrize">컵라면</div>
+    <div class="celebrate-name">정답!</div>
     <button type="button" class="btn btn-primary btn-huge" id="celebrateNextBtn">다음 문제</button>
     <button type="button" class="btn btn-ghost" id="celebrateChangeBtn">난이도 바꾸기</button>
   </div>
-</section>
-
-<!-- 8. 명예의 전당 -->
-<section class="stage stage-list" id="stageHall" hidden>
-  <h2 class="stage-title">오늘의 명예의 전당</h2>
-
-  <div class="hall-list" id="hallList"></div>
-  <p class="hall-empty" id="hallEmpty" hidden>아직 아무도 못 맞혔어</p>
-  <button type="button" class="btn btn-ghost btn-big stage-back" id="hallBackBtn">돌아가기</button>
 </section>
 
 <script src="/vendor/anime.umd.min.js"></script>
 <script src="/vendor/motion.min.js"></script>
 <script src="js/show-anim.js"></script>
 <script src="js/show-draw.js"></script>
-<script src="js/show-queue.js"></script>
 <script src="js/show.js"></script>
 </body>
 </html>

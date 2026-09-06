@@ -6,57 +6,20 @@ const helmet = require('helmet');
 const compression = require('compression');
 const morgan = require('morgan');
 
-const { listShowRounds } = require('../shared/db');
-
 const PORT = process.env.MAIN_PORT || 3000;
 
-// 공개 사이트. 행사는 강당 전자칠판(/admin/show.html)에서 진행하고,
-// 여기서는 학생들이 자기 폰으로 "오늘 누가 맞혔나"만 볼 수 있게 한다.
-// 로그인이 없으므로 문제나 정답은 절대 내보내지 않는다.
+// 이 앱에 학생용 화면은 없다. 행사는 강당 전자칠판(/admin/show.html) 한 대에서
+// 진행자가 돌리고, 상품은 그 자리에서 손으로 준다.
+// 그래서 루트는 진행 화면으로 보내주는 역할만 한다.
 const app = express();
 
-// Render 등 리버스 프록시 뒤에서 실행되므로, req.ip가 프록시 IP가 아니라
-// 실제 클라이언트 IP를 가리키게 함.
 app.set('trust proxy', 1);
-
-app.use(helmet({ contentSecurityPolicy: false })); // CSP는 인라인 스크립트가 없어질 때까지 보류
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(compression());
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
-app.use(express.json({ limit: '32kb' }));
-
-// 학생 이름이 실려 있는 공개 페이지라 검색엔진에 올라가지 않게 한다.
-// (강당에서 부르는 이름이라도, 인터넷에 색인되는 건 다른 얘기다)
-app.use((req, res, next) => {
-  res.set('X-Robots-Tag', 'noindex, nofollow');
-  next();
-});
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/healthz', (req, res) => res.json({ ok: true }));
-
-// 오늘 행사 결과. 이름과 상품만 나가고, 문제 사진·정답·필기는 나가지 않는다.
-const PUBLIC_WINDOW_HOURS = 12;
-
-app.get('/api/today', async (req, res, next) => {
-  try {
-    const rounds = await listShowRounds({ sinceHours: PUBLIC_WINDOW_HOURS, limit: 200 });
-    const winners = rounds.filter((row) => row.correct);
-
-    res.json({
-      total: rounds.length,
-      wins: winners.length,
-      winners: winners.map((row) => ({
-        name: row.student_name,
-        prize: row.prize || null,
-        problemTitle: row.problem_title || null,
-        difficulty: row.difficulty || null,
-        at: row.created_at,
-      })),
-    });
-  } catch (err) {
-    next(err);
-  }
-});
 
 app.use((err, req, res, next) => {
   console.error(err);
@@ -65,7 +28,7 @@ app.use((err, req, res, next) => {
 
 if (require.main === module) {
   const server = app.listen(PORT, () => {
-    console.log(`[main-server] 공개 사이트 실행 중: http://localhost:${PORT}`);
+    console.log(`[main-server] 실행 중: http://localhost:${PORT}`);
   });
 
   function shutdown(signal) {

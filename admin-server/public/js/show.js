@@ -11,8 +11,6 @@
 const API = {
   me: 'api/me',
   problems: 'api/show/problems',
-  rounds: 'api/show/rounds',
-  prizes: 'api/show/prizes',
 };
 
 // 난이도별 제한시간
@@ -28,9 +26,7 @@ const stages = {
   ready: $('stageReady'),
   play: $('stagePlay'),
   reveal: $('stageReveal'),
-  award: $('stageAward'),
   celebrate: $('stageCelebrate'),
-  hall: $('stageHall'),
   choose: $('stageChoose'),
 };
 
@@ -45,7 +41,6 @@ const state = {
   startedAt: 0,
   lastTickSecond: null,
   photoZoom: 1, // 사진 확대 배율(강당 뒤에서 안 보이면 키운다)
-  lastPrize: '', // 상품은 대개 같은 걸 계속 주므로 다음 입력에 미리 채운다
   lastLevel: null, // 방금 고른 난이도. 다음 라운드를 한 번에 시작하려고 기억한다
   ignoreServerUsed: false, // "새 회차 시작"을 누르면 서버가 준 사용 기록을 무시
 };
@@ -207,6 +202,7 @@ function renderTimer() {
 function stopTimer() {
   clearInterval(state.timerId);
   state.timerId = null;
+  SMFShowAnim.urgentOff();
 }
 
 function startTimer() {
@@ -224,11 +220,15 @@ function startTimer() {
       state.lastTickSecond = state.secondsLeft;
       SMFShowAnim.sounds.tick();
       SMFShowAnim.timerBeat($('playTimer'));
+      SMFShowAnim.urgentOn(); // 화면 가장자리가 붉게 맥동 -> 뒤에서도 보인다
     }
 
     if (state.secondsLeft <= 0) {
       stopTimer();
+      SMFShowAnim.urgentOff();
       SMFShowAnim.sounds.timesUp();
+      SMFShowAnim.shakeScreen(30);
+      SMFShowAnim.flash('#e0393e', 0.4);
       SMFShowAnim.shake($('playTimer'));
       // 시간이 끝나도 화면을 강제로 넘기지 않는다. 진행자가 상황 보고 넘기게.
     }
@@ -370,6 +370,7 @@ async function goPlay() {
   });
 
   await SMFShowAnim.countdown(3);
+  SMFShowAnim.photoIn($('boardPhoto'));
   state.startedAt = Date.now();
   startTimer();
 }
@@ -399,142 +400,32 @@ function goReveal() {
   SMFShowAnim.slam($('revealAnswer'));
 }
 
-function goAward(correct) {
-  state.correct = correct;
-  state.durationMs = state.startedAt ? Date.now() - state.startedAt : null;
+// 맞히면 축하 화면, 틀리면 바로 다음 문제. 남기는 기록은 없다.
+// 상품은 진행자가 그 자리에서 손으로 준다.
+function judge(correct) {
+  state.used.add(state.problem.id);
 
   if (correct) {
     SMFShowAnim.sounds.correct();
-    $('awardTitle').textContent = '누가 맞혔어?';
-    $('prizeInput').parentElement.hidden = false;
+    show('celebrate');
+    SMFShowAnim.celebrate();
+    SMFShowAnim.trophyIn(
+      document.querySelector('.celebrate-mark'),
+      document.querySelector('.celebrate-name')
+    );
   } else {
     SMFShowAnim.sounds.wrong();
-    // 틀렸어도 누가 도전했는지는 남겨둔다(참가 기록)
-    $('awardTitle').textContent = '누가 도전했어?';
-    $('prizeInput').parentElement.hidden = true;
-  }
-
-  $('nameInput').value = '';
-  // 상품은 보통 같은 걸 계속 주므로 직전 값을 미리 채워둔다(고치고 싶으면 지우면 됨)
-  $('prizeInput').value = correct ? state.lastPrize || '' : '';
-  show('award');
-  setTimeout(() => $('nameInput').focus(), 300);
-}
-
-async function saveRound() {
-  const name = $('nameInput').value.trim();
-  if (!name) {
-    SMFShowAnim.shake($('nameInput'));
-    $('nameInput').focus();
-    return;
-  }
-
-  const prize = state.correct ? $('prizeInput').value.trim() : '';
-  const problem = state.problem;
-
-  // 전송이 실패해도 큐에 남아 계속 재시도된다(정답자 기록은 절대 잃으면 안 된다).
-  await SMFQueue.save({
-    problemId: problem.id,
-    problemTitle: problem.title,
-    difficulty: problem.difficulty,
-    studentName: name,
-    correct: state.correct,
-    prize,
-    durationMs: state.durationMs,
-    work: SMFDraw.serialize(),
-  });
-
-  if (state.correct) state.lastPrize = prize;
-  state.used.add(problem.id);
-  loadPrizes();
-
-  if (state.correct) {
-    $('celebrateName').textContent = name;
-    $('celebratePrize').textContent = prize;
-    show('celebrate');
-    SMFShowAnim.confetti();
-  } else {
-    // 틀렸어도 흐름은 끊지 않는다. 다음 문제 예고로 바로 넘어가고,
-    // 진행자가 한 박자 쉬고 싶으면 "시작!"을 늦게 누르면 된다.
-    goNextRound();
+    SMFShowAnim.reject();
+    // 붉은 번쩍임이 지나간 뒤에 다음 문제로
+    setTimeout(goNextRound, 700);
   }
 }
 
-function skipRound() {
-  if (state.problem) state.used.add(state.problem.id);
-  goNextRound();
-}
-
-async function goIdle() {
+function goIdle() {
   show('idle');
-  loadToday();
 }
 
-/* ---------- 오늘 기록 / 명예의 전당 ---------- */
-
-async function loadToday() {
-  try {
-    const { rounds } = await getJSON(API.rounds);
-    state.rounds = rounds;
-    $('todayRounds').textContent = rounds.length;
-    $('todayWins').textContent = rounds.filter((r) => r.correct).length;
-    $('todayPrizes').textContent = rounds.filter((r) => r.correct && r.prize).length;
-  } catch (err) {
-    /* 대기 화면 숫자는 없어도 진행에 지장 없다 */
-  }
-}
-
-async function loadPrizes() {
-  try {
-    const { prizes } = await getJSON(API.prizes);
-    const list = $('prizeList');
-    list.textContent = '';
-    prizes.forEach((prize) => {
-      const option = document.createElement('option');
-      option.value = prize;
-      list.appendChild(option);
-    });
-  } catch (err) {
-    /* 자동완성은 없어도 그만 */
-  }
-}
-
-async function goHall() {
-  await loadToday();
-  const winners = (state.rounds || []).filter((r) => r.correct);
-  const list = $('hallList');
-  list.textContent = '';
-
-  $('hallEmpty').hidden = winners.length > 0;
-
-  winners.forEach((round, index) => {
-    const row = document.createElement('div');
-    row.className = 'hall-row';
-
-    const rank = document.createElement('span');
-    rank.className = 'hall-rank';
-    rank.textContent = `${index + 1}`;
-
-    // 학생 이름은 진행자가 친 값이라 textContent로만 넣는다(태그로 해석되지 않게)
-    const name = document.createElement('span');
-    name.className = 'hall-name';
-    name.textContent = round.studentName;
-
-    const problem = document.createElement('span');
-    problem.className = 'hall-problem';
-    problem.textContent = round.problemTitle || '';
-
-    const prize = document.createElement('span');
-    prize.className = 'hall-prize';
-    prize.textContent = round.prize || '';
-
-    row.append(rank, name, problem, prize);
-    list.appendChild(row);
-  });
-
-  show('hall');
-  SMFShowAnim.listIn(list.querySelectorAll('.hall-row'));
-}
+/* ---------- 그리기 도구 상태 ---------- */
 
 // 지울 게 없는데 눌리는 버튼은 눌러보고 아무 일도 안 일어나서 헷갈린다.
 function updateDrawButtons() {
@@ -543,17 +434,9 @@ function updateDrawButtons() {
   $('clearBtn').disabled = empty;
 }
 
-/* ---------- 저장 상태 / 세션 ---------- */
+/* ---------- 세션 ---------- */
 
-// 아직 서버로 못 보낸 기록이 있으면 진행자에게 조용히 알려준다.
-// 행사를 끊지는 않되, 끝나기 전에 알아챌 수 있어야 한다.
-function renderQueueStatus({ pending }) {
-  const el = $('queueBadge');
-  el.hidden = pending === 0;
-  el.textContent = `저장 대기 ${pending}건`;
-}
-
-// 점심시간 내내 켜두면 세션이 만료돼 기록이 401로 튕긴다.
+// 점심시간 내내 켜두면 세션이 만료돼 문제 목록을 못 읽는다.
 // 주기적으로 확인해서, 끊겼으면 화면에 띄우고 다시 로그인하게 한다.
 const SESSION_CHECK_MS = 4 * 60 * 1000;
 
@@ -563,7 +446,7 @@ async function watchSession() {
       const me = await getJSON(API.me);
       $('sessionWarning').hidden = Boolean(me.authenticated);
     } catch (err) {
-      // 네트워크 문제일 수도 있으니 경고까지는 띄우지 않는다(큐가 알아서 재시도한다)
+      // 네트워크 문제일 수도 있으니 경고까지는 띄우지 않는다
     }
   };
   setInterval(check, SESSION_CHECK_MS);
@@ -599,8 +482,6 @@ function wireUp() {
     updatePickCounts();
     goPick();
   });
-  $('hallBtn').addEventListener('click', goHall);
-  $('hallBackBtn').addEventListener('click', goIdle);
   $('pickBackBtn').addEventListener('click', goIdle);
 
   document.querySelectorAll('.pick-card').forEach((card) => {
@@ -622,8 +503,8 @@ function wireUp() {
   });
 
   $('revealBtn').addEventListener('click', goReveal);
-  $('correctBtn').addEventListener('click', () => goAward(true));
-  $('wrongBtn').addEventListener('click', () => goAward(false));
+  $('correctBtn').addEventListener('click', () => judge(true));
+  $('wrongBtn').addEventListener('click', () => judge(false));
   $('backToBoardBtn').addEventListener('click', () => {
     show('play');
     requestAnimationFrame(() => {
@@ -632,16 +513,8 @@ function wireUp() {
     });
   });
 
-  $('awardSaveBtn').addEventListener('click', saveRound);
-  $('awardSkipBtn').addEventListener('click', skipRound);
   $('celebrateNextBtn').addEventListener('click', goNextRound);
   $('celebrateChangeBtn').addEventListener('click', goPick);
-  $('nameInput').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') $('prizeInput').focus();
-  });
-  $('prizeInput').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') saveRound();
-  });
 
   // 필기 도구
   document.querySelectorAll('#colorGroup .swatch').forEach((swatch) => {
@@ -703,10 +576,9 @@ async function boot() {
     canvas: $('boardCanvas'),
     onChange: updateDrawButtons,
   });
-  SMFQueue.init({ onStatus: renderQueueStatus });
   watchSession();
 
-  await Promise.all([loadProblems().catch(() => {}), loadPrizes(), loadToday()]);
+  await loadProblems().catch(() => {});
   setPhotoZoom(1);
   show('idle');
 }
