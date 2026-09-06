@@ -1,0 +1,571 @@
+/* 전자칠판(65~86인치 터치 화면) 전용 스타일.
+   - 강당 뒤쪽에서도 읽혀야 하므로 글자를 화면 크기 비례(vmin)로 아주 크게 잡는다.
+   - 손가락으로 누르므로 버튼 최소 높이를 크게 잡고, hover에 의존하는 UI를 쓰지 않는다.
+   - 화면 크기가 1920x1080이든 3840x2160이든 같은 비율로 보이도록 px를 거의 안 쓴다. */
+
+:root {
+  --ink: #111111;
+  --paper: #ffffff;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --accent: #111111;
+  --correct: #16a34a;
+  --wrong: #e0393e;
+  --gold: #d97706;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+.show-body {
+  height: 100%;
+  overflow: hidden; /* 진행 중에 화면이 스크롤되면 안 된다 */
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  font-weight: 700;
+  /* 필기 중에 브라우저가 스크롤/확대로 가로채지 않게 */
+  touch-action: manipulation;
+  user-select: none;
+}
+
+/* ---- 무대(화면 상태) ---- */
+.stage {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2.5vmin;
+  padding: 4vmin;
+}
+
+.stage[hidden] {
+  display: none;
+}
+
+.center-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.5vmin;
+  text-align: center;
+}
+
+.stage-title {
+  margin: 0;
+  font-size: 5vmin;
+  font-weight: 900;
+}
+
+.stage-back {
+  position: absolute;
+  left: 4vmin;
+  bottom: 4vmin;
+}
+
+/* ---- 버튼 ---- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 9vmin;
+  padding: 0 4vmin;
+  border: 0.4vmin solid var(--ink);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 2.6vmin;
+  font-weight: 800;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.btn-big {
+  min-height: 11vmin;
+  padding: 0 6vmin;
+  font-size: 3.2vmin;
+}
+
+.btn-huge {
+  min-height: 14vmin;
+  padding: 0 9vmin;
+  font-size: 4.6vmin;
+  font-weight: 900;
+}
+
+.btn-tight {
+  min-height: 7.5vmin;
+  padding: 0 3vmin;
+  font-size: 2.2vmin;
+}
+
+.btn-primary {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.btn-ghost {
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+.btn-correct {
+  background: var(--correct);
+  border-color: var(--correct);
+  color: #fff;
+}
+
+.btn-wrong {
+  background: var(--wrong);
+  border-color: var(--wrong);
+  color: #fff;
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn[disabled] {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* ---- 1. 대기 ---- */
+.idle-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3vmin;
+}
+
+.show-logo {
+  margin: 0;
+  font-size: 9vmin;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.show-tagline {
+  margin: 0;
+  font-size: 3vmin;
+  color: var(--muted);
+}
+
+.today-strip {
+  display: flex;
+  gap: 2vmin;
+  margin: 1vmin 0;
+}
+
+.today-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 22vmin;
+  padding: 2.5vmin;
+  border: 0.4vmin solid var(--line);
+  border-radius: 3vmin;
+}
+
+.today-num {
+  font-size: 7vmin;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.today-label {
+  margin-top: 0.8vmin;
+  font-size: 2.2vmin;
+  color: var(--muted);
+}
+
+.idle-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2vmin;
+}
+
+/* ---- 2. 난이도 고르기 ---- */
+.pick-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 3vmin;
+  width: 100%;
+  max-width: 160vmin;
+}
+
+.pick-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1vmin;
+  min-height: 42vmin;
+  border: 0.6vmin solid var(--ink);
+  border-radius: 4vmin;
+  background: var(--paper);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.pick-card:active {
+  transform: scale(0.98);
+}
+
+.pick-card[disabled] {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.pick-level {
+  font-size: 12vmin;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.pick-random .pick-level {
+  font-size: 7vmin;
+}
+
+.pick-time {
+  font-size: 2.4vmin;
+  color: var(--muted);
+}
+
+.pick-count {
+  font-size: 2vmin;
+  color: var(--muted);
+}
+
+/* ---- 3. 문제 예고 ---- */
+.ready-round {
+  margin: 0;
+  font-size: 4vmin;
+  color: var(--muted);
+}
+
+.ready-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28vmin;
+  height: 28vmin;
+  border: 0.8vmin solid var(--ink);
+  border-radius: 50%;
+  font-size: 14vmin;
+  font-weight: 900;
+}
+
+.ready-time {
+  margin: 0;
+  font-size: 3.4vmin;
+}
+
+/* ---- 4. 문제 풀이 ---- */
+.stage-play {
+  justify-content: flex-start;
+  gap: 0;
+  padding: 0;
+}
+
+.play-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2vmin;
+  width: 100%;
+  padding: 1.6vmin 3vmin;
+  border-bottom: 0.4vmin solid var(--line);
+}
+
+.play-meta {
+  display: flex;
+  align-items: center;
+  gap: 1.5vmin;
+  min-width: 30vmin;
+}
+
+.play-round {
+  font-size: 2.8vmin;
+  color: var(--muted);
+}
+
+.play-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 6vmin;
+  height: 6vmin;
+  border: 0.4vmin solid var(--ink);
+  border-radius: 50%;
+  font-size: 3vmin;
+  font-weight: 900;
+}
+
+.play-timer {
+  font-size: 11vmin;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 남은 시간이 얼마 없을 때 */
+.play-timer.urgent {
+  color: var(--wrong);
+}
+
+.play-bar-actions {
+  display: flex;
+  gap: 1.2vmin;
+  min-width: 30vmin;
+  justify-content: flex-end;
+}
+
+/* 사진과 필기 공간. 캔버스가 이 영역 전체를 덮어서, 사진 옆 흰 여백에도 써진다. */
+.board {
+  position: relative;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  background: var(--paper);
+  /* 필기 중 스크롤/확대 제스처를 브라우저가 가져가지 않게 */
+  touch-action: none;
+}
+
+.board-photo {
+  position: absolute;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+}
+
+.board-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+
+.play-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2vmin;
+  width: 100%;
+  padding: 1.6vmin 3vmin;
+  border-top: 0.4vmin solid var(--line);
+}
+
+.tool-group {
+  display: flex;
+  align-items: center;
+  gap: 1.2vmin;
+}
+
+.swatch {
+  width: 7vmin;
+  height: 7vmin;
+  border: 0.4vmin solid var(--line);
+  border-radius: 50%;
+  background: var(--c);
+  cursor: pointer;
+}
+
+.swatch.active {
+  border-color: var(--ink);
+  border-width: 0.8vmin;
+  transform: scale(1.12);
+}
+
+.btn-tool {
+  min-height: 8vmin;
+  padding: 0 3vmin;
+  font-size: 2.4vmin;
+  border-color: var(--line);
+}
+
+.btn-tool.active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+}
+
+/* ---- 5. 정답 공개 ---- */
+.reveal-label {
+  margin: 0;
+  font-size: 4vmin;
+  color: var(--muted);
+}
+
+.reveal-answer {
+  padding: 2vmin 8vmin;
+  border: 1vmin solid var(--ink);
+  border-radius: 6vmin;
+  font-size: 22vmin;
+  font-weight: 900;
+  line-height: 1.1;
+  word-break: break-all;
+}
+
+.judge-actions {
+  display: flex;
+  gap: 3vmin;
+  margin-top: 2vmin;
+}
+
+/* ---- 6. 정답자 등록 ---- */
+.award-form {
+  width: min(110vmin, 100%);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 1vmin;
+  width: 100%;
+  text-align: left;
+}
+
+.field-label {
+  font-size: 2.4vmin;
+  color: var(--muted);
+}
+
+.field-input {
+  width: 100%;
+  min-height: 11vmin;
+  padding: 0 3vmin;
+  border: 0.5vmin solid var(--ink);
+  border-radius: 2.5vmin;
+  font-family: inherit;
+  font-size: 4vmin;
+  font-weight: 800;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.field-input:focus {
+  outline: 0.5vmin solid var(--muted);
+  outline-offset: 0.3vmin;
+}
+
+.award-actions {
+  display: flex;
+  gap: 2vmin;
+  margin-top: 2vmin;
+}
+
+/* ---- 7. 축하 ---- */
+.celebrate-mark {
+  font-size: 20vmin;
+  line-height: 1;
+}
+
+.celebrate-name {
+  font-size: 11vmin;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.celebrate-prize {
+  padding: 1.5vmin 5vmin;
+  border-radius: 999px;
+  background: var(--gold);
+  color: #fff;
+  font-size: 4.5vmin;
+  font-weight: 900;
+}
+
+.celebrate-prize:empty {
+  display: none;
+}
+
+/* ---- 8. 명예의 전당 ---- */
+.hall-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5vmin;
+  width: min(150vmin, 100%);
+  max-height: 62vh;
+  overflow-y: auto;
+  padding: 0.5vmin;
+}
+
+.hall-row {
+  display: flex;
+  align-items: center;
+  gap: 2.5vmin;
+  padding: 2vmin 3vmin;
+  border: 0.4vmin solid var(--line);
+  border-radius: 2.5vmin;
+}
+
+.hall-rank {
+  font-size: 4vmin;
+  font-weight: 900;
+  min-width: 8vmin;
+  color: var(--gold);
+}
+
+.hall-name {
+  flex: 1 1 auto;
+  font-size: 4vmin;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hall-problem {
+  font-size: 2.2vmin;
+  color: var(--muted);
+  max-width: 40vmin;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hall-prize {
+  padding: 1vmin 2.5vmin;
+  border-radius: 999px;
+  background: var(--gold);
+  color: #fff;
+  font-size: 2.4vmin;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.hall-prize:empty {
+  display: none;
+}
+
+.hall-empty {
+  font-size: 3vmin;
+  color: var(--muted);
+}
+
+.big-note {
+  font-size: 4vmin;
+  color: var(--muted);
+}
+
+/* 화면이 세로로 길거나 아주 작을 때(개발용 브라우저 등) 최소한 깨지진 않게 */
+@media (max-aspect-ratio: 1/1) {
+  .pick-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

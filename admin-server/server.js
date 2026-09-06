@@ -28,6 +28,10 @@ const {
   listDailyActivity,
   listAttemptsWithWork,
   getAttemptWork,
+  recordShowRound,
+  listShowRounds,
+  listUsedProblemIds,
+  listRecentPrizes,
 } = require('../shared/db');
 
 const PORT = process.env.ADMIN_PORT || 4000;
@@ -112,6 +116,9 @@ function uploadImageToCloudinary(buffer) {
 }
 
 app.use(express.static(path.join(__dirname, 'public')));
+// 애니메이션 라이브러리는 main-server와 같은 파일을 쓴다. 복사본을 두면 버전이
+// 갈라지므로, 단독 실행이든 /admin 마운트든 같은 경로로 서빙만 한다.
+app.use('/vendor', express.static(path.join(__dirname, '..', 'main-server', 'public', 'vendor')));
 app.use('/stats', express.static(path.join(__dirname, 'admin-dashboard-app', 'dist')));
 
 // 정답 문자열 정규화. 미입력이면 null(채점 기능 없음), 객관식이면 1~5만 허용.
@@ -254,6 +261,101 @@ app.get('/api/stats/problem-counts', requireAuth, async (req, res, next) => {
 });
 
 // 선생님용: 학생들이 실제로 어떻게 풀고 있는지(등록된 문제 수가 아니라 성취도)
+// ---- 강당 라이브 이벤트(진행 화면) ----
+// 진행 화면은 정답을 미리 알고 있어야 한다(타이머 끝나면 그 자리에서 공개).
+// 그래서 이 API들은 전부 로그인한 진행자만 쓸 수 있다.
+
+const SHOW_SINCE_HOURS = 12; // "이번 회차" = 최근 12시간. 점심시간 행사 한 번을 덮는다.
+
+app.get('/api/show/problems', requireAuth, async (req, res, next) => {
+  try {
+    const difficulty = req.query.difficulty;
+    if (difficulty && !DIFFICULTIES.includes(difficulty)) {
+      return res.status(400).json({ error: '올바르지 않은 난이도입니다.' });
+    }
+
+    const [problems, usedIds] = await Promise.all([
+      listProblems({ difficulty: difficulty || undefined }),
+      listUsedProblemIds(SHOW_SINCE_HOURS),
+    ]);
+
+    const used = new Set(usedIds);
+    res.json({
+      problems: problems
+        .filter((p) => p.answer) // 정답이 없으면 쇼에서 쓸 수 없다
+        .map((p) => ({
+          id: p.id,
+          title: p.title,
+          difficulty: p.difficulty,
+          unit: p.unit || null,
+          imageUrl: p.image_path,
+          questionType: p.question_type,
+          answer: p.answer,
+          used: used.has(p.id),
+        })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/show/rounds', requireAuth, async (req, res, next) => {
+  try {
+    const studentName = String(req.body?.studentName ?? '').trim();
+    if (!studentName) return res.status(400).json({ error: '학생 이름이 필요합니다.' });
+    if (studentName.length > 40) return res.status(400).json({ error: '학생 이름이 너무 깁니다.' });
+
+    const problemId = req.body?.problemId ? Number(req.body.problemId) : null;
+    if (problemId !== null && (!Number.isInteger(problemId) || problemId <= 0)) {
+      return res.status(400).json({ error: '올바르지 않은 문제 번호입니다.' });
+    }
+
+    const round = await recordShowRound({
+      problem_id: problemId,
+      problem_title: req.body?.problemTitle,
+      difficulty: req.body?.difficulty,
+      student_name: studentName,
+      correct: Boolean(req.body?.correct),
+      prize: req.body?.prize,
+      duration_ms: Number(req.body?.durationMs),
+      work: req.body?.work || null,
+    });
+
+    res.status(201).json({ id: round.id });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/show/rounds', requireAuth, async (req, res, next) => {
+  try {
+    const rounds = await listShowRounds({ sinceHours: SHOW_SINCE_HOURS, limit: 200 });
+    res.json({
+      rounds: rounds.map((row) => ({
+        id: row.id,
+        problemId: row.problem_id,
+        problemTitle: row.problem_title,
+        difficulty: row.difficulty,
+        studentName: row.student_name,
+        correct: row.correct,
+        prize: row.prize,
+        durationMs: row.duration_ms,
+        createdAt: row.created_at,
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/show/prizes', requireAuth, async (req, res, next) => {
+  try {
+    res.json({ prizes: await listRecentPrizes(12) });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ---- 학생이 실제로 쓴 풀이 보기 ----
 // 정답률만 봐서는 "왜 틀렸는지"를 알 수 없어서, 학생이 사진 위에 쓴 필기를 그대로 본다.
 // 목록에는 필기 본문을 싣지 않는다(한 건당 수십 KB라 목록이 무거워짐).

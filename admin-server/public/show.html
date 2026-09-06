@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<!-- 전자칠판 전용 화면: 확대/축소 제스처가 진행을 방해하지 않게 막는다 -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>스트릿 매쓰 파이터 - 진행 화면</title>
+<link rel="stylesheet" href="css/show.css" />
+</head>
+<body class="show-body">
+
+<!-- 로그인 안 된 상태에서 잠깐 보이는 화면 -->
+<div class="stage" id="authGate">
+  <div class="center-block">
+    <p class="big-note">진행자 로그인이 필요해요</p>
+    <a class="btn btn-primary btn-huge" href="index.html">로그인하러 가기</a>
+  </div>
+</div>
+
+<!-- 1. 대기 -->
+<section class="stage" id="stageIdle" hidden>
+  <div class="idle-inner">
+    <h1 class="show-logo">스트릿 매쓰 파이터</h1>
+    <p class="show-tagline">점심시간 강당 수학 대결</p>
+
+    <div class="today-strip" id="todayStrip">
+      <div class="today-item"><span class="today-num" id="todayRounds">0</span><span class="today-label">도전</span></div>
+      <div class="today-item"><span class="today-num" id="todayWins">0</span><span class="today-label">성공</span></div>
+      <div class="today-item"><span class="today-num" id="todayPrizes">0</span><span class="today-label">상품</span></div>
+    </div>
+
+    <div class="idle-actions">
+      <button type="button" class="btn btn-primary btn-huge" id="startBtn">도전 시작</button>
+      <button type="button" class="btn btn-ghost btn-big" id="hallBtn">명예의 전당</button>
+    </div>
+  </div>
+</section>
+
+<!-- 2. 난이도 고르기 -->
+<section class="stage" id="stagePick" hidden>
+  <h2 class="stage-title">난이도를 골라</h2>
+  <div class="pick-grid" id="pickGrid">
+    <button type="button" class="pick-card" data-level="하">
+      <span class="pick-level">하</span>
+      <span class="pick-time">1분 30초</span>
+      <span class="pick-count" data-count="하">-</span>
+    </button>
+    <button type="button" class="pick-card" data-level="중">
+      <span class="pick-level">중</span>
+      <span class="pick-time">3분</span>
+      <span class="pick-count" data-count="중">-</span>
+    </button>
+    <button type="button" class="pick-card" data-level="상">
+      <span class="pick-level">상</span>
+      <span class="pick-time">5분</span>
+      <span class="pick-count" data-count="상">-</span>
+    </button>
+    <button type="button" class="pick-card pick-random" data-level="">
+      <span class="pick-level">랜덤</span>
+      <span class="pick-time">운에 맡긴다</span>
+      <span class="pick-count" data-count="">-</span>
+    </button>
+  </div>
+  <button type="button" class="btn btn-ghost btn-big stage-back" id="pickBackBtn">뒤로</button>
+</section>
+
+<!-- 3. 문제 예고 -->
+<section class="stage" id="stageReady" hidden>
+  <div class="center-block">
+    <p class="ready-round" id="readyRound">제 1 문제</p>
+    <div class="ready-badge" id="readyBadge">중</div>
+    <p class="ready-time" id="readyTime">제한시간 3분</p>
+    <button type="button" class="btn btn-primary btn-huge" id="goBtn">시작!</button>
+    <button type="button" class="btn btn-ghost" id="readyBackBtn">다른 문제로</button>
+  </div>
+</section>
+
+<!-- 4. 문제 풀이 -->
+<section class="stage stage-play" id="stagePlay" hidden>
+  <header class="play-bar">
+    <div class="play-meta">
+      <span class="play-round" id="playRound">제 1 문제</span>
+      <span class="play-badge" id="playBadge">중</span>
+    </div>
+    <div class="play-timer" id="playTimer">3:00</div>
+    <div class="play-bar-actions">
+      <button type="button" class="btn btn-ghost btn-tight" id="pauseBtn">일시정지</button>
+      <button type="button" class="btn btn-ghost btn-tight" id="addTimeBtn">+30초</button>
+    </div>
+  </header>
+
+  <div class="board" id="board">
+    <img class="board-photo" id="boardPhoto" alt="문제" />
+    <canvas class="board-canvas" id="boardCanvas"></canvas>
+  </div>
+
+  <footer class="play-tools">
+    <div class="tool-group" id="colorGroup">
+      <button type="button" class="swatch active" data-color="#111111" style="--c:#111111"></button>
+      <button type="button" class="swatch" data-color="#e0393e" style="--c:#e0393e"></button>
+      <button type="button" class="swatch" data-color="#1d4ed8" style="--c:#1d4ed8"></button>
+      <button type="button" class="swatch" data-color="#16a34a" style="--c:#16a34a"></button>
+    </div>
+    <div class="tool-group">
+      <button type="button" class="btn btn-tool" id="eraserBtn">지우개</button>
+      <button type="button" class="btn btn-tool" id="undoBtn">되돌리기</button>
+      <button type="button" class="btn btn-tool" id="clearBtn">전체 지우기</button>
+    </div>
+    <button type="button" class="btn btn-primary btn-big" id="revealBtn">정답 공개</button>
+  </footer>
+</section>
+
+<!-- 5. 정답 공개 -->
+<section class="stage" id="stageReveal" hidden>
+  <div class="center-block">
+    <p class="reveal-label">정답은</p>
+    <div class="reveal-answer" id="revealAnswer">42</div>
+    <div class="judge-actions">
+      <button type="button" class="btn btn-correct btn-huge" id="correctBtn">맞혔다!</button>
+      <button type="button" class="btn btn-wrong btn-huge" id="wrongBtn">틀렸다</button>
+    </div>
+    <button type="button" class="btn btn-ghost" id="backToBoardBtn">풀이 화면 다시 보기</button>
+  </div>
+</section>
+
+<!-- 6. 정답자 등록 -->
+<section class="stage" id="stageAward" hidden>
+  <div class="center-block award-form">
+    <h2 class="stage-title" id="awardTitle">누가 맞혔어?</h2>
+    <label class="field">
+      <span class="field-label">이름 (반 + 이름)</span>
+      <input class="field-input" id="nameInput" type="text" maxlength="40" placeholder="예) 2-3 김민수" autocomplete="off" />
+    </label>
+    <label class="field">
+      <span class="field-label">상품</span>
+      <input class="field-input" id="prizeInput" type="text" maxlength="60" placeholder="예) 컵라면" list="prizeList" autocomplete="off" />
+      <datalist id="prizeList"></datalist>
+    </label>
+    <div class="award-actions">
+      <button type="button" class="btn btn-primary btn-huge" id="awardSaveBtn">등록</button>
+      <button type="button" class="btn btn-ghost btn-big" id="awardSkipBtn">건너뛰기</button>
+    </div>
+  </div>
+</section>
+
+<!-- 7. 축하 -->
+<section class="stage stage-celebrate" id="stageCelebrate" hidden>
+  <div class="center-block">
+    <div class="celebrate-mark">🏆</div>
+    <div class="celebrate-name" id="celebrateName">2-3 김민수</div>
+    <div class="celebrate-prize" id="celebratePrize">컵라면</div>
+    <button type="button" class="btn btn-primary btn-huge" id="celebrateNextBtn">다음 문제</button>
+  </div>
+</section>
+
+<!-- 8. 명예의 전당 -->
+<section class="stage" id="stageHall" hidden>
+  <h2 class="stage-title">오늘의 명예의 전당</h2>
+  <div class="hall-list" id="hallList"></div>
+  <p class="hall-empty" id="hallEmpty" hidden>아직 아무도 못 맞혔어</p>
+  <button type="button" class="btn btn-ghost btn-big stage-back" id="hallBackBtn">돌아가기</button>
+</section>
+
+<script src="/vendor/anime.umd.min.js"></script>
+<script src="/vendor/motion.min.js"></script>
+<script src="js/show-anim.js"></script>
+<script src="js/show-draw.js"></script>
+<script src="js/show.js"></script>
+</body>
+</html>

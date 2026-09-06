@@ -24,7 +24,7 @@ const DIFFICULTIES = ['상', '중', '하'];
 const QUESTION_TYPES = ['objective', 'subjective'];
 const OBJECTIVE_CHOICES = ['1', '2', '3', '4', '5'];
 
-const ready = pool.query(`
+const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS problems (
     id SERIAL PRIMARY KEY,
     title TEXT NOT NULL,
@@ -72,10 +72,45 @@ const ready = pool.query(`
   -- 한 건씩 따로 읽는다. 없는 경우가 많아 NULL 허용.
   ALTER TABLE attempts ADD COLUMN IF NOT EXISTS work JSONB;
 
+  -- 강당에서 진행하는 라이브 이벤트 기록.
+  -- attempts와 달리 문제가 지워져도 남아야 한다(누가 무슨 상 받았는지는 사실 기록이라
+  -- 나중에 문제를 삭제했다고 사라지면 안 됨) -> ON DELETE SET NULL + 제목 스냅샷.
+  CREATE TABLE IF NOT EXISTS show_rounds (
+    id SERIAL PRIMARY KEY,
+    problem_id INTEGER REFERENCES problems(id) ON DELETE SET NULL,
+    problem_title TEXT,
+    difficulty TEXT,
+    student_name TEXT NOT NULL,
+    correct BOOLEAN NOT NULL,
+    prize TEXT,
+    duration_ms INTEGER,
+    work JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_show_rounds_created ON show_rounds (created_at DESC);
+
   CREATE INDEX IF NOT EXISTS idx_attempts_student ON attempts (student_key, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_attempts_problem ON attempts (problem_id);
   CREATE INDEX IF NOT EXISTS idx_attempts_created ON attempts (created_at DESC);
-`);
+`;
+
+// 스키마 생성(DDL)은 한 번에 한 프로세스만 하도록 자문 잠금으로 감싼다.
+// 인스턴스가 둘 이상 동시에 뜨면(배포 중 롤링 재시작, 테스트 병렬 실행 등)
+// CREATE/ALTER가 서로 물려 한쪽이 실패하는데, 그 프로세스는 컬럼이 없는 상태로
+// 요청을 받게 된다. 잠금 번호는 이 프로젝트 전용의 임의 상수.
+const SCHEMA_LOCK_ID = 771102;
+
+const ready = (async () => {
+  const client = await pool.connect();
+  try {
+    await client.query('SELECT pg_advisory_lock($1)', [SCHEMA_LOCK_ID]);
+    await client.query(SCHEMA_SQL);
+  } finally {
+    await client.query('SELECT pg_advisory_unlock($1)', [SCHEMA_LOCK_ID]).catch(() => {});
+    client.release();
+  }
+})();
 
 async function listProblems({ difficulty, unit } = {}) {
   await ready;
@@ -214,6 +249,84 @@ async function recordAttempt({
     ]
   );
   return rows[0];
+}
+
+// ---- 강당 라이브 이벤트 ----
+
+// 한 라운드(한 학생이 한 문제에 도전한 결과)를 기록한다.
+async function recordShowRound({
+  problem_id,
+  problem_title,
+  difficulty,
+  student_name,
+  correct,
+  prize,
+  duration_ms,
+  work,
+}) {
+  await ready;
+  const { rows } = await pool.query(
+    `INSERT INTO show_rounds
+       (problem_id, problem_title, difficulty, student_name, correct, prize, duration_ms, work)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING *`,
+    [
+      problem_id || null,
+      problem_title ? String(problem_title).slice(0, 200) : null,
+      difficulty || null,
+      String(student_name).slice(0, 40),
+      Boolean(correct),
+      prize ? String(prize).slice(0, 60) : null,
+      Number.isFinite(duration_ms) ? Math.max(0, Math.round(duration_ms)) : null,
+      work || null,
+    ]
+  );
+  return rows[0];
+}
+
+// 진행 화면에 띄울 기록. sinceHours 안에 있었던 라운드만(기본: 오늘 진행분).
+async function listShowRounds({ sinceHours = 12, limit = 100 } = {}) {
+  await ready;
+  const hours = Math.min(Math.max(Number(sinceHours) || 12, 1), 24 * 365);
+  const { rows } = await pool.query(
+    `SELECT id, problem_id, problem_title, difficulty, student_name, correct,
+            prize, duration_ms, created_at
+     FROM show_rounds
+     WHERE created_at >= now() - ($1::text || ' hours')::interval
+     ORDER BY created_at DESC
+     LIMIT $2`,
+    [String(hours), Math.min(Math.max(Number(limit) || 100, 1), 500)]
+  );
+  return rows;
+}
+
+// 같은 회차에서 같은 문제가 또 나오지 않게, 최근에 쓴 문제 번호를 준다.
+async function listUsedProblemIds(sinceHours = 12) {
+  await ready;
+  const hours = Math.min(Math.max(Number(sinceHours) || 12, 1), 24 * 365);
+  const { rows } = await pool.query(
+    `SELECT DISTINCT problem_id
+     FROM show_rounds
+     WHERE problem_id IS NOT NULL
+       AND created_at >= now() - ($1::text || ' hours')::interval`,
+    [String(hours)]
+  );
+  return rows.map((row) => row.problem_id);
+}
+
+// 상품 이름은 매번 새로 치기 귀찮으니 전에 쓴 걸 자동완성으로 띄운다.
+async function listRecentPrizes(limit = 12) {
+  await ready;
+  const { rows } = await pool.query(
+    `SELECT prize, MAX(created_at) AS last_used
+     FROM show_rounds
+     WHERE prize IS NOT NULL AND prize <> ''
+     GROUP BY prize
+     ORDER BY MAX(created_at) DESC
+     LIMIT $1`,
+    [Math.min(Math.max(Number(limit) || 12, 1), 50)]
+  );
+  return rows.map((row) => row.prize);
 }
 
 // 채점 직후 학생이 쓴 풀이(획)를 해당 시도에 붙인다.
@@ -417,6 +530,10 @@ module.exports = {
   createProblem,
   updateProblem,
   deleteProblem,
+  recordShowRound,
+  listShowRounds,
+  listUsedProblemIds,
+  listRecentPrizes,
   recordAttempt,
   saveAttemptWork,
   getLatestWorkForProblem,
