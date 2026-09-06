@@ -247,7 +247,7 @@ function startTimer() {
 // 그래서 실제로 더 크게 나오는 쪽을 계산해서 고른다.
 // 캔버스는 어느 쪽이든 판 전체를 덮으므로 남는 공간 어디에나 쓸 수 있다.
 const LAYOUTS = {
-  side: { maxW: 0.62, maxH: 0.94 },
+  side: { maxW: 0.62, maxH: 0.88 },
   top: { maxW: 0.98, maxH: 0.62 },
 };
 
@@ -278,9 +278,10 @@ function layoutPhoto() {
   photo.style.width = `${width}px`;
   photo.style.height = `${height}px`;
   photo.style.left = `${pad}px`;
-  // 위에 두기는 위쪽 정렬, 옆에 두기는 세로 가운데.
-  // 확대해서 판보다 커지면 어느 쪽이든 위를 맞춘다(가운데 정렬하면 문제 윗부분이 잘린다).
-  photo.style.top = useTop ? `${pad}px` : `${Math.max((boardH - height) / 2, 0)}px`;
+  // 어느 배치든 사진은 왼쪽 위에 붙인다.
+  // 세로 가운데로 놓으면 남는 공간이 위아래로 쪼개져서 어디에도 제대로 못 쓴다.
+  // 위로 붙이면 오른쪽 여백과 아래 여백이 하나로 이어져 ㄴ자 필기 공간이 된다.
+  photo.style.top = `${pad}px`;
 }
 
 const ZOOM_STEP = 0.15;
