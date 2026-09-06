@@ -269,6 +269,15 @@ body {
   font-weight: 900;
 }
 
+.ready-unit {
+  margin: 0;
+  padding: 1vmin 3vmin;
+  border-radius: 999px;
+  background: var(--line);
+  font-size: 2.8vmin;
+  color: var(--ink);
+}
+
 .ready-time {
   margin: 0;
   font-size: 3.4vmin;
@@ -328,6 +337,11 @@ body {
 /* 남은 시간이 얼마 없을 때 */
 .play-timer.urgent {
   color: var(--wrong);
+}
+
+/* 시간이 다 됐을 때는 글자가 길어지므로 크기를 줄인다 */
+.play-timer.timeup {
+  font-size: 6vmin;
 }
 
 .play-bar-actions {
@@ -405,6 +419,10 @@ body {
   padding: 0 3vmin;
   font-size: 2.4vmin;
   border-color: var(--line);
+}
+
+.btn-tool[disabled] {
+  opacity: 0.35;
 }
 
 .btn-tool.active {

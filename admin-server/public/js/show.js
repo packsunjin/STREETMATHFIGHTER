@@ -196,8 +196,11 @@ function formatTime(seconds) {
 
 function renderTimer() {
   const el = $('playTimer');
-  el.textContent = formatTime(state.secondsLeft);
+  const out = state.secondsLeft <= 0;
+  // 0:00으로만 두면 멈춘 건지 끝난 건지 헷갈린다. 끝났으면 그렇게 쓴다.
+  el.textContent = out ? '시간 종료' : formatTime(state.secondsLeft);
   el.classList.toggle('urgent', state.secondsLeft <= 10);
+  el.classList.toggle('timeup', out);
 }
 
 function stopTimer() {
@@ -233,9 +236,19 @@ function startTimer() {
 
 /* ---------- 사진 배치 ---------- */
 
-// 사진은 왼쪽에 크게, 오른쪽은 필기 공간으로 비워둔다.
-// 캔버스는 판 전체를 덮으므로 사진 위에도, 옆 흰 공간에도 쓸 수 있다.
-const PHOTO_MAX_WIDTH_RATIO = 0.62;
+// 사진 배치는 사진의 비율에 따라 둘 중 하나를 고른다.
+//
+//  - 옆에 두기: 사진을 왼쪽에 세우고 오른쪽을 필기 공간으로 (정사각/세로로 긴 사진)
+//  - 위에 두기: 사진을 위쪽에 넓게 깔고 아래를 필기 공간으로 (가로로 긴 사진)
+//
+// 교과서 한 문제를 캡처하면 대개 가로로 길다. 그걸 옆에 두기로 그리면
+// 폭 제한에 걸려 높이를 절반도 못 쓰는데, 강당 뒤에서는 그만큼 안 보인다.
+// 그래서 실제로 더 크게 나오는 쪽을 계산해서 고른다.
+// 캔버스는 어느 쪽이든 판 전체를 덮으므로 남는 공간 어디에나 쓸 수 있다.
+const LAYOUTS = {
+  side: { maxW: 0.62, maxH: 0.94 },
+  top: { maxW: 0.98, maxH: 0.62 },
+};
 
 function layoutPhoto() {
   const board = $('board');
@@ -246,19 +259,27 @@ function layoutPhoto() {
   const boardW = board.offsetWidth;
   const boardH = board.offsetHeight;
   const pad = boardH * 0.03;
-  const maxH = boardH - pad * 2;
-  const maxW = boardW * PHOTO_MAX_WIDTH_RATIO;
 
-  const fit = Math.min(maxH / photo.naturalHeight, maxW / photo.naturalWidth);
-  const scale = fit * state.photoZoom;
+  const fitFor = (limits) =>
+    Math.min(
+      (boardH * limits.maxH - pad * 2) / photo.naturalHeight,
+      (boardW * limits.maxW - pad * 2) / photo.naturalWidth
+    );
+
+  const sideFit = fitFor(LAYOUTS.side);
+  const topFit = fitFor(LAYOUTS.top);
+  const useTop = topFit > sideFit;
+
+  const scale = Math.max(useTop ? topFit : sideFit, 0) * state.photoZoom;
   const width = photo.naturalWidth * scale;
   const height = photo.naturalHeight * scale;
 
   photo.style.width = `${width}px`;
   photo.style.height = `${height}px`;
   photo.style.left = `${pad}px`;
-  // 키워서 판보다 커지면 위쪽을 맞춘다(가운데 정렬하면 문제 윗부분이 잘린다)
-  photo.style.top = `${Math.max((boardH - height) / 2, 0)}px`;
+  // 위에 두기는 위쪽 정렬, 옆에 두기는 세로 가운데.
+  // 확대해서 판보다 커지면 어느 쪽이든 위를 맞춘다(가운데 정렬하면 문제 윗부분이 잘린다).
+  photo.style.top = useTop ? `${pad}px` : `${Math.max((boardH - height) / 2, 0)}px`;
 }
 
 const ZOOM_STEP = 0.15;
@@ -293,6 +314,9 @@ function startWithProblem(problem) {
 
   $('readyRound').textContent = `제 ${state.roundNo} 문제`;
   $('readyBadge').textContent = problem.difficulty;
+  // 단원을 미리 알려주면 학생들이 무슨 내용인지 감을 잡고 손을 든다
+  $('readyUnit').textContent = problem.unit || '';
+  $('readyUnit').hidden = !problem.unit;
   const limit = TIME_LIMITS[problem.difficulty] ?? DEFAULT_LIMIT;
   $('readyTime').textContent = `제한시간 ${formatTime(limit)}`;
   show('ready');
@@ -325,6 +349,7 @@ async function goPlay() {
   setPhotoZoom(1);
   show('play');
   SMFDraw.clear();
+  updateDrawButtons();
   // 화면이 보이게 된 다음에야 크기를 잴 수 있다
   requestAnimationFrame(() => {
     SMFDraw.resize();
@@ -558,6 +583,13 @@ async function goHall() {
   SMFShowAnim.listIn(list.querySelectorAll('.hall-row'));
 }
 
+// 지울 게 없는데 눌리는 버튼은 눌러보고 아무 일도 안 일어나서 헷갈린다.
+function updateDrawButtons() {
+  const empty = SMFDraw.isEmpty();
+  $('undoBtn').disabled = empty;
+  $('clearBtn').disabled = empty;
+}
+
 /* ---------- 저장 상태 / 세션 ---------- */
 
 // 아직 서버로 못 보낸 기록이 있으면 진행자에게 조용히 알려준다.
@@ -712,7 +744,11 @@ async function boot() {
     return;
   }
 
-  SMFDraw.init({ board: $('board'), canvas: $('boardCanvas') });
+  SMFDraw.init({
+    board: $('board'),
+    canvas: $('boardCanvas'),
+    onChange: updateDrawButtons,
+  });
   SMFQueue.init({ onStatus: renderQueueStatus });
   watchSession();
 

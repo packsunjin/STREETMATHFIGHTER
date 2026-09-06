@@ -469,6 +469,58 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     await context.close();
   });
 
+  test('사진 비율에 따라 배치가 바뀌고 어떤 비율도 판을 넘지 않는다', async () => {
+    // 교과서 한 문제를 캡처하면 대개 가로로 길다. 그걸 옆에 두기로 그리면
+    // 폭 제한에 걸려 높이를 절반도 못 써서 강당 뒤에서 안 보인다.
+    const { page, context } = await openShow();
+
+    const measure = async (w, h) => {
+      const url = await page.evaluate(
+        (size) => {
+          const [width, height] = size;
+          const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="#fff"/></svg>`;
+          return `data:image/svg+xml;base64,${btoa(svg)}`;
+        },
+        [w, h]
+      );
+
+      await page.evaluate((src) => {
+        state.problem = { ...state.problems[0], imageUrl: src, difficulty: '하' };
+        state.roundNo = 1;
+        return goPlay();
+      }, url);
+      await page.waitForTimeout(4200);
+
+      return page.evaluate(() => {
+        const board = document.getElementById('board').getBoundingClientRect();
+        const photo = document.getElementById('boardPhoto').getBoundingClientRect();
+        return {
+          overflow:
+            photo.right > board.right + 1 ||
+            photo.bottom > board.bottom + 1 ||
+            photo.top < board.top - 1 ||
+            photo.left < board.left - 1,
+          heightRatio: photo.height / board.height,
+          widthRatio: photo.width / board.width,
+        };
+      });
+    };
+
+    const wide = await measure(1600, 500);
+    assert.equal(wide.overflow, false, '가로로 긴 사진이 판을 넘음');
+    assert.ok(wide.widthRatio > 0.65, `가로로 긴 사진이 너무 작음 (폭 ${wide.widthRatio})`);
+
+    const tall = await measure(800, 1400);
+    assert.equal(tall.overflow, false, '세로로 긴 사진이 판을 넘음');
+    assert.ok(tall.heightRatio > 0.8, `세로로 긴 사진이 높이를 못 씀 (${tall.heightRatio})`);
+
+    const square = await measure(1000, 1000);
+    assert.equal(square.overflow, false, '정사각 사진이 판을 넘음');
+    assert.ok(square.heightRatio > 0.8, `정사각 사진이 높이를 못 씀 (${square.heightRatio})`);
+
+    await context.close();
+  });
+
   test('타이머를 멈추면 실제로 멈춰 있는다', async () => {
     const { page, context } = await openShow();
     await startRound(page);
