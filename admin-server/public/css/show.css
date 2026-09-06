@@ -494,31 +494,6 @@ body {
   outline-offset: 0.3vmin;
 }
 
-.name-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1vmin;
-  margin-top: 0.5vmin;
-}
-
-.name-chip {
-  padding: 1.4vmin 3vmin;
-  border: 0.4vmin solid var(--line);
-  border-radius: 999px;
-  background: var(--paper);
-  color: var(--ink);
-  font-family: inherit;
-  font-size: 2.4vmin;
-  font-weight: 800;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.name-chip:active {
-  background: var(--ink);
-  color: var(--paper);
-}
-
 .award-actions {
   display: flex;
   gap: 2vmin;

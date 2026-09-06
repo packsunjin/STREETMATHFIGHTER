@@ -535,38 +535,6 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     await context.close();
   });
 
-  test('오늘 나온 이름은 눌러서 넣을 수 있다', async () => {
-    // 전자칠판 화상 키보드로 이름을 치는 게 이 흐름에서 제일 느리다.
-    const { page, context } = await openShow();
-
-    await page.evaluate(() => {
-      state.rounds = [
-        { studentName: '3-1 최다은', correct: true },
-        { studentName: '3-1 최다은', correct: false },
-        { studentName: '1-2 오지호', correct: true },
-      ];
-      state.correct = true;
-      state.durationMs = 1000;
-      goAward(true);
-    });
-    await page.waitForSelector('#stageAward:not([hidden])');
-
-    const chips = await page.$$eval('.name-chip', (cs) => cs.map((c) => c.textContent));
-    assert.deepEqual(chips, ['3-1 최다은', '1-2 오지호'], '같은 이름은 한 번만');
-
-    await page.click('.name-chip');
-    assert.equal(await page.inputValue('#nameInput'), '3-1 최다은');
-
-    // 오늘 아무도 안 나왔으면 칩 줄 자체를 숨긴다
-    await page.evaluate(() => {
-      state.rounds = [];
-      goAward(true);
-    });
-    assert.ok(await page.locator('#nameChips').isHidden());
-
-    await context.close();
-  });
-
   test('타이머를 멈추면 실제로 멈춰 있는다', async () => {
     const { page, context } = await openShow();
     await startRound(page);
