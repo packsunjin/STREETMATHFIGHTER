@@ -20,12 +20,12 @@ const ACTIVITY_DAYS = 14; // 서버의 listDailyActivity(14)와 맞춰야 함
 
 const TAB_LABEL: Record<Tab, string> = {
   problems: '문제 통계',
-  students: '학생 성취도',
+  students: '행사 기록',
 };
 
 const TAB_DESCRIPTION: Record<Tab, string> = {
   problems: '등록된 문제의 난이도/단원별 분포를 보여줘요.',
-  students: '학생별 정답률과 다들 어려워하는 문제를 보여줘요.',
+  students: '강당 행사에서 누가 얼마나 맞혔는지 보여줘요.',
 };
 
 // admin-server는 단독으로도, 통합 서버의 /admin 아래에서도 실행될 수 있어서
@@ -98,25 +98,25 @@ function StudentsTab({ stats }: { stats: StudentStatsResponse }) {
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="문제 푼 학생" value={stats.students.length} suffix="명" />
-        <StatCard label="전체 풀이 수" value={attempts} suffix="번" />
-        <StatCard label="전체 정답 수" value={correct} suffix="번" />
-        <StatCard label="평균 정답률" value={accuracy} suffix="%" color={accuracyColor(accuracy)} />
+        <StatCard label="도전한 학생" value={stats.students.length} suffix="명" />
+        <StatCard label="전체 도전" value={attempts} suffix="번" />
+        <StatCard label="성공" value={correct} suffix="번" />
+        <StatCard label="평균 성공률" value={accuracy} suffix="%" color={accuracyColor(accuracy)} />
       </div>
 
-      <Card title="최근 14일 풀이 활동" extra={<ActivityLegend />}>
+      <Card title="최근 14일 행사 기록" extra={<ActivityLegend />}>
         {stats.dailyActivity.length > 0 ? (
           <ActivityChart data={activity} />
         ) : (
-          <p className="text-sm text-[var(--text-secondary)]">최근 2주 동안 풀이 기록이 없어요.</p>
+          <p className="text-sm text-[var(--text-secondary)]">최근 2주 동안 행사 기록이 없어요.</p>
         )}
       </Card>
 
-      <Card title="학생별 정답률">
+      <Card title="학생별 성공률">
         <StudentTable students={stats.students} />
       </Card>
 
-      <Card title="다들 어려워하는 문제">
+      <Card title="아무도 못 맞힌 문제">
         <HardestProblems problems={stats.hardestProblems} />
       </Card>
     </div>
@@ -128,7 +128,7 @@ function ActivityLegend() {
     <div className="flex items-center gap-3 text-xs font-semibold text-[var(--text-secondary)]">
       <span className="flex items-center gap-1.5">
         <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: '#16a34a' }} />
-        맞힘
+        성공
       </span>
       <span className="flex items-center gap-1.5">
         <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--border)' }} />

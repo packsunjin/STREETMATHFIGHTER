@@ -6,12 +6,12 @@ type SortKey = 'recent' | 'accuracy' | 'total';
 
 const SORT_LABEL: Record<SortKey, string> = {
   recent: '최근 활동순',
-  accuracy: '정답률 낮은순',
-  total: '많이 푼 순',
+  accuracy: '성공률 낮은순',
+  total: '많이 도전한 순',
 };
 
-// 선생님이 실제로 궁금한 건 "누가 헤매고 있나"라서, 정렬 기본값은 최근 활동순으로 두되
-// 정답률 낮은순으로 한 번에 바꿀 수 있게 함.
+// 선생님이 실제로 궁금한 건 "누가 자주 나오는데 못 맞히나"라서, 정렬 기본값은
+// 최근 활동순으로 두되 성공률 낮은순으로 한 번에 바꿀 수 있게 함.
 export function StudentTable({ students }: { students: StudentStat[] }) {
   const [sortKey, setSortKey] = useState<SortKey>('recent');
 
@@ -23,7 +23,7 @@ export function StudentTable({ students }: { students: StudentStat[] }) {
   }, [students, sortKey]);
 
   if (!students.length) {
-    return <p className="text-sm text-[var(--text-secondary)]">아직 문제를 푼 학생이 없어요.</p>;
+    return <p className="text-sm text-[var(--text-secondary)]">아직 도전한 학생이 없어요.</p>;
   }
 
   return (
@@ -49,7 +49,7 @@ export function StudentTable({ students }: { students: StudentStat[] }) {
       <ul className="flex flex-col gap-2">
         {sorted.map((student, index) => (
           <motion.li
-            key={student.studentKey}
+            key={student.name}
             layout
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -59,7 +59,9 @@ export function StudentTable({ students }: { students: StudentStat[] }) {
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-bold">{displayName(student)}</div>
               <div className="mt-0.5 text-xs text-[var(--text-secondary)]">
-                {student.correct}/{student.total}문제 · {formatRelative(student.lastSolvedAt)}
+                {student.correct}/{student.total}번 성공
+                {student.prizes > 0 && ` · 상품 ${student.prizes}개`} ·{' '}
+                {formatRelative(student.lastSolvedAt)}
               </div>
             </div>
 

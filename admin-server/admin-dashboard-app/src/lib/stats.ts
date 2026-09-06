@@ -3,19 +3,18 @@
 import type { Difficulty } from './theme';
 
 export interface StudentStat {
-  studentKey: string;
-  name: string | null;
+  name: string;
   total: number;
   correct: number;
+  prizes: number;
   accuracy: number;
   lastSolvedAt: string | null;
 }
 
 export interface HardestProblem {
-  id: number;
+  id: number | null;
   title: string;
   difficulty: Difficulty;
-  unit: string | null;
   total: number;
   correct: number;
   accuracy: number;
@@ -41,7 +40,7 @@ export function accuracyColor(accuracy: number): string {
 }
 
 export function displayName(student: StudentStat): string {
-  return student.name || `이름 없음 (${student.studentKey.slice(0, 6)})`;
+  return student.name;
 }
 
 export function formatDay(day: string): string {

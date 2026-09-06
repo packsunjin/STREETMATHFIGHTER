@@ -26,8 +26,8 @@ const {
   listStudentStats,
   listHardestProblems,
   listDailyActivity,
-  listAttemptsWithWork,
-  getAttemptWork,
+  listRoundsWithWork,
+  getRoundWork,
   recordShowRound,
   listShowRounds,
   listUsedProblemIds,
@@ -356,33 +356,25 @@ app.get('/api/show/prizes', requireAuth, async (req, res, next) => {
   }
 });
 
-// ---- 학생이 실제로 쓴 풀이 보기 ----
-// 정답률만 봐서는 "왜 틀렸는지"를 알 수 없어서, 학생이 사진 위에 쓴 필기를 그대로 본다.
+// ---- 학생이 칠판에 쓴 풀이 보기 ----
+// 정답률만 봐서는 "왜 틀렸는지"를 알 수 없어서, 그때 칠판에 쓴 필기를 그대로 본다.
 // 목록에는 필기 본문을 싣지 않는다(한 건당 수십 KB라 목록이 무거워짐).
 
-app.get('/api/attempts', requireAuth, async (req, res, next) => {
+app.get('/api/rounds', requireAuth, async (req, res, next) => {
   try {
-    const studentKey = typeof req.query.studentKey === 'string' ? req.query.studentKey : null;
-    const problemId = req.query.problemId ? Number(req.query.problemId) : null;
-    if (problemId !== null && (!Number.isInteger(problemId) || problemId <= 0)) {
-      return res.status(400).json({ error: '올바르지 않은 문제 번호입니다.' });
-    }
-
-    const rows = await listAttemptsWithWork({ studentKey, problemId, limit: 30 });
+    const studentName = typeof req.query.studentName === 'string' ? req.query.studentName : null;
+    const rows = await listRoundsWithWork({ studentName, limit: 30 });
     res.json({
-      attempts: rows.map((row) => ({
+      rounds: rows.map((row) => ({
         id: row.id,
         problemId: row.problem_id,
-        studentKey: row.student_key,
-        studentName: row.student_name || null,
+        problemTitle: row.problem_title,
+        difficulty: row.difficulty,
+        studentName: row.student_name,
         correct: row.correct,
-        submittedAnswer: row.submitted_answer,
+        prize: row.prize,
         durationMs: row.duration_ms,
         createdAt: row.created_at,
-        title: row.title,
-        difficulty: row.difficulty,
-        unit: row.unit || null,
-        imageUrl: row.image_path,
       })),
     });
   } catch (err) {
@@ -390,29 +382,28 @@ app.get('/api/attempts', requireAuth, async (req, res, next) => {
   }
 });
 
-app.get('/api/attempts/:id', requireAuth, async (req, res, next) => {
+app.get('/api/rounds/:id', requireAuth, async (req, res, next) => {
   try {
-    const attemptId = Number(req.params.id);
-    if (!Number.isInteger(attemptId) || attemptId <= 0) {
+    const roundId = Number(req.params.id);
+    if (!Number.isInteger(roundId) || roundId <= 0) {
       return res.status(400).json({ error: '올바르지 않은 기록 번호입니다.' });
     }
 
-    const row = await getAttemptWork(attemptId);
+    const row = await getRoundWork(roundId);
     if (!row) return res.status(404).json({ error: '기록을 찾을 수 없습니다.' });
 
     res.json({
       id: row.id,
       problemId: row.problem_id,
-      studentKey: row.student_key,
-      studentName: row.student_name || null,
+      problemTitle: row.problem_title,
+      difficulty: row.difficulty,
+      studentName: row.student_name,
       correct: row.correct,
-      submittedAnswer: row.submitted_answer,
+      prize: row.prize,
       durationMs: row.duration_ms,
       createdAt: row.created_at,
-      title: row.title,
-      difficulty: row.difficulty,
-      unit: row.unit || null,
-      imageUrl: row.image_path,
+      // 문제가 지워졌으면 사진이 없다. 그래도 필기는 보여줄 수 있어야 한다.
+      imageUrl: row.image_path || null,
       work: row.work,
     });
   } catch (err) {
@@ -430,10 +421,10 @@ app.get('/api/stats/students', requireAuth, async (req, res, next) => {
 
     res.json({
       students: students.map((s) => ({
-        studentKey: s.student_key,
-        name: s.student_name || null,
+        name: s.student_name,
         total: s.total,
         correct: s.correct,
+        prizes: s.prizes,
         accuracy: s.total ? Math.round((s.correct / s.total) * 100) : 0,
         lastSolvedAt: s.last_solved_at,
       })),
@@ -441,7 +432,6 @@ app.get('/api/stats/students', requireAuth, async (req, res, next) => {
         id: p.id,
         title: p.title,
         difficulty: p.difficulty,
-        unit: p.unit || null,
         total: p.total,
         correct: p.correct,
         accuracy: p.total ? Math.round((p.correct / p.total) * 100) : 0,

@@ -55,26 +55,9 @@ const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_problems_unit ON problems (unit);
   CREATE INDEX IF NOT EXISTS idx_problems_difficulty_unit ON problems (difficulty, unit);
 
-  -- 학생이 문제를 풀고 채점한 기록. 학생 로그인이 없는 서비스라, 브라우저에
-  -- 저장해둔 student_key(무작위 문자열)로 같은 학생을 구분하고 이름은 선택 입력.
-  CREATE TABLE IF NOT EXISTS attempts (
-    id SERIAL PRIMARY KEY,
-    problem_id INTEGER NOT NULL REFERENCES problems(id) ON DELETE CASCADE,
-    student_key TEXT NOT NULL,
-    student_name TEXT,
-    correct BOOLEAN NOT NULL,
-    submitted_answer TEXT,
-    duration_ms INTEGER,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-  );
-
-  -- 학생이 사진 위에 쓴 풀이(획 좌표). 용량이 커서 목록 조회에는 절대 섞지 않고,
-  -- 한 건씩 따로 읽는다. 없는 경우가 많아 NULL 허용.
-  ALTER TABLE attempts ADD COLUMN IF NOT EXISTS work JSONB;
-
-  -- 강당에서 진행하는 라이브 이벤트 기록.
-  -- attempts와 달리 문제가 지워져도 남아야 한다(누가 무슨 상 받았는지는 사실 기록이라
-  -- 나중에 문제를 삭제했다고 사라지면 안 됨) -> ON DELETE SET NULL + 제목 스냅샷.
+  -- 강당 라이브 이벤트의 라운드 기록(한 학생이 한 문제에 도전한 결과).
+  -- 문제를 나중에 지워도 이 기록은 남아야 한다. 누가 무슨 상을 받았는지는 사실
+  -- 기록이라 문제 삭제로 사라지면 안 되기 때문 -> ON DELETE SET NULL + 제목 스냅샷.
   CREATE TABLE IF NOT EXISTS show_rounds (
     id SERIAL PRIMARY KEY,
     problem_id INTEGER REFERENCES problems(id) ON DELETE SET NULL,
@@ -89,10 +72,6 @@ const SCHEMA_SQL = `
   );
 
   CREATE INDEX IF NOT EXISTS idx_show_rounds_created ON show_rounds (created_at DESC);
-
-  CREATE INDEX IF NOT EXISTS idx_attempts_student ON attempts (student_key, created_at DESC);
-  CREATE INDEX IF NOT EXISTS idx_attempts_problem ON attempts (problem_id);
-  CREATE INDEX IF NOT EXISTS idx_attempts_created ON attempts (created_at DESC);
 `;
 
 // 스키마 생성(DDL)은 한 번에 한 프로세스만 하도록 자문 잠금으로 감싼다.
@@ -224,33 +203,6 @@ async function deleteProblem(id) {
   return rows[0] || null;
 }
 
-// ---- 학생 풀이 기록 ----
-
-async function recordAttempt({
-  problem_id,
-  student_key,
-  student_name,
-  correct,
-  submitted_answer,
-  duration_ms,
-}) {
-  await ready;
-  const { rows } = await pool.query(
-    `INSERT INTO attempts (problem_id, student_key, student_name, correct, submitted_answer, duration_ms)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     RETURNING *`,
-    [
-      problem_id,
-      student_key,
-      student_name || null,
-      Boolean(correct),
-      submitted_answer == null ? null : String(submitted_answer).slice(0, 500),
-      Number.isFinite(duration_ms) ? Math.max(0, Math.round(duration_ms)) : null,
-    ]
-  );
-  return rows[0];
-}
-
 // ---- 강당 라이브 이벤트 ----
 
 // 한 라운드(한 학생이 한 문제에 도전한 결과)를 기록한다.
@@ -329,194 +281,101 @@ async function listRecentPrizes(limit = 12) {
   return rows.map((row) => row.prize);
 }
 
-// 채점 직후 학생이 쓴 풀이(획)를 해당 시도에 붙인다.
-// student_key까지 조건에 넣어, 남의 시도에 덮어쓰는 걸 SQL 레벨에서 막는다.
-async function saveAttemptWork(attemptId, studentKey, work) {
-  await ready;
-  const { rows } = await pool.query(
-    `UPDATE attempts SET work = $3 WHERE id = $1 AND student_key = $2 RETURNING id`,
-    [attemptId, studentKey, work]
-  );
-  return rows[0] || null;
-}
+// ---- 선생님용 통계 ----
+// 전부 라이브 이벤트 기록(show_rounds) 기준이다. 이 앱에서 "성적"은
+// 강당에서 도전해서 맞혔는지 뿐이라, 학생 구분도 진행자가 부른 이름으로 한다.
 
-// 학생 본인이 자기 풀이를 다시 볼 때. 문제당 가장 최근에 남긴 풀이 하나.
-async function getLatestWorkForProblem(studentKey, problemId) {
-  await ready;
-  const { rows } = await pool.query(
-    `SELECT id, work, correct, created_at
-     FROM attempts
-     WHERE student_key = $1 AND problem_id = $2 AND work IS NOT NULL
-     ORDER BY created_at DESC
-     LIMIT 1`,
-    [studentKey, problemId]
-  );
-  return rows[0] || null;
-}
-
-// 선생님이 "이 학생이 이 문제를 어떻게 풀었나"를 볼 때 쓰는 목록(풀이 본문은 제외).
-async function listAttemptsWithWork({ studentKey, problemId, limit = 30 } = {}) {
-  await ready;
-  const conditions = ['a.work IS NOT NULL'];
-  const values = [];
-  if (studentKey) {
-    values.push(studentKey);
-    conditions.push(`a.student_key = $${values.length}`);
-  }
-  if (problemId) {
-    values.push(problemId);
-    conditions.push(`a.problem_id = $${values.length}`);
-  }
-  values.push(Math.min(Math.max(Number(limit) || 30, 1), 100));
-
-  const { rows } = await pool.query(
-    `SELECT a.id, a.problem_id, a.student_key, a.student_name, a.correct,
-            a.submitted_answer, a.duration_ms, a.created_at,
-            p.title, p.difficulty, p.unit, p.image_path
-     FROM attempts a
-     JOIN problems p ON p.id = a.problem_id
-     WHERE ${conditions.join(' AND ')}
-     ORDER BY a.created_at DESC
-     LIMIT $${values.length}`,
-    values
-  );
-  return rows;
-}
-
-// 선생님용 단건 조회(풀이 본문 포함).
-async function getAttemptWork(attemptId) {
-  await ready;
-  const { rows } = await pool.query(
-    `SELECT a.id, a.problem_id, a.student_key, a.student_name, a.correct,
-            a.submitted_answer, a.duration_ms, a.created_at, a.work,
-            p.title, p.difficulty, p.unit, p.image_path
-     FROM attempts a
-     JOIN problems p ON p.id = a.problem_id
-     WHERE a.id = $1`,
-    [attemptId]
-  );
-  return rows[0] || null;
-}
-
-// 한 학생의 전체 성적 요약(총 시도/정답 수, 난이도별, 최근 활동일)
-async function getStudentSummary(studentKey) {
-  await ready;
-  const { rows } = await pool.query(
-    `SELECT
-       COUNT(*)::int AS total,
-       COUNT(*) FILTER (WHERE a.correct)::int AS correct,
-       COUNT(DISTINCT a.problem_id)::int AS distinct_problems,
-       MAX(a.created_at) AS last_solved_at
-     FROM attempts a
-     WHERE a.student_key = $1`,
-    [studentKey]
-  );
-  const byDifficulty = await pool.query(
-    `SELECT p.difficulty,
-            COUNT(*)::int AS total,
-            COUNT(*) FILTER (WHERE a.correct)::int AS correct
-     FROM attempts a
-     JOIN problems p ON p.id = a.problem_id
-     WHERE a.student_key = $1
-     GROUP BY p.difficulty`,
-    [studentKey]
-  );
-  return { ...rows[0], byDifficulty: byDifficulty.rows };
-}
-
-// 최근 기록부터 순서대로(연속 정답 계산 등에 사용)
-async function listRecentAttempts(studentKey, limit = 30) {
-  await ready;
-  const { rows } = await pool.query(
-    `SELECT a.correct, a.created_at, p.title, p.difficulty
-     FROM attempts a
-     JOIN problems p ON p.id = a.problem_id
-     WHERE a.student_key = $1
-     ORDER BY a.created_at DESC
-     LIMIT $2`,
-    [studentKey, Math.min(Math.max(Number(limit) || 30, 1), 100)]
-  );
-  return rows;
-}
-
-// 오답 노트: 마지막 시도가 오답인 문제들(그 뒤에 맞혔으면 목록에서 빠짐)
-async function listWrongProblems(studentKey, limit = 50) {
-  await ready;
-  const { rows } = await pool.query(
-    `WITH last_attempt AS (
-       SELECT DISTINCT ON (problem_id)
-              problem_id, correct, created_at
-       FROM attempts
-       WHERE student_key = $1
-       ORDER BY problem_id, created_at DESC
-     )
-     SELECT p.id, p.title, p.difficulty, p.unit, p.image_path, p.question_type,
-            la.created_at AS last_tried_at,
-            EXISTS (
-              SELECT 1 FROM attempts w
-              WHERE w.student_key = $1 AND w.problem_id = p.id AND w.work IS NOT NULL
-            ) AS has_work
-     FROM last_attempt la
-     JOIN problems p ON p.id = la.problem_id
-     WHERE la.correct = false
-     ORDER BY la.created_at DESC
-     LIMIT $2`,
-    [studentKey, Math.min(Math.max(Number(limit) || 50, 1), 200)]
-  );
-  return rows;
-}
-
-// 선생님용: 학생별 성적 요약
+// 학생별 도전 횟수와 정답률
 async function listStudentStats(limit = 100) {
   await ready;
   const { rows } = await pool.query(
-    `SELECT a.student_key,
-            (ARRAY_AGG(a.student_name ORDER BY a.created_at DESC) FILTER (WHERE a.student_name IS NOT NULL))[1] AS student_name,
+    `SELECT student_name,
             COUNT(*)::int AS total,
-            COUNT(*) FILTER (WHERE a.correct)::int AS correct,
-            MAX(a.created_at) AS last_solved_at
-     FROM attempts a
-     GROUP BY a.student_key
-     ORDER BY MAX(a.created_at) DESC
+            COUNT(*) FILTER (WHERE correct)::int AS correct,
+            COUNT(*) FILTER (WHERE correct AND prize IS NOT NULL AND prize <> '')::int AS prizes,
+            MAX(created_at) AS last_solved_at
+     FROM show_rounds
+     GROUP BY student_name
+     ORDER BY MAX(created_at) DESC
      LIMIT $1`,
     [Math.min(Math.max(Number(limit) || 100, 1), 500)]
   );
   return rows;
 }
 
-// 선생님용: 학생들이 많이 틀린 문제 순위(어떤 문제가 실제로 어려운지)
+// 실제로 아무도 못 맞힌 문제 순위. 다음에 낼 문제를 고를 때 쓴다.
+// 문제가 지워졌을 수 있으므로 problems가 아니라 기록에 남은 제목을 기준으로 묶는다.
 async function listHardestProblems(limit = 10) {
   await ready;
   const { rows } = await pool.query(
-    `SELECT p.id, p.title, p.difficulty, p.unit,
+    `SELECT MIN(problem_id) AS id,
+            problem_title AS title,
+            MIN(difficulty) AS difficulty,
             COUNT(*)::int AS total,
-            COUNT(*) FILTER (WHERE a.correct)::int AS correct
-     FROM attempts a
-     JOIN problems p ON p.id = a.problem_id
-     GROUP BY p.id, p.title, p.difficulty, p.unit
-     HAVING COUNT(*) >= 1
-     ORDER BY (COUNT(*) FILTER (WHERE a.correct))::float / COUNT(*) ASC, COUNT(*) DESC
+            COUNT(*) FILTER (WHERE correct)::int AS correct
+     FROM show_rounds
+     WHERE problem_title IS NOT NULL
+     GROUP BY problem_title
+     ORDER BY (COUNT(*) FILTER (WHERE correct))::float / COUNT(*) ASC, COUNT(*) DESC
      LIMIT $1`,
     [Math.min(Math.max(Number(limit) || 10, 1), 50)]
   );
   return rows;
 }
 
-// 선생님용: 최근 N일간 일자별 풀이 수/정답 수
+// 날짜별 도전/성공 수 (행사를 며칠 했고 반응이 어땠는지)
 async function listDailyActivity(days = 14) {
   await ready;
   const span = Math.min(Math.max(Number(days) || 14, 1), 90);
   const { rows } = await pool.query(
-    `SELECT to_char(date_trunc('day', a.created_at), 'YYYY-MM-DD') AS day,
+    `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
             COUNT(*)::int AS total,
-            COUNT(*) FILTER (WHERE a.correct)::int AS correct
-     FROM attempts a
-     WHERE a.created_at >= now() - ($1::text || ' days')::interval
+            COUNT(*) FILTER (WHERE correct)::int AS correct
+     FROM show_rounds
+     WHERE created_at >= now() - ($1::text || ' days')::interval
      GROUP BY 1
      ORDER BY 1`,
     [String(span)]
   );
   return rows;
+}
+
+// 학생이 칠판에 실제로 쓴 풀이를 다시 보기 위한 목록/단건 조회.
+// 목록에는 획 데이터를 싣지 않는다(한 건이 수십 KB라 목록이 무거워진다).
+async function listRoundsWithWork({ studentName, limit = 30 } = {}) {
+  await ready;
+  const conditions = ['work IS NOT NULL'];
+  const values = [];
+  if (studentName) {
+    values.push(studentName);
+    conditions.push(`student_name = $${values.length}`);
+  }
+  values.push(Math.min(Math.max(Number(limit) || 30, 1), 100));
+
+  const { rows } = await pool.query(
+    `SELECT id, problem_id, problem_title, difficulty, student_name,
+            correct, prize, duration_ms, created_at
+     FROM show_rounds
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY created_at DESC
+     LIMIT $${values.length}`,
+    values
+  );
+  return rows;
+}
+
+async function getRoundWork(roundId) {
+  await ready;
+  const { rows } = await pool.query(
+    `SELECT r.id, r.problem_id, r.problem_title, r.difficulty, r.student_name,
+            r.correct, r.prize, r.duration_ms, r.created_at, r.work,
+            p.image_path
+     FROM show_rounds r
+     LEFT JOIN problems p ON p.id = r.problem_id
+     WHERE r.id = $1`,
+    [roundId]
+  );
+  return rows[0] || null;
 }
 
 module.exports = {
@@ -534,14 +393,8 @@ module.exports = {
   listShowRounds,
   listUsedProblemIds,
   listRecentPrizes,
-  recordAttempt,
-  saveAttemptWork,
-  getLatestWorkForProblem,
-  listAttemptsWithWork,
-  getAttemptWork,
-  getStudentSummary,
-  listRecentAttempts,
-  listWrongProblems,
+  listRoundsWithWork,
+  getRoundWork,
   listStudentStats,
   listHardestProblems,
   listDailyActivity,

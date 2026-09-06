@@ -3,81 +3,32 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>스트릿매쓰파이터</title>
-<link rel="stylesheet" href="css/style.css" />
+<title>스트릿 매쓰 파이터 - 오늘의 결과</title>
+<link rel="stylesheet" href="css/public.css" />
 </head>
 <body>
-  <div class="home-wrap">
-    <div class="home-inner">
-      <header class="home-hero">
-        <h1 class="home-title">스트릿<em>매쓰</em>파이터</h1>
-        <p class="home-subtitle">
-          <span id="greeting">난이도를 고르면 바로 한 판 시작</span>
-          <button type="button" class="link-inline" id="nameBtn">이름 설정</button>
-        </p>
-      </header>
+  <main class="wrap">
+    <header class="hero">
+      <h1 class="title">스트릿 매쓰 파이터</h1>
+      <p class="subtitle">점심시간 강당 수학 대결</p>
+    </header>
 
-      <!-- 내 기록: 지금까지 푼 문제 / 정답률 / 연속 정답 -->
-      <section class="my-stats" id="myStats" hidden>
-        <div class="my-stats-row">
-          <div class="my-stat">
-            <span class="my-stat-value" id="statSolved">0</span>
-            <span class="my-stat-label">푼 문제</span>
-          </div>
-          <div class="my-stat">
-            <span class="my-stat-value" id="statAccuracy">0%</span>
-            <span class="my-stat-label">정답률</span>
-          </div>
-          <div class="my-stat">
-            <span class="my-stat-value" id="statStreak">0</span>
-            <span class="my-stat-label">연속 정답</span>
-          </div>
-        </div>
-        <a class="my-stats-link" id="reviewLink" href="review.html" hidden>
-          <span id="reviewLinkText">오답 노트</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-        </a>
-      </section>
+    <section class="score" id="score" hidden>
+      <div class="score-item"><span class="score-num" id="statTotal">0</span><span class="score-label">도전</span></div>
+      <div class="score-item"><span class="score-num" id="statWins">0</span><span class="score-label">성공</span></div>
+    </section>
 
-      <div class="difficulty-list">
-        <button class="difficulty-bar" data-difficulty="하" data-level="하">
-          <span class="difficulty-bar-main">
-            <span class="difficulty-bar-label">하</span>
-            <span class="difficulty-bar-caption">쉬움</span>
-          </span>
-          <span class="difficulty-bar-meta">
-            <span class="difficulty-bar-time">⏱ 1분 30초</span>
-            <svg class="difficulty-bar-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-          </span>
-        </button>
-        <button class="difficulty-bar" data-difficulty="중" data-level="중">
-          <span class="difficulty-bar-main">
-            <span class="difficulty-bar-label">중</span>
-            <span class="difficulty-bar-caption">보통</span>
-          </span>
-          <span class="difficulty-bar-meta">
-            <span class="difficulty-bar-time">⏱ 3분</span>
-            <svg class="difficulty-bar-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-          </span>
-        </button>
-        <button class="difficulty-bar" data-difficulty="상" data-level="상">
-          <span class="difficulty-bar-main">
-            <span class="difficulty-bar-label">상</span>
-            <span class="difficulty-bar-caption">어려움</span>
-          </span>
-          <span class="difficulty-bar-meta">
-            <span class="difficulty-bar-time">⏱ 5분</span>
-            <svg class="difficulty-bar-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-          </span>
-        </button>
-      </div>
-    </div>
-  </div>
+    <h2 class="section-title">오늘의 정답자</h2>
+    <ul class="winners" id="winners"></ul>
 
-  <script src="vendor/anime.umd.min.js"></script>
-  <script src="vendor/motion.min.js"></script>
-  <script src="js/anim.js"></script>
-  <script src="js/student.js"></script>
-  <script src="js/index.js"></script>
+    <p class="empty" id="empty" hidden>아직 오늘 정답자가 없어.<br />강당으로 와서 도전해봐 🔥</p>
+    <p class="empty" id="failed" hidden>결과를 불러오지 못했어. 잠시 후 다시 열어줘.</p>
+
+    <footer class="foot">
+      <button type="button" class="refresh" id="refreshBtn">새로고침</button>
+    </footer>
+  </main>
+
+  <script src="js/public.js"></script>
 </body>
 </html>
