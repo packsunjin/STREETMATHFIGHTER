@@ -352,6 +352,12 @@ body {
   user-select: none;
 }
 
+/* 클래스 선택자가 브라우저 기본 [hidden] 규칙을 이기기 때문에, 숨김을 명시해야
+   사진 로딩에 실패했을 때 깨진 이미지 아이콘이 남지 않는다. */
+.board-photo[hidden] {
+  display: none;
+}
+
 .board-canvas {
   position: absolute;
   inset: 0;
@@ -568,4 +574,69 @@ body {
   .pick-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+/* ---- 어느 화면에서든 떠 있는 표시들 ---- */
+.utility {
+  position: fixed;
+  top: 1.5vmin;
+  right: 1.5vmin;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 1vmin;
+}
+
+.utility-btn {
+  width: 6vmin;
+  height: 6vmin;
+  border: 0.3vmin solid var(--line);
+  border-radius: 1.5vmin;
+  background: var(--paper);
+  color: var(--muted);
+  font-size: 2.6vmin;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.badge {
+  padding: 1vmin 2vmin;
+  border-radius: 999px;
+  font-size: 1.9vmin;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.badge-info {
+  background: var(--line);
+  color: var(--muted);
+}
+
+.badge-warn {
+  background: var(--wrong);
+  color: #fff;
+}
+
+/* ---- 사진 로딩 실패 ---- */
+.board-photo-error {
+  position: absolute;
+  top: 50%;
+  left: 6%;
+  transform: translateY(-50%);
+  margin: 0;
+  max-width: 50%;
+  font-size: 3vmin;
+  line-height: 1.6;
+  color: var(--muted);
+  text-align: center;
+  pointer-events: none;
+}
+
+/* ---- 사진 확대 배율 ---- */
+.zoom-label {
+  min-width: 8vmin;
+  text-align: center;
+  font-size: 2.2vmin;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }

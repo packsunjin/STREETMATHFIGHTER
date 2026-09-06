@@ -43,6 +43,8 @@ const state = {
   paused: false,
   startedAt: 0,
   lastTickSecond: null,
+  photoZoom: 1, // 사진 확대 배율(강당 뒤에서 안 보이면 키운다)
+  ignoreServerUsed: false, // "새 회차 시작"을 누르면 서버가 준 사용 기록을 무시
 };
 
 /* ---------- 화면 전환 ---------- */
@@ -81,9 +83,11 @@ async function loadProblems() {
   const data = await getJSON(API.problems);
   state.problems = data.problems;
   // 서버가 "최근에 쓴 문제"를 알려준다. 진행 중 새로고침해도 같은 문제가 다시 안 나온다.
-  state.problems.forEach((p) => {
-    if (p.used) state.used.add(p.id);
-  });
+  if (!state.ignoreServerUsed) {
+    state.problems.forEach((p) => {
+      if (p.used) state.used.add(p.id);
+    });
+  }
   updatePickCounts();
 }
 
@@ -104,6 +108,31 @@ function pickProblem(level) {
   const pool = remaining(level);
   if (!pool.length) return null;
   return pool[Math.floor(Math.random() * pool.length)];
+}
+
+/* ---------- 사진 미리 받기 ---------- */
+
+// 문제를 띄운 뒤에 사진을 받기 시작하면 몇 초간 빈 화면이 보인다.
+// 예고 화면("제 N문제")이 떠 있는 동안 미리 받아두면 시작하자마자 바로 보인다.
+const preloaded = new Map(); // url -> Promise<HTMLImageElement>
+
+function preloadImage(url) {
+  if (!url) return Promise.reject(new Error('사진 주소가 없음'));
+  if (!preloaded.has(url)) {
+    preloaded.set(
+      url,
+      new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => {
+          preloaded.delete(url); // 실패한 건 캐시에 남기지 않는다(다시 시도 가능하게)
+          reject(new Error('사진을 불러오지 못함'));
+        };
+        image.src = url;
+      })
+    );
+  }
+  return preloaded.get(url);
 }
 
 /* ---------- 타이머 ---------- */
@@ -169,14 +198,29 @@ function layoutPhoto() {
   const maxH = boardH - pad * 2;
   const maxW = boardW * PHOTO_MAX_WIDTH_RATIO;
 
-  const scale = Math.min(maxH / photo.naturalHeight, maxW / photo.naturalWidth);
+  const fit = Math.min(maxH / photo.naturalHeight, maxW / photo.naturalWidth);
+  const scale = fit * state.photoZoom;
   const width = photo.naturalWidth * scale;
   const height = photo.naturalHeight * scale;
 
   photo.style.width = `${width}px`;
   photo.style.height = `${height}px`;
   photo.style.left = `${pad}px`;
-  photo.style.top = `${(boardH - height) / 2}px`;
+  // 키워서 판보다 커지면 위쪽을 맞춘다(가운데 정렬하면 문제 윗부분이 잘린다)
+  photo.style.top = `${Math.max((boardH - height) / 2, 0)}px`;
+}
+
+const ZOOM_STEP = 0.15;
+const ZOOM_RANGE = { min: 0.6, max: 2.4 };
+
+function setPhotoZoom(next) {
+  state.photoZoom = clampNumber(next, ZOOM_RANGE.min, ZOOM_RANGE.max);
+  $('zoomLabel').textContent = `${Math.round(state.photoZoom * 100)}%`;
+  layoutPhoto();
+}
+
+function clampNumber(value, min, max) {
+  return Math.min(Math.max(value, min), max);
 }
 
 /* ---------- 라운드 진행 ---------- */
@@ -198,6 +242,9 @@ function goReady(level) {
   const limit = TIME_LIMITS[problem.difficulty] ?? DEFAULT_LIMIT;
   $('readyTime').textContent = `제한시간 ${formatTime(limit)}`;
   show('ready');
+
+  // 이 화면이 떠 있는 동안 사진을 미리 받아둔다(시작하자마자 보이도록)
+  preloadImage(problem.imageUrl).catch(() => {});
 }
 
 async function goPlay() {
@@ -212,7 +259,16 @@ async function goPlay() {
 
   const photo = $('boardPhoto');
   photo.src = problem.imageUrl;
+  photo.hidden = false;
+  $('photoError').hidden = true;
+  // 사진을 못 받으면 빈 판만 남아서 진행자가 무슨 상황인지 알 수 없다.
+  // 최소한 "왜 안 보이는지"는 화면에 띄운다(그 사이에도 필기는 계속 된다).
+  preloadImage(problem.imageUrl).catch(() => {
+    photo.hidden = true;
+    $('photoError').hidden = false;
+  });
 
+  setPhotoZoom(1);
   show('play');
   SMFDraw.clear();
   // 화면이 보이게 된 다음에야 크기를 잴 수 있다
@@ -266,21 +322,17 @@ async function saveRound() {
   const prize = state.correct ? $('prizeInput').value.trim() : '';
   const problem = state.problem;
 
-  try {
-    await postJSON(API.rounds, {
-      problemId: problem.id,
-      problemTitle: problem.title,
-      difficulty: problem.difficulty,
-      studentName: name,
-      correct: state.correct,
-      prize,
-      durationMs: state.durationMs,
-      work: SMFDraw.serialize(),
-    });
-  } catch (err) {
-    // 기록이 안 되더라도 행사 진행은 멈추면 안 된다. 조용히 넘어가고 화면은 이어간다.
-    console.error('라운드 기록 실패', err);
-  }
+  // 전송이 실패해도 큐에 남아 계속 재시도된다(정답자 기록은 절대 잃으면 안 된다).
+  await SMFQueue.save({
+    problemId: problem.id,
+    problemTitle: problem.title,
+    difficulty: problem.difficulty,
+    studentName: name,
+    correct: state.correct,
+    prize,
+    durationMs: state.durationMs,
+    work: SMFDraw.serialize(),
+  });
 
   state.used.add(problem.id);
   loadPrizes();
@@ -371,10 +423,57 @@ async function goHall() {
   SMFShowAnim.listIn(list.querySelectorAll('.hall-row'));
 }
 
+/* ---------- 저장 상태 / 세션 ---------- */
+
+// 아직 서버로 못 보낸 기록이 있으면 진행자에게 조용히 알려준다.
+// 행사를 끊지는 않되, 끝나기 전에 알아챌 수 있어야 한다.
+function renderQueueStatus({ pending }) {
+  const el = $('queueBadge');
+  el.hidden = pending === 0;
+  el.textContent = `저장 대기 ${pending}건`;
+}
+
+// 점심시간 내내 켜두면 세션이 만료돼 기록이 401로 튕긴다.
+// 주기적으로 확인해서, 끊겼으면 화면에 띄우고 다시 로그인하게 한다.
+const SESSION_CHECK_MS = 4 * 60 * 1000;
+
+async function watchSession() {
+  const check = async () => {
+    try {
+      const me = await getJSON(API.me);
+      $('sessionWarning').hidden = Boolean(me.authenticated);
+    } catch (err) {
+      // 네트워크 문제일 수도 있으니 경고까지는 띄우지 않는다(큐가 알아서 재시도한다)
+    }
+  };
+  setInterval(check, SESSION_CHECK_MS);
+}
+
+/* ---------- 전체화면 ---------- */
+
+// 전자칠판에서 브라우저 주소창이 보이면 공간도 아깝고 학생이 잘못 누른다.
+function toggleFullscreen() {
+  if (document.fullscreenElement) {
+    document.exitFullscreen?.();
+  } else {
+    document.documentElement.requestFullscreen?.().catch(() => {});
+  }
+}
+
 /* ---------- 버튼 연결 ---------- */
 
 function wireUp() {
   $('startBtn').addEventListener('click', goPick);
+  $('fullscreenBtn').addEventListener('click', toggleFullscreen);
+  $('resetBtn').addEventListener('click', () => {
+    // 하루에 두 번 진행하거나, 문제를 다 쓴 뒤 다시 돌리고 싶을 때.
+    // 기록은 그대로 두고 "이번 회차에 쓴 문제" 표시만 지운다.
+    state.used.clear();
+    state.ignoreServerUsed = true;
+    state.roundNo = 0;
+    updatePickCounts();
+    goPick();
+  });
   $('hallBtn').addEventListener('click', goHall);
   $('hallBackBtn').addEventListener('click', goIdle);
   $('pickBackBtn').addEventListener('click', goIdle);
@@ -430,11 +529,24 @@ function wireUp() {
     SMFDraw.setEraser(on);
     $('eraserBtn').classList.toggle('active', on);
   });
+  $('zoomInBtn').addEventListener('click', () => setPhotoZoom(state.photoZoom + ZOOM_STEP));
+  $('zoomOutBtn').addEventListener('click', () => setPhotoZoom(state.photoZoom - ZOOM_STEP));
   $('undoBtn').addEventListener('click', () => SMFDraw.undo());
   $('clearBtn').addEventListener('click', () => SMFDraw.clear());
 
   $('boardPhoto').addEventListener('load', layoutPhoto);
   window.addEventListener('resize', layoutPhoto);
+
+  // 전자칠판에 키보드를 붙여 쓰는 경우를 위한 단축키.
+  // 이름/상품을 입력하는 중에는 글자가 단축키로 먹히면 안 되므로 제외한다.
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.key === 'f' || e.key === 'F') toggleFullscreen();
+    if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      SMFDraw.undo();
+    }
+  });
 
   // 첫 터치에 소리를 깨운다(브라우저 자동재생 정책)
   document.addEventListener('pointerdown', SMFShowAnim.unlockAudio, { once: true });
@@ -459,8 +571,11 @@ async function boot() {
   }
 
   SMFDraw.init({ board: $('board'), canvas: $('boardCanvas') });
+  SMFQueue.init({ onStatus: renderQueueStatus });
+  watchSession();
 
   await Promise.all([loadProblems().catch(() => {}), loadPrizes(), loadToday()]);
+  setPhotoZoom(1);
   show('idle');
 }
 

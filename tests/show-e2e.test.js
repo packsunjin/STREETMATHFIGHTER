@@ -209,6 +209,105 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     await context.close();
   });
 
+  test('네트워크가 끊겨도 행사는 진행되고 기록은 큐에 남는다', async () => {
+    // 강당에 학생이 앉아 있는데 와이파이가 끊겼다고 진행이 멈추면 안 되고,
+    // "누가 상 받았는지"가 사라져도 안 된다.
+    const { page, context } = await openShow();
+    await startRound(page);
+
+    await page.route('**/api/show/rounds', (route) => route.abort());
+
+    await page.click('#revealBtn');
+    await page.waitForSelector('#stageReveal:not([hidden])');
+    await page.click('#correctBtn');
+    await page.waitForSelector('#stageAward:not([hidden])');
+    await page.fill('#nameInput', '1-4 끊김테스트');
+    await page.fill('#prizeInput', '초코바');
+    await page.click('#awardSaveBtn');
+
+    // 전송이 실패해도 축하 화면까지 그대로 이어져야 한다
+    await page.waitForSelector('#stageCelebrate:not([hidden])', { timeout: 5000 });
+    assert.equal(await page.evaluate(() => SMFQueue.pendingCount()), 1, '기록이 큐에 남아야 함');
+    assert.ok(await page.locator('#queueBadge').isVisible(), '저장 대기 표시가 보여야 함');
+
+    // 네트워크가 돌아오면 알아서 보낸다
+    await page.unroute('**/api/show/rounds');
+    await page.evaluate(() => SMFQueue.flush());
+    await page.waitForFunction(() => SMFQueue.pendingCount() === 0, null, { timeout: 5000 });
+
+    const saved = await page.evaluate(async () => {
+      const res = await fetch('api/show/rounds', { credentials: 'include' });
+      return (await res.json()).rounds[0];
+    });
+    createdRoundIds.push(saved.id);
+    assert.equal(saved.studentName, '1-4 끊김테스트');
+    assert.ok(await page.locator('#queueBadge').isHidden(), '다 보내면 표시가 사라져야 함');
+
+    await context.close();
+  });
+
+  test('사진을 못 받아도 진행되고 이유가 화면에 뜬다', async () => {
+    const { page, context } = await openShow();
+    // 사진 주소를 못 받는 것으로 바꿔치기
+    await page.evaluate(() => {
+      state.problems.forEach((p) => {
+        p.imageUrl = 'does-not-exist-9999.png';
+      });
+    });
+    await startRound(page);
+
+    assert.ok(await page.locator('#photoError').isVisible(), '왜 안 보이는지 알려줘야 함');
+    assert.ok(await page.locator('#boardPhoto').isHidden());
+
+    // 사진이 없어도 타이머와 필기는 살아 있어야 한다
+    const board = await page.locator('#board').boundingBox();
+    await page.mouse.move(board.x + 300, board.y + 200);
+    await page.mouse.down();
+    await page.mouse.move(board.x + 500, board.y + 300);
+    await page.mouse.up();
+    assert.ok(await page.evaluate(() => SMFDraw.serialize() !== null), '사진 없어도 필기는 돼야 함');
+
+    await context.close();
+  });
+
+  test('사진 확대/축소가 실제로 사진 크기를 바꾼다', async () => {
+    const { page, context } = await openShow();
+    await startRound(page);
+
+    const widthOf = () =>
+      page.evaluate(() => document.getElementById('boardPhoto').getBoundingClientRect().width);
+
+    const base = await widthOf();
+    await page.click('#zoomInBtn');
+    await page.click('#zoomInBtn');
+    assert.ok((await widthOf()) > base, '확대하면 커져야 함');
+
+    await page.click('#zoomOutBtn');
+    await page.click('#zoomOutBtn');
+    assert.equal(await page.locator('#zoomLabel').textContent(), '100%');
+    assert.ok(Math.abs((await widthOf()) - base) < 2, '되돌리면 원래 크기');
+
+    await context.close();
+  });
+
+  test('새 회차 시작을 누르면 이미 쓴 문제가 다시 뽑힌다', async () => {
+    const { page, context } = await openShow();
+
+    await page.click('#startBtn');
+    await page.waitForSelector('#stagePick:not([hidden])');
+    const before = await page.evaluate(() => state.used.size);
+
+    await page.click('#pickBackBtn');
+    await page.waitForSelector('#stageIdle:not([hidden])');
+    await page.click('#resetBtn');
+    await page.waitForSelector('#stagePick:not([hidden])');
+
+    assert.equal(await page.evaluate(() => state.used.size), 0, '사용 표시가 지워져야 함');
+    assert.ok(before >= 0);
+
+    await context.close();
+  });
+
   test('타이머를 멈추면 실제로 멈춰 있는다', async () => {
     const { page, context } = await openShow();
     await startRound(page);

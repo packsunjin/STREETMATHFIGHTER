@@ -9,6 +9,13 @@
 </head>
 <body class="show-body">
 
+<!-- 어느 화면에서든 떠 있는 표시들 -->
+<div class="utility">
+  <span class="badge badge-warn" id="sessionWarning" hidden>로그인이 풀렸어요. 새로고침 후 다시 로그인해주세요</span>
+  <span class="badge badge-info" id="queueBadge" hidden></span>
+  <button type="button" class="utility-btn" id="fullscreenBtn" title="전체화면 (F)">⛶</button>
+</div>
+
 <!-- 로그인 안 된 상태에서 잠깐 보이는 화면 -->
 <div class="stage" id="authGate">
   <div class="center-block">
@@ -32,6 +39,7 @@
     <div class="idle-actions">
       <button type="button" class="btn btn-primary btn-huge" id="startBtn">도전 시작</button>
       <button type="button" class="btn btn-ghost btn-big" id="hallBtn">명예의 전당</button>
+      <button type="button" class="btn btn-ghost" id="resetBtn">새 회차 시작 (문제 다시 뽑기)</button>
     </div>
   </div>
 </section>
@@ -91,6 +99,7 @@
 
   <div class="board" id="board">
     <img class="board-photo" id="boardPhoto" alt="문제" />
+    <p class="board-photo-error" id="photoError" hidden>사진을 불러오지 못했어요.<br />인터넷 연결을 확인해주세요.</p>
     <canvas class="board-canvas" id="boardCanvas"></canvas>
   </div>
 
@@ -100,6 +109,11 @@
       <button type="button" class="swatch" data-color="#e0393e" style="--c:#e0393e"></button>
       <button type="button" class="swatch" data-color="#1d4ed8" style="--c:#1d4ed8"></button>
       <button type="button" class="swatch" data-color="#16a34a" style="--c:#16a34a"></button>
+    </div>
+    <div class="tool-group">
+      <button type="button" class="btn btn-tool" id="zoomOutBtn" title="사진 작게">−</button>
+      <span class="zoom-label" id="zoomLabel">100%</span>
+      <button type="button" class="btn btn-tool" id="zoomInBtn" title="사진 크게">+</button>
     </div>
     <div class="tool-group">
       <button type="button" class="btn btn-tool" id="eraserBtn">지우개</button>
@@ -165,6 +179,7 @@
 <script src="/vendor/motion.min.js"></script>
 <script src="js/show-anim.js"></script>
 <script src="js/show-draw.js"></script>
+<script src="js/show-queue.js"></script>
 <script src="js/show.js"></script>
 </body>
 </html>
