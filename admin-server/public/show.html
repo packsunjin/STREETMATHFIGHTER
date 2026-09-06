@@ -155,6 +155,8 @@
     <label class="field">
       <span class="field-label">이름 (반 + 이름)</span>
       <input class="field-input" id="nameInput" type="text" maxlength="40" placeholder="예) 2-3 김민수" autocomplete="off" />
+      <!-- 오늘 이미 나온 학생은 눌러서 넣는다(화상 키보드 타이핑이 제일 느리다) -->
+      <div class="name-chips" id="nameChips" hidden></div>
     </label>
     <label class="field">
       <span class="field-label">상품</span>
@@ -175,6 +177,7 @@
     <div class="celebrate-name" id="celebrateName">2-3 김민수</div>
     <div class="celebrate-prize" id="celebratePrize">컵라면</div>
     <button type="button" class="btn btn-primary btn-huge" id="celebrateNextBtn">다음 문제</button>
+    <button type="button" class="btn btn-ghost" id="celebrateChangeBtn">난이도 바꾸기</button>
   </div>
 </section>
 

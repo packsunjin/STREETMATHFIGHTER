@@ -429,9 +429,8 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
       state.used.clear();
       state.ignoreServerUsed = true;
     });
+    // "다음 문제"는 같은 난이도로 바로 예고 화면까지 간다
     await page.click('#celebrateNextBtn');
-    await page.waitForSelector('#stagePick:not([hidden])');
-    await page.locator('.pick-card:not([disabled])').first().click();
     await page.waitForSelector('#stageReady:not([hidden])');
     await page.click('#goBtn');
     await page.waitForTimeout(4000);
@@ -494,6 +493,76 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     const square = await measure(1000, 1000);
     assert.equal(square.overflow, false, '정사각 사진이 판을 넘음');
     assert.ok(square.heightRatio > 0.8, `정사각 사진이 높이를 못 씀 (${square.heightRatio})`);
+
+    await context.close();
+  });
+
+  test('다음 문제는 난이도를 다시 고르지 않고 바로 시작한다', async () => {
+    // 행사는 속도가 생명이다. 라운드마다 난이도를 다시 고르면 흐름이 끊긴다.
+    const { page, context } = await openShow();
+    await startRound(page);
+
+    await page.click('#revealBtn');
+    await page.waitForSelector('#stageReveal:not([hidden])');
+    await page.click('#correctBtn');
+    await page.waitForSelector('#stageAward:not([hidden])');
+    await page.fill('#nameInput', '2-4 속도테스트');
+    await page.click('#awardSaveBtn');
+    await page.waitForSelector('#stageCelebrate:not([hidden])');
+
+    const saved = await page.evaluate(async () => {
+      const res = await fetch('api/show/rounds', { credentials: 'include' });
+      return (await res.json()).rounds[0];
+    });
+    createdRoundIds.push(saved.id);
+
+    // 같은 난이도에 문제가 남아 있으면 난이도 화면을 건너뛴다
+    await page.evaluate(() => {
+      state.used.clear();
+      updatePickCounts();
+    });
+    await page.click('#celebrateNextBtn');
+    await page.waitForSelector('#stageReady:not([hidden])', { timeout: 3000 });
+
+    // 문제를 다 썼으면 난이도 화면으로 되돌아간다
+    await page.evaluate(() => {
+      state.problems.forEach((p) => state.used.add(p.id));
+      updatePickCounts();
+      goNextRound();
+    });
+    await page.waitForSelector('#stagePick:not([hidden])', { timeout: 3000 });
+
+    await context.close();
+  });
+
+  test('오늘 나온 이름은 눌러서 넣을 수 있다', async () => {
+    // 전자칠판 화상 키보드로 이름을 치는 게 이 흐름에서 제일 느리다.
+    const { page, context } = await openShow();
+
+    await page.evaluate(() => {
+      state.rounds = [
+        { studentName: '3-1 최다은', correct: true },
+        { studentName: '3-1 최다은', correct: false },
+        { studentName: '1-2 오지호', correct: true },
+      ];
+      state.correct = true;
+      state.durationMs = 1000;
+      goAward(true);
+    });
+    await page.waitForSelector('#stageAward:not([hidden])');
+
+    const chips = await page.$$eval('.name-chip', (cs) => cs.map((c) => c.textContent));
+    assert.deepEqual(chips, ['3-1 최다은', '1-2 오지호'], '같은 이름은 한 번만');
+
+    await page.click('.name-chip');
+    assert.equal(await page.inputValue('#nameInput'), '3-1 최다은');
+
+    // 오늘 아무도 안 나왔으면 칩 줄 자체를 숨긴다
+    await page.evaluate(() => {
+      state.rounds = [];
+      goAward(true);
+    });
+    assert.ok(await page.locator('#nameChips').isHidden());
 
     await context.close();
   });

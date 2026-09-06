@@ -46,6 +46,7 @@ const state = {
   lastTickSecond: null,
   photoZoom: 1, // 사진 확대 배율(강당 뒤에서 안 보이면 키운다)
   lastPrize: '', // 상품은 대개 같은 걸 계속 주므로 다음 입력에 미리 채운다
+  lastLevel: null, // 방금 고른 난이도. 다음 라운드를 한 번에 시작하려고 기억한다
   ignoreServerUsed: false, // "새 회차 시작"을 누르면 서버가 준 사용 기록을 무시
 };
 
@@ -305,7 +306,18 @@ function goPick() {
 function goReady(level) {
   const problem = pickProblem(level);
   if (!problem) return;
+  state.lastLevel = level;
   startWithProblem(problem);
+}
+
+// 행사는 속도가 생명이라, 매 라운드 난이도를 다시 고르게 하지 않는다.
+// 방금 낸 난이도에 문제가 남아 있으면 바로 다음 문제로 넘어간다.
+function goNextRound() {
+  if (state.lastLevel !== null && remaining(state.lastLevel).length > 0) {
+    goReady(state.lastLevel);
+    return;
+  }
+  goPick();
 }
 
 function startWithProblem(problem) {
@@ -402,6 +414,7 @@ function goAward(correct) {
   }
 
   $('nameInput').value = '';
+  renderNameChips();
   // 상품은 보통 같은 걸 계속 주므로 직전 값을 미리 채워둔다(고치고 싶으면 지우면 됨)
   $('prizeInput').value = correct ? state.lastPrize || '' : '';
   show('award');
@@ -434,6 +447,7 @@ async function saveRound() {
   if (state.correct) state.lastPrize = prize;
   state.used.add(problem.id);
   loadPrizes();
+  loadToday(); // 방금 넣은 이름이 다음 라운드 칩에 바로 나오게
 
   if (state.correct) {
     $('celebrateName').textContent = name;
@@ -441,13 +455,15 @@ async function saveRound() {
     show('celebrate');
     SMFShowAnim.confetti();
   } else {
-    goIdle();
+    // 틀렸어도 흐름은 끊지 않는다. 다음 문제 예고로 바로 넘어가고,
+    // 진행자가 한 박자 쉬고 싶으면 "시작!"을 늦게 누르면 된다.
+    goNextRound();
   }
 }
 
 function skipRound() {
   if (state.problem) state.used.add(state.problem.id);
-  goIdle();
+  goNextRound();
 }
 
 async function goIdle() {
@@ -526,6 +542,34 @@ function updateDrawButtons() {
   const empty = SMFDraw.isEmpty();
   $('undoBtn').disabled = empty;
   $('clearBtn').disabled = empty;
+}
+
+// 전자칠판 화상 키보드로 "2-3 김민수"를 치는 게 이 흐름에서 제일 느리다.
+// 점심시간이면 같은 학생이 여러 번 나오므로, 오늘 나온 이름은 눌러서 넣는다.
+const NAME_CHIP_LIMIT = 8;
+
+function renderNameChips() {
+  const box = $('nameChips');
+  box.textContent = '';
+
+  const seen = [];
+  (state.rounds || []).forEach((round) => {
+    if (round.studentName && !seen.includes(round.studentName)) seen.push(round.studentName);
+  });
+
+  const names = seen.slice(0, NAME_CHIP_LIMIT);
+  box.hidden = names.length === 0;
+
+  names.forEach((name) => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'name-chip';
+    chip.textContent = name; // 사람이 입력한 값이라 textContent로만
+    chip.addEventListener('click', () => {
+      $('nameInput').value = name;
+    });
+    box.appendChild(chip);
+  });
 }
 
 /* ---------- 저장 상태 / 세션 ---------- */
@@ -619,7 +663,8 @@ function wireUp() {
 
   $('awardSaveBtn').addEventListener('click', saveRound);
   $('awardSkipBtn').addEventListener('click', skipRound);
-  $('celebrateNextBtn').addEventListener('click', goPick);
+  $('celebrateNextBtn').addEventListener('click', goNextRound);
+  $('celebrateChangeBtn').addEventListener('click', goPick);
   $('nameInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') $('prizeInput').focus();
   });
