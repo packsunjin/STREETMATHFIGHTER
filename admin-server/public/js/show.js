@@ -45,6 +45,7 @@ const state = {
   startedAt: 0,
   lastTickSecond: null,
   photoZoom: 1, // 사진 확대 배율(강당 뒤에서 안 보이면 키운다)
+  lastPrize: '', // 상품은 대개 같은 걸 계속 주므로 다음 입력에 미리 채운다
   ignoreServerUsed: false, // "새 회차 시작"을 누르면 서버가 준 사용 기록을 무시
 };
 
@@ -335,9 +336,26 @@ async function goPlay() {
   startTimer();
 }
 
+// 정답이 "7"일 수도 있고 "a_n = 2·3^(n-1) (단, n은 자연수)"일 수도 있다.
+// 크기를 하나로 고정하면 짧은 답은 초라하고 긴 답은 화면을 넘겨서 버튼을 가린다.
+// 길이에 따라 단계적으로 줄인다.
+const ANSWER_SIZES = [
+  { upTo: 3, vmin: 22 },
+  { upTo: 6, vmin: 15 },
+  { upTo: 12, vmin: 9 },
+  { upTo: 24, vmin: 6 },
+  { upTo: Infinity, vmin: 4.2 },
+];
+
+function fitAnswerText(el, answer) {
+  el.textContent = answer;
+  const size = ANSWER_SIZES.find((s) => answer.length <= s.upTo);
+  el.style.fontSize = `${size.vmin}vmin`;
+}
+
 function goReveal() {
   stopTimer();
-  $('revealAnswer').textContent = state.problem.answer;
+  fitAnswerText($('revealAnswer'), String(state.problem.answer ?? ''));
   show('reveal');
   SMFShowAnim.sounds.reveal();
   SMFShowAnim.slam($('revealAnswer'));
@@ -359,7 +377,8 @@ function goAward(correct) {
   }
 
   $('nameInput').value = '';
-  $('prizeInput').value = '';
+  // 상품은 보통 같은 걸 계속 주므로 직전 값을 미리 채워둔다(고치고 싶으면 지우면 됨)
+  $('prizeInput').value = correct ? state.lastPrize || '' : '';
   show('award');
   setTimeout(() => $('nameInput').focus(), 300);
 }
@@ -387,6 +406,7 @@ async function saveRound() {
     work: SMFDraw.serialize(),
   });
 
+  if (state.correct) state.lastPrize = prize;
   state.used.add(problem.id);
   loadPrizes();
 
@@ -580,6 +600,11 @@ function toggleFullscreen() {
 function wireUp() {
   $('startBtn').addEventListener('click', goPick);
   $('fullscreenBtn').addEventListener('click', toggleFullscreen);
+  $('muteBtn').addEventListener('click', () => {
+    const muted = SMFShowAnim.toggleMute();
+    $('muteBtn').textContent = muted ? '🔇' : '🔊';
+    $('muteBtn').classList.toggle('off', muted);
+  });
   $('resetBtn').addEventListener('click', () => {
     // 하루에 두 번 진행하거나, 문제를 다 쓴 뒤 다시 돌리고 싶을 때.
     // 기록은 그대로 두고 "이번 회차에 쓴 문제" 표시만 지운다.

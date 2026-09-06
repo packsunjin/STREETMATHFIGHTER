@@ -288,6 +288,9 @@ body {
   gap: 2vmin;
   width: 100%;
   padding: 1.6vmin 3vmin;
+  /* 오른쪽 위에 떠 있는 전체화면/소리 버튼과 겹치지 않게 자리를 비운다.
+     여기에만 필요한 이유는, 다른 화면은 내용이 가운데에 있기 때문. */
+  padding-right: 18vmin;
   border-bottom: 0.4vmin solid var(--line);
 }
 
@@ -418,13 +421,17 @@ body {
 }
 
 .reveal-answer {
-  padding: 2vmin 8vmin;
+  max-width: 88vw;
+  padding: 2vmin 6vmin;
   border: 1vmin solid var(--ink);
   border-radius: 6vmin;
+  /* 글자 크기는 정답 길이에 따라 JS가 정한다(짧으면 크게, 길면 줄여서) */
   font-size: 22vmin;
   font-weight: 900;
-  line-height: 1.1;
-  word-break: break-all;
+  line-height: 1.15;
+  /* 단어 중간을 자르지 않고 되도록 띄어쓰기에서 줄바꿈 */
+  overflow-wrap: break-word;
+  word-break: keep-all;
 }
 
 .judge-actions {
@@ -586,6 +593,10 @@ body {
   display: flex;
   align-items: center;
   gap: 1vmin;
+}
+
+.utility-btn.off {
+  opacity: 0.45;
 }
 
 .utility-btn {

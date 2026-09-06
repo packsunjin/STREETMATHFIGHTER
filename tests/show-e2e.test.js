@@ -80,6 +80,15 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
 
     await page.goto(`${baseURL}/show.html`);
     await page.waitForSelector('#stageIdle:not([hidden])');
+
+    // 테스트끼리 문제를 소진하지 않도록, 서버가 알려준 "이미 쓴 문제"를 무시하고
+    // 매번 전부 고를 수 있는 상태에서 시작한다(진행 화면의 "새 회차 시작"과 같다).
+    await page.evaluate(() => {
+      state.used.clear();
+      state.ignoreServerUsed = true;
+      updatePickCounts();
+    });
+
     return { page, context, errors };
   }
 
@@ -182,9 +191,11 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     const { page, context, errors } = await openShow();
     await startRound(page);
 
+    // 어떤 문제가 뽑힐지는 무작위라, 뽑힌 문제의 정답과 비교한다
+    const expected = await page.evaluate(() => String(state.problem.answer));
     await page.click('#revealBtn');
     await page.waitForSelector('#stageReveal:not([hidden])');
-    assert.equal(await page.locator('#revealAnswer').textContent(), '77');
+    assert.equal(await page.locator('#revealAnswer').textContent(), expected);
 
     await page.click('#correctBtn');
     await page.waitForSelector('#stageAward:not([hidden])');
@@ -382,6 +393,78 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     });
     assert.equal(clash.overlap, false, '목록과 버튼이 겹치면 안 됨');
     assert.equal(clash.offscreen, false, '목록이 화면 밖으로 나가면 안 됨');
+
+    await context.close();
+  });
+
+  test('정답이 길어도 화면을 넘기지 않고 판정 버튼이 가려지지 않는다', async () => {
+    // 정답은 "7"일 수도 있고 "a_n = 2·3^(n-1) (단, n은 자연수)"일 수도 있다.
+    // 크기를 고정하면 긴 답이 화면을 덮어 "맞혔다/틀렸다"를 못 누른다.
+    const { page, context } = await openShow();
+
+    for (const answer of ['7', 'x = 3 또는 x = -5', 'a_n = 2·3^(n-1) (단, n은 자연수)']) {
+      const fit = await page.evaluate((value) => {
+        state.problem = { answer: value };
+        goReveal();
+        const el = document.getElementById('revealAnswer');
+        const box = el.getBoundingClientRect();
+        const judge = document.querySelector('#stageReveal .judge-actions').getBoundingClientRect();
+        const back = document.getElementById('backToBoardBtn').getBoundingClientRect();
+        return {
+          overflow: box.width > window.innerWidth + 1 || box.height > window.innerHeight + 1,
+          buttonsVisible: judge.bottom <= window.innerHeight && back.bottom <= window.innerHeight,
+          labelVisible: document.querySelector('.reveal-label').getBoundingClientRect().top >= 0,
+        };
+      }, answer);
+
+      assert.equal(fit.overflow, false, `"${answer}"가 화면을 넘침`);
+      assert.equal(fit.buttonsVisible, true, `"${answer}"일 때 판정 버튼이 가려짐`);
+      assert.equal(fit.labelVisible, true, `"${answer}"일 때 "정답은" 라벨이 잘림`);
+    }
+
+    await context.close();
+  });
+
+  test('상품은 직전에 준 것이 미리 채워진다', async () => {
+    // 보통 같은 상품을 계속 주므로 매번 다시 치게 하지 않는다.
+    const { page, context } = await openShow();
+    await startRound(page);
+
+    await page.click('#revealBtn');
+    await page.waitForSelector('#stageReveal:not([hidden])');
+    await page.click('#correctBtn');
+    await page.waitForSelector('#stageAward:not([hidden])');
+    assert.equal(await page.inputValue('#prizeInput'), '', '처음에는 비어 있다');
+
+    await page.fill('#nameInput', '2-2 상품테스트');
+    await page.fill('#prizeInput', '초코파이');
+    await page.click('#awardSaveBtn');
+    await page.waitForSelector('#stageCelebrate:not([hidden])');
+
+    const saved = await page.evaluate(async () => {
+      const res = await fetch('api/show/rounds', { credentials: 'include' });
+      return (await res.json()).rounds[0];
+    });
+    createdRoundIds.push(saved.id);
+
+    // 다음 라운드에서 상품이 미리 채워져 있어야 한다
+    await page.evaluate(() => {
+      state.used.clear();
+      state.ignoreServerUsed = true;
+    });
+    await page.click('#celebrateNextBtn');
+    await page.waitForSelector('#stagePick:not([hidden])');
+    await page.locator('.pick-card:not([disabled])').first().click();
+    await page.waitForSelector('#stageReady:not([hidden])');
+    await page.click('#goBtn');
+    await page.waitForTimeout(4000);
+    await page.click('#revealBtn');
+    await page.waitForSelector('#stageReveal:not([hidden])');
+    await page.click('#correctBtn');
+    await page.waitForSelector('#stageAward:not([hidden])');
+
+    assert.equal(await page.inputValue('#prizeInput'), '초코파이');
+    assert.equal(await page.inputValue('#nameInput'), '', '이름은 매번 새로 받아야 한다');
 
     await context.close();
   });

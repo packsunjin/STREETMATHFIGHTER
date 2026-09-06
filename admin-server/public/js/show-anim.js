@@ -29,8 +29,17 @@ window.SMFShowAnim = (function () {
     getAudio();
   }
 
+  // 강당 스피커가 크게 잡혀 있거나 다른 행사와 겹칠 때를 위해 끌 수 있게 한다.
+  let muted = false;
+
+  function toggleMute() {
+    muted = !muted;
+    return muted;
+  }
+
   /** [주파수, 시작(초), 길이(초)] 목록을 순서대로 울린다. */
   function tones(list, type = 'triangle', volume = 0.22) {
+    if (muted) return;
     const ctx = getAudio();
     if (!ctx) return;
     const now = ctx.currentTime;
@@ -203,6 +212,7 @@ window.SMFShowAnim = (function () {
   return {
     enabled,
     sounds,
+    toggleMute,
     unlockAudio,
     stageIn,
     listIn,
