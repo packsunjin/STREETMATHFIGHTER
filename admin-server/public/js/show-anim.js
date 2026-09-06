@@ -300,7 +300,7 @@ window.SMFShowAnim = (function () {
    * 급하게 두 번 누르면 엉뚱한 게 눌린다(브라우저 테스트에서 실제로 났다).
    * 그래서 버튼과 카드는 지나침 없이 빠르게 앉히고, 장식만 스프링으로 둔다.
    */
-  const TAPPABLE = '.btn, .pick-face, .choose-row';
+  const TAPPABLE = '.btn, .pick-face';
   const SETTLE_MS = 500;
 
   function stageIn(el) {
@@ -313,7 +313,7 @@ window.SMFShowAnim = (function () {
     const all = Array.from(
       el.querySelectorAll(
         '.show-logo:not([data-solo]), .show-tagline, .idle-actions > *, .idle-emblem, ' +
-          '.stage-title, .pick-face, .center-block > *:not([data-solo]), .choose-row'
+          '.pick-face, .center-block > *:not([data-solo])'
       )
     );
     const tappable = all.filter((node) => node.matches(TAPPABLE));
@@ -671,7 +671,7 @@ window.SMFShowAnim = (function () {
    * transform이 남으면 학생이 쓴 글씨와 펜 끝이 통째로 어긋난다. */
 
   const SWAP_OUT_MS = 460;
-  const SWAP_IN_MS = 780;
+  const SWAP_IN_MS = 620;
 
   function isFlatStage(el) {
     return !!el && el.classList.contains('stage-play');
@@ -1001,10 +1001,14 @@ window.SMFShowAnim = (function () {
     enabled,
     /**
      * 등장 연출이 끝나 눌러도 안전해지기까지 걸리는 시간(ms).
-     * 마지막 버튼의 시작이 밀리는 만큼(차례 등장) 여유를 더한 값이다.
-     * 화면을 잠그는 쪽이 이 값을 보고 맞춘다.
+     *
+     * 버튼이 아직 움직이는 동안에는 "보이는 자리"와 "눌리는 자리"가 달라서
+     * 옆 버튼이 눌린다. 그래서 버튼을 움직이는 것 중 제일 긴 것에 맞춘다:
+     * 무대 판 자체가 도는 교대(SWAP_IN_MS)와, 판 안에서 버튼이 차례로
+     * 올라오는 연출(SETTLE_MS + 차례로 밀리는 시간) 둘 중 더 긴 쪽.
+     * 하나만 보고 잡았다가 교대가 길어지면서 실제로 오클릭이 났다.
      */
-    settleMs: SETTLE_MS + 220,
+    settleMs: Math.max(SWAP_IN_MS, SETTLE_MS + 200) + 140,
     sounds,
     boom,
     toggleMute,

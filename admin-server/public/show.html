@@ -45,8 +45,8 @@
       </h1>
 
       <div class="idle-actions">
-        <button type="button" class="btn btn-primary btn-huge" id="startBtn">도전 시작</button>
-        <button type="button" class="btn btn-ghost" id="resetBtn">낸 문제 초기화</button>
+        <button type="button" class="btn btn-primary btn-huge" id="startBtn">시작</button>
+        <button type="button" class="btn btn-ghost" id="resetBtn">처음부터</button>
       </div>
     </div>
 
@@ -62,7 +62,6 @@
 
 <!-- 2. 난이도 고르기 -->
 <section class="stage" id="stagePick" hidden>
-  <h2 class="stage-title">난이도를 골라</h2>
   <!-- 세 겹인 이유:
        .pick-card  버튼. 절대 안 기울인다. 3D로 돌린 <button>은 크롬이 그 자리를
                    못 짚어서 눌리지 않는다(가운데 카드만 눌리는 증상으로 확인).
@@ -91,16 +90,7 @@
       </span></span>
     </button>
   </div>
-  <button type="button" class="btn btn-ghost btn-big" id="chooseBtn">문제 직접 고르기</button>
   <button type="button" class="btn btn-ghost btn-big stage-back" id="pickBackBtn">뒤로</button>
-</section>
-
-<!-- 2-1. 문제 직접 고르기 -->
-<section class="stage stage-list" id="stageChoose" hidden>
-  <h2 class="stage-title">낼 문제를 골라</h2>
-  <div class="choose-list" id="chooseList"></div>
-  <p class="empty-note" id="chooseEmpty" hidden>등록된 문제가 없어. 관리자 화면에서 먼저 등록해줘.</p>
-  <button type="button" class="btn btn-ghost btn-big stage-back" id="chooseBackBtn">뒤로</button>
 </section>
 
 <!-- 3. 문제 예고 -->
@@ -173,7 +163,7 @@
       <button type="button" class="btn btn-correct btn-huge" id="correctBtn">맞혔다!</button>
       <button type="button" class="btn btn-wrong btn-huge" id="wrongBtn">틀렸다</button>
     </div>
-    <button type="button" class="btn btn-ghost" id="backToBoardBtn">풀이 화면 다시 보기</button>
+    <button type="button" class="btn btn-ghost" id="backToBoardBtn">칠판 다시 보기</button>
   </div>
 </section>
 

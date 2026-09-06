@@ -27,7 +27,6 @@ const stages = {
   play: $('stagePlay'),
   reveal: $('stageReveal'),
   celebrate: $('stageCelebrate'),
-  choose: $('stageChoose'),
 };
 
 const state = {
@@ -185,55 +184,6 @@ function preloadImage(url) {
     );
   }
   return preloaded.get(url);
-}
-
-/* ---------- 문제 직접 고르기 ---------- */
-
-// 난이도 랜덤이 기본이지만, "오늘은 이거 낼래" 하는 경우가 있다.
-// 이미 쓴 문제도 목록에는 보여주되 눌리지 않게 해서, 왜 안 나오는지 알 수 있게 한다.
-function goChoose() {
-  const list = $('chooseList');
-  list.textContent = '';
-
-  const sorted = [...state.problems].sort((a, b) => {
-    const order = { 하: 0, 중: 1, 상: 2 };
-    return (order[a.difficulty] ?? 9) - (order[b.difficulty] ?? 9);
-  });
-
-  $('chooseEmpty').hidden = sorted.length > 0;
-
-  sorted.forEach((problem) => {
-    const used = state.used.has(problem.id);
-
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = 'choose-row';
-    row.disabled = used;
-
-    const badge = document.createElement('span');
-    badge.className = 'choose-badge';
-    badge.textContent = problem.difficulty;
-
-    const body = document.createElement('span');
-    body.className = 'choose-body';
-
-    // 관리자가 입력한 값이라 textContent로만 넣는다(태그로 해석 금지)
-    const title = document.createElement('span');
-    title.className = 'choose-title';
-    title.textContent = problem.title;
-
-    const meta = document.createElement('span');
-    meta.className = 'choose-meta';
-    meta.textContent = used ? '이번 회차에 이미 냈음' : problem.unit || '단원 미지정';
-
-    body.append(title, meta);
-    row.append(badge, body);
-    row.addEventListener('click', () => startWithProblem(problem));
-    list.appendChild(row);
-  });
-
-  show('choose');
-  SMFShowAnim.listIn(list.querySelectorAll('.choose-row'), 30);
 }
 
 /* ---------- 타이머 ---------- */
@@ -562,8 +512,6 @@ function wireUp() {
     card.addEventListener('click', () => goReady(card.dataset.level));
   });
 
-  $('chooseBtn').addEventListener('click', goChoose);
-  $('chooseBackBtn').addEventListener('click', goPick);
   $('goBtn').addEventListener('click', goPlay);
   $('readyBackBtn').addEventListener('click', goPick);
 

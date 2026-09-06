@@ -176,14 +176,6 @@ body {
   transform-style: preserve-3d;
 }
 
-.stage-title {
-  margin: 0;
-  font-family: var(--serif);
-  font-size: 5.6vmin;
-  font-weight: 700;
-  color: var(--fg);
-}
-
 .stage-back {
   position: absolute;
   left: 4vmin;
@@ -968,85 +960,6 @@ body {
   font-size: 2.2vmin;
   color: var(--fg-soft);
   font-variant-numeric: tabular-nums;
-}
-
-/* ---- 목록이 긴 화면(문제 고르기) ---- */
-.stage-list {
-  justify-content: flex-start;
-  padding-top: 5vmin;
-  /* 왼쪽 아래 "돌아가기" 버튼이 목록 마지막 줄을 가리지 않게 자리를 비워둔다 */
-  padding-bottom: 15vmin;
-}
-
-.choose-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1.2vmin;
-  width: min(150vmin, 100%);
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 0.5vmin;
-  transform-style: preserve-3d;
-}
-
-.choose-row {
-  display: flex;
-  align-items: center;
-  gap: 2.5vmin;
-  width: 100%;
-  padding: 2vmin 3vmin;
-  border: 0.18vmin solid var(--glass-line);
-  border-radius: 2.5vmin;
-  background: rgba(255, 255, 255, 0.045);
-  color: var(--fg);
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
-  box-shadow:
-    inset 0 0.2vmin 0 rgba(255, 255, 255, 0.16),
-    0 1vmin 2.4vmin rgba(0, 0, 0, 0.5);
-}
-
-.choose-row[disabled] {
-  opacity: 0.26;
-  pointer-events: none;
-}
-
-.choose-badge {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 6vmin;
-  height: 6vmin;
-  border: 0.18vmin solid rgba(255, 255, 255, 0.45);
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.05);
-  font-size: 2.8vmin;
-  font-weight: 900;
-  color: var(--fg);
-}
-
-.choose-body {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4vmin;
-}
-
-.choose-title {
-  font-size: 3.2vmin;
-  font-weight: 900;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.choose-meta {
-  font-size: 2vmin;
-  color: var(--fg-faint);
 }
 
 /* ---- 정답 공개 전 뜸 들이기 ---- */

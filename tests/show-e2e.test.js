@@ -111,6 +111,22 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     await page.waitForTimeout(4200);
   }
 
+  test('진행자가 목록을 뒤지는 화면은 없다', async () => {
+    // 강당 앞에서 문제 목록을 넘겨보고 있을 일이 없다. 손 들면 바로 낸다.
+    const { page, context } = await openShow();
+    await page.click('#startBtn');
+    await page.waitForSelector('#stagePick:not([hidden])');
+
+    assert.equal(await page.locator('#stageChoose').count(), 0, '문제 목록 화면이 남아 있음');
+    assert.equal(await page.locator('#chooseBtn').count(), 0, '목록으로 가는 버튼이 남아 있음');
+
+    // 화면이 스스로를 설명하지 않는다. 하/중/상이 보이는데 "난이도를 골라"까지
+    // 써 붙이면 게임 메뉴 말투가 된다.
+    assert.equal(await page.locator('.stage-title').count(), 0, '설명하는 제목이 남아 있음');
+
+    await context.close();
+  });
+
   test('난이도는 상/중/하 셋뿐이다', async () => {
     const { page, context } = await openShow();
     await page.click('#startBtn');
@@ -589,36 +605,6 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     await page.click('#zoomOutBtn');
     assert.equal(await page.locator('#zoomLabel').textContent(), '100%');
     assert.ok(Math.abs((await widthOf()) - base) < 2, '되돌리면 원래 크기');
-
-    await context.close();
-  });
-
-  test('문제를 직접 골라서 낼 수 있고, 이미 낸 문제는 못 고른다', async () => {
-    const { page, context } = await openShow();
-
-    await page.click('#startBtn');
-    await page.waitForSelector('#stagePick:not([hidden])');
-    await page.click('#chooseBtn');
-    await page.waitForSelector('#stageChoose:not([hidden])');
-
-    assert.ok((await page.locator('.choose-row').count()) > 0, '등록된 문제가 목록에 나와야 함');
-
-    await page.evaluate(() => {
-      state.used.add(state.problems[0].id);
-    });
-    await page.click('#chooseBackBtn');
-    await page.click('#chooseBtn');
-    await page.waitForSelector('#stageChoose:not([hidden])');
-    assert.ok(
-      (await page.locator('.choose-row[disabled]').count()) > 0,
-      '이미 낸 문제는 선택 불가여야 함'
-    );
-
-    const available = page.locator('.choose-row:not([disabled])');
-    const title = await available.first().locator('.choose-title').textContent();
-    await available.first().click();
-    await page.waitForSelector('#stageReady:not([hidden])');
-    assert.equal(await page.evaluate(() => state.problem.title), title, '고른 문제가 나와야 함');
 
     await context.close();
   });
