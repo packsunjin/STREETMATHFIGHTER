@@ -26,6 +26,8 @@ const {
   listStudentStats,
   listHardestProblems,
   listDailyActivity,
+  listAttemptsWithWork,
+  getAttemptWork,
 } = require('../shared/db');
 
 const PORT = process.env.ADMIN_PORT || 4000;
@@ -252,6 +254,70 @@ app.get('/api/stats/problem-counts', requireAuth, async (req, res, next) => {
 });
 
 // 선생님용: 학생들이 실제로 어떻게 풀고 있는지(등록된 문제 수가 아니라 성취도)
+// ---- 학생이 실제로 쓴 풀이 보기 ----
+// 정답률만 봐서는 "왜 틀렸는지"를 알 수 없어서, 학생이 사진 위에 쓴 필기를 그대로 본다.
+// 목록에는 필기 본문을 싣지 않는다(한 건당 수십 KB라 목록이 무거워짐).
+
+app.get('/api/attempts', requireAuth, async (req, res, next) => {
+  try {
+    const studentKey = typeof req.query.studentKey === 'string' ? req.query.studentKey : null;
+    const problemId = req.query.problemId ? Number(req.query.problemId) : null;
+    if (problemId !== null && (!Number.isInteger(problemId) || problemId <= 0)) {
+      return res.status(400).json({ error: '올바르지 않은 문제 번호입니다.' });
+    }
+
+    const rows = await listAttemptsWithWork({ studentKey, problemId, limit: 30 });
+    res.json({
+      attempts: rows.map((row) => ({
+        id: row.id,
+        problemId: row.problem_id,
+        studentKey: row.student_key,
+        studentName: row.student_name || null,
+        correct: row.correct,
+        submittedAnswer: row.submitted_answer,
+        durationMs: row.duration_ms,
+        createdAt: row.created_at,
+        title: row.title,
+        difficulty: row.difficulty,
+        unit: row.unit || null,
+        imageUrl: row.image_path,
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/attempts/:id', requireAuth, async (req, res, next) => {
+  try {
+    const attemptId = Number(req.params.id);
+    if (!Number.isInteger(attemptId) || attemptId <= 0) {
+      return res.status(400).json({ error: '올바르지 않은 기록 번호입니다.' });
+    }
+
+    const row = await getAttemptWork(attemptId);
+    if (!row) return res.status(404).json({ error: '기록을 찾을 수 없습니다.' });
+
+    res.json({
+      id: row.id,
+      problemId: row.problem_id,
+      studentKey: row.student_key,
+      studentName: row.student_name || null,
+      correct: row.correct,
+      submittedAnswer: row.submitted_answer,
+      durationMs: row.duration_ms,
+      createdAt: row.created_at,
+      title: row.title,
+      difficulty: row.difficulty,
+      unit: row.unit || null,
+      imageUrl: row.image_path,
+      work: row.work,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.get('/api/stats/students', requireAuth, async (req, res, next) => {
   try {
     const [students, hardest, daily] = await Promise.all([

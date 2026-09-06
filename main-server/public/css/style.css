@@ -1198,3 +1198,102 @@ button,
   white-space: pre-wrap;
   color: var(--text);
 }
+
+/* ---- 저장된 풀이 다시 보기 ---- */
+.work-peek {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  margin-right: 4px;
+  border: 1px solid var(--line, #111);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  background: #fff;
+}
+.work-peek:hover,
+.work-peek:focus-visible {
+  background: #111;
+  color: #fff;
+  outline: none;
+}
+
+.work-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(17, 17, 17, 0.55);
+}
+
+.work-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(920px, 100%);
+  height: min(88vh, 100%);
+  padding: 16px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+}
+
+.work-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.work-panel-title {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.work-panel-caption {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #666;
+}
+
+.work-close {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #e5e5e5;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 15px;
+  cursor: pointer;
+}
+.work-close:hover {
+  background: #f2f2f2;
+}
+
+.work-canvas-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #eee;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.work-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+@media (max-width: 700px) {
+  .work-overlay { padding: 10px; }
+  .work-panel { height: 92vh; padding: 12px; }
+}

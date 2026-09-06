@@ -40,6 +40,25 @@ function makeProblemButton(problem) {
   const meta = document.createElement('span');
   meta.className = 'difficulty-bar-meta';
 
+  // 그때 사진에 쓴 필기가 남아 있으면 다시 볼 수 있게 한다.
+  // (카드 전체는 "다시 풀기"라서 이 버튼은 클릭이 위로 안 새게 막는다)
+  if (problem.hasWork) {
+    const workBtn = document.createElement('span');
+    workBtn.className = 'work-peek';
+    workBtn.setAttribute('role', 'button');
+    workBtn.tabIndex = 0;
+    workBtn.textContent = '내 풀이';
+    const openWork = (event) => {
+      event.stopPropagation();
+      showWork(problem);
+    };
+    workBtn.addEventListener('click', openWork);
+    workBtn.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') openWork(event);
+    });
+    meta.appendChild(workBtn);
+  }
+
   const when = document.createElement('span');
   when.className = 'difficulty-bar-time';
   when.textContent = formatDate(problem.lastTriedAt);
@@ -51,6 +70,27 @@ function makeProblemButton(problem) {
     SMFAnim.navigate(`solve.html?id=${problem.id}`);
   });
   return btn;
+}
+
+async function showWork(problem) {
+  try {
+    const res = await fetch(
+      `/api/me/work?studentKey=${encodeURIComponent(SMFStudent.getKey())}&problemId=${problem.id}`
+    );
+    const data = await res.json();
+    if (!data.work) {
+      alert('저장된 필기가 없어.');
+      return;
+    }
+    await SMFWork.open({
+      imageSrc: problem.imageUrl,
+      work: data.work,
+      title: problem.title,
+      caption: `${formatDate(data.createdAt)}에 쓴 풀이`,
+    });
+  } catch (err) {
+    alert('풀이를 불러오지 못했어.');
+  }
 }
 
 async function loadWrongProblems() {

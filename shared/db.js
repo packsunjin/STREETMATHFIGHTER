@@ -68,6 +68,10 @@ const ready = pool.query(`
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   );
 
+  -- 학생이 사진 위에 쓴 풀이(획 좌표). 용량이 커서 목록 조회에는 절대 섞지 않고,
+  -- 한 건씩 따로 읽는다. 없는 경우가 많아 NULL 허용.
+  ALTER TABLE attempts ADD COLUMN IF NOT EXISTS work JSONB;
+
   CREATE INDEX IF NOT EXISTS idx_attempts_student ON attempts (student_key, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_attempts_problem ON attempts (problem_id);
   CREATE INDEX IF NOT EXISTS idx_attempts_created ON attempts (created_at DESC);
@@ -212,6 +216,75 @@ async function recordAttempt({
   return rows[0];
 }
 
+// 채점 직후 학생이 쓴 풀이(획)를 해당 시도에 붙인다.
+// student_key까지 조건에 넣어, 남의 시도에 덮어쓰는 걸 SQL 레벨에서 막는다.
+async function saveAttemptWork(attemptId, studentKey, work) {
+  await ready;
+  const { rows } = await pool.query(
+    `UPDATE attempts SET work = $3 WHERE id = $1 AND student_key = $2 RETURNING id`,
+    [attemptId, studentKey, work]
+  );
+  return rows[0] || null;
+}
+
+// 학생 본인이 자기 풀이를 다시 볼 때. 문제당 가장 최근에 남긴 풀이 하나.
+async function getLatestWorkForProblem(studentKey, problemId) {
+  await ready;
+  const { rows } = await pool.query(
+    `SELECT id, work, correct, created_at
+     FROM attempts
+     WHERE student_key = $1 AND problem_id = $2 AND work IS NOT NULL
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [studentKey, problemId]
+  );
+  return rows[0] || null;
+}
+
+// 선생님이 "이 학생이 이 문제를 어떻게 풀었나"를 볼 때 쓰는 목록(풀이 본문은 제외).
+async function listAttemptsWithWork({ studentKey, problemId, limit = 30 } = {}) {
+  await ready;
+  const conditions = ['a.work IS NOT NULL'];
+  const values = [];
+  if (studentKey) {
+    values.push(studentKey);
+    conditions.push(`a.student_key = $${values.length}`);
+  }
+  if (problemId) {
+    values.push(problemId);
+    conditions.push(`a.problem_id = $${values.length}`);
+  }
+  values.push(Math.min(Math.max(Number(limit) || 30, 1), 100));
+
+  const { rows } = await pool.query(
+    `SELECT a.id, a.problem_id, a.student_key, a.student_name, a.correct,
+            a.submitted_answer, a.duration_ms, a.created_at,
+            p.title, p.difficulty, p.unit, p.image_path
+     FROM attempts a
+     JOIN problems p ON p.id = a.problem_id
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY a.created_at DESC
+     LIMIT $${values.length}`,
+    values
+  );
+  return rows;
+}
+
+// 선생님용 단건 조회(풀이 본문 포함).
+async function getAttemptWork(attemptId) {
+  await ready;
+  const { rows } = await pool.query(
+    `SELECT a.id, a.problem_id, a.student_key, a.student_name, a.correct,
+            a.submitted_answer, a.duration_ms, a.created_at, a.work,
+            p.title, p.difficulty, p.unit, p.image_path
+     FROM attempts a
+     JOIN problems p ON p.id = a.problem_id
+     WHERE a.id = $1`,
+    [attemptId]
+  );
+  return rows[0] || null;
+}
+
 // 한 학생의 전체 성적 요약(총 시도/정답 수, 난이도별, 최근 활동일)
 async function getStudentSummary(studentKey) {
   await ready;
@@ -265,7 +338,11 @@ async function listWrongProblems(studentKey, limit = 50) {
        ORDER BY problem_id, created_at DESC
      )
      SELECT p.id, p.title, p.difficulty, p.unit, p.image_path, p.question_type,
-            la.created_at AS last_tried_at
+            la.created_at AS last_tried_at,
+            EXISTS (
+              SELECT 1 FROM attempts w
+              WHERE w.student_key = $1 AND w.problem_id = p.id AND w.work IS NOT NULL
+            ) AS has_work
      FROM last_attempt la
      JOIN problems p ON p.id = la.problem_id
      WHERE la.correct = false
@@ -341,6 +418,10 @@ module.exports = {
   updateProblem,
   deleteProblem,
   recordAttempt,
+  saveAttemptWork,
+  getLatestWorkForProblem,
+  listAttemptsWithWork,
+  getAttemptWork,
   getStudentSummary,
   listRecentAttempts,
   listWrongProblems,

@@ -883,6 +883,67 @@ window.addEventListener('resize', () => {
 
 // ---- 정답 채점 ----
 
+// 필기를 서버에 보낼 때는 그대로 보내지 않고 줄인다. 사진 위 한 문제 풀이라도
+// 점이 수만 개가 나오는데, 대부분은 눈에 안 보일 만큼 촘촘하게 붙어 있다.
+// - 좌표는 소수점 4자리(사진 폭 800px 기준 0.08px)까지만: 눈으로 차이를 못 느낌
+// - 직전에 남긴 점과 너무 가까운 점은 버림(획의 시작/끝점은 항상 남김)
+const WORK_COORD_DECIMALS = 4;
+const WORK_MIN_POINT_GAP = 0.0025; // 사진 폭 대비 비율
+
+function roundCoord(value) {
+  return Number(value.toFixed(WORK_COORD_DECIMALS));
+}
+
+function serializeStroke(stroke) {
+  const flat = [];
+  let lastX = null;
+  let lastY = null;
+
+  stroke.points.forEach((point, index) => {
+    const isEdge = index === 0 || index === stroke.points.length - 1;
+    if (!isEdge && lastX !== null) {
+      const dx = point.x - lastX;
+      const dy = point.y - lastY;
+      if (Math.hypot(dx, dy) < WORK_MIN_POINT_GAP) return;
+    }
+    lastX = point.x;
+    lastY = point.y;
+    flat.push(roundCoord(point.x), roundCoord(point.y));
+  });
+
+  // 점이 하나뿐인 획(톡 찍은 점)도 선분으로 만들어야 서버 형식(짝수 개)에 맞는다
+  if (flat.length === 2) flat.push(flat[0], flat[1]);
+
+  return {
+    c: stroke.color,
+    w: Number(stroke.widthFrac.toFixed(6)),
+    e: stroke.composite === 'destination-out' ? 1 : 0,
+    p: flat,
+  };
+}
+
+function serializeWork() {
+  const serialized = strokes.map(serializeStroke).filter((stroke) => stroke.p.length >= 2);
+  if (!serialized.length) return null;
+  return { v: 1, strokes: serialized };
+}
+
+// 채점이 끝난 뒤 따로 올린다. 실패해도 점수에는 영향이 없으므로 조용히 넘어간다.
+async function uploadWork(attemptId) {
+  if (!attemptId) return;
+  const work = serializeWork();
+  if (!work) return;
+  try {
+    await fetch(`/api/attempts/${attemptId}/work`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ studentKey: SMFStudent.getKey(), work }),
+    });
+  } catch (err) {
+    /* 필기 저장 실패는 학생에게 알리지 않는다 */
+  }
+}
+
 async function checkAnswer(value) {
   try {
     const res = await fetch(`/api/problems/${problemId}/check`, {
@@ -952,6 +1013,10 @@ answerForm.addEventListener('submit', async (e) => {
     answered = false;
     return;
   }
+
+  // 학생이 사진 위에 쓴 풀이를 이 시도에 붙인다(오답 노트/선생님 화면에서 다시 봄).
+  // 결과 표시를 막지 않도록 기다리지 않는다.
+  uploadWork(result.attemptId);
 
   submitAnswerBtn.disabled = true;
   if (isObjective) {
