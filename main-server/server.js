@@ -24,6 +24,13 @@ app.use(helmet({ contentSecurityPolicy: false })); // CSP는 인라인 스크립
 app.use(compression());
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use(express.json({ limit: '32kb' }));
+
+// 학생 이름이 실려 있는 공개 페이지라 검색엔진에 올라가지 않게 한다.
+// (강당에서 부르는 이름이라도, 인터넷에 색인되는 건 다른 얘기다)
+app.use((req, res, next) => {
+  res.set('X-Robots-Tag', 'noindex, nofollow');
+  next();
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/healthz', (req, res) => res.json({ ok: true }));

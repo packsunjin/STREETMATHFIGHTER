@@ -144,3 +144,60 @@ test('문제를 지워도 상 받은 기록은 남는다', async () => {
   assert.equal(kept.problemId, null, '문제 참조만 끊긴다');
   assert.equal(kept.problemTitle, doomed.title, '제목은 스냅샷으로 남아 있다');
 });
+
+test('이상한 필기 데이터는 저장하지 않되 라운드 기록은 남는다', async () => {
+  // 행사 중에 필기 형식이 어긋났다고 "누가 상 받았는지"까지 날아가면 안 된다.
+  const res = await agent.post('/api/show/rounds').send({
+    problemId: problem.id,
+    problemTitle: problem.title,
+    studentName: '2-9 이상한필기',
+    correct: true,
+    prize: '사탕',
+    work: { v: 1, strokes: [{ c: 'javascript:alert(1)', w: 999, p: ['a', 'b'] }] },
+  });
+  assert.equal(res.status, 201);
+  createdRoundIds.push(res.body.id);
+
+  const { rows } = await db.pool.query('SELECT work FROM show_rounds WHERE id = $1', [res.body.id]);
+  assert.equal(rows[0].work, null, '이상한 필기는 저장하지 않는다');
+
+  const rounds = await agent.get('/api/show/rounds');
+  assert.ok(
+    rounds.body.rounds.some((r) => r.id === res.body.id),
+    '라운드 기록 자체는 남아야 함'
+  );
+});
+
+test('정상 필기는 저장되고, 좌표 범위를 벗어나면 거부된다', async () => {
+  const ok = await agent.post('/api/show/rounds').send({
+    problemId: problem.id,
+    studentName: '2-9 정상필기',
+    correct: true,
+    work: { v: 1, strokes: [{ c: '#e0393e', w: 0.004, e: 0, p: [0.1, 0.2, 0.3, 0.4] }] },
+  });
+  createdRoundIds.push(ok.body.id);
+
+  const saved = await db.pool.query('SELECT work FROM show_rounds WHERE id = $1', [ok.body.id]);
+  assert.equal(saved.rows[0].work.strokes.length, 1);
+  assert.equal(saved.rows[0].work.strokes[0].c, '#e0393e');
+
+  // 판 크기의 8배를 넘는 좌표는 정상적인 필기가 아니다
+  const bad = await agent.post('/api/show/rounds').send({
+    problemId: problem.id,
+    studentName: '2-9 범위밖',
+    correct: false,
+    work: { v: 1, strokes: [{ c: '#111111', w: 0.004, p: [0, 0, 9999, 9999] }] },
+  });
+  createdRoundIds.push(bad.body.id);
+
+  const rejected = await db.pool.query('SELECT work FROM show_rounds WHERE id = $1', [bad.body.id]);
+  assert.equal(rejected.rows[0].work, null);
+});
+
+test('반 대항 순위가 응답에 함께 온다', async () => {
+  const res = await agent.get('/api/show/rounds');
+  assert.ok(Array.isArray(res.body.classRanking));
+  const mine = res.body.classRanking.find((c) => c.klass === '2-9');
+  assert.ok(mine, '방금 넣은 2-9반이 있어야 함');
+  assert.ok(mine.tries >= 3);
+});

@@ -278,6 +278,46 @@ app.get('/api/stats/problem-counts', requireAuth, async (req, res, next) => {
 // 진행 화면은 정답을 미리 알고 있어야 한다(타이머 끝나면 그 자리에서 공개).
 // 그래서 이 API들은 전부 로그인한 진행자만 쓸 수 있다.
 
+// 학생이 칠판에 쓴 풀이(획)는 브라우저가 보내는 값이라 그대로 저장하지 않는다.
+// 저장 형식: { v:1, strokes:[{ c: 색, w: 굵기(판 폭 대비), e: 지우개, p:[x,y,x,y,...] }] }
+// 좌표는 판 가로폭 대비 비율이라 0~1을 크게 벗어날 수 없다.
+const WORK_LIMITS = {
+  strokes: 3000,
+  numbers: 120000, // 좌표 숫자 총개수(= 점 6만 개). DB가 불필요하게 커지는 것도 막는다.
+  coord: 8,
+};
+const WORK_COLOR_RE = /^#[0-9a-fA-F]{3,8}$/;
+
+/** 받은 풀이를 검증해 저장해도 되는 형태로 만든다. 이상하면 null(그냥 저장하지 않음). */
+function normalizeWork(raw) {
+  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.strokes)) return null;
+  if (raw.strokes.length === 0 || raw.strokes.length > WORK_LIMITS.strokes) return null;
+
+  let numbers = 0;
+  const strokes = [];
+
+  for (const stroke of raw.strokes) {
+    if (!stroke || typeof stroke !== 'object' || !Array.isArray(stroke.p)) return null;
+    if (stroke.p.length < 2 || stroke.p.length % 2 !== 0) return null;
+
+    numbers += stroke.p.length;
+    if (numbers > WORK_LIMITS.numbers) return null;
+
+    for (const value of stroke.p) {
+      if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+      if (Math.abs(value) > WORK_LIMITS.coord) return null;
+    }
+
+    const width = Number(stroke.w);
+    if (!Number.isFinite(width) || width <= 0 || width > 1) return null;
+
+    const color = typeof stroke.c === 'string' && WORK_COLOR_RE.test(stroke.c) ? stroke.c : '#111111';
+    strokes.push({ c: color, w: width, e: stroke.e ? 1 : 0, p: stroke.p });
+  }
+
+  return { v: 1, strokes };
+}
+
 const SHOW_SINCE_HOURS = 12; // "이번 회차" = 최근 12시간. 점심시간 행사 한 번을 덮는다.
 
 app.get('/api/show/problems', requireAuth, async (req, res, next) => {
@@ -331,7 +371,9 @@ app.post('/api/show/rounds', requireAuth, async (req, res, next) => {
       correct: Boolean(req.body?.correct),
       prize: req.body?.prize,
       duration_ms: Number(req.body?.durationMs),
-      work: req.body?.work || null,
+      // 필기는 있으면 좋은 부가 정보다. 형식이 이상하면 저장만 건너뛰고
+      // 라운드 기록 자체는 남긴다(행사 중에 기록이 통째로 날아가면 안 된다).
+      work: normalizeWork(req.body?.work),
     });
 
     res.status(201).json({ id: round.id });
