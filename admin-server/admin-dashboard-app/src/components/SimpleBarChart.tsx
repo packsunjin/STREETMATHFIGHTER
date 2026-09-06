@@ -7,6 +7,7 @@ import { useTooltip, TooltipWithBounds, defaultStyles } from '@visx/tooltip';
 import { localPoint } from '@visx/event';
 import { motion } from 'motion/react';
 import { DIFFICULTY_COLOR, DIFFICULTY_LABEL, type Difficulty } from '../lib/theme';
+import { axisMax, bandBar, integerTicks } from '../lib/chart';
 
 export interface DifficultyCount {
   difficulty: Difficulty;
@@ -25,10 +26,10 @@ function Chart({ data, width, height }: { data: DifficultyCount[]; width: number
     padding: 0.35,
   });
   const maxCount = Math.max(1, ...data.map((d) => d.count));
+  const tickValues = integerTicks(maxCount);
   const yScale = scaleLinear<number>({
-    domain: [0, maxCount],
+    domain: [0, axisMax(maxCount)],
     range: [innerHeight, 0],
-    nice: true,
   });
 
   const { tooltipData, tooltipLeft, tooltipTop, tooltipOpen, showTooltip, hideTooltip } =
@@ -40,11 +41,10 @@ function Chart({ data, width, height }: { data: DifficultyCount[]; width: number
     <div className="relative">
       <svg width={width} height={height}>
         <Group left={margin.left} top={margin.top}>
-          <GridRows scale={yScale} width={innerWidth} stroke="var(--border)" numTicks={4} />
+          <GridRows scale={yScale} width={innerWidth} stroke="var(--border)" tickValues={tickValues} />
           {data.map((d) => {
-            const barWidth = xScale.bandwidth();
+            const { x: barX, width: barWidth } = bandBar(xScale.bandwidth(), xScale(d.difficulty) ?? 0);
             const barHeight = innerHeight - yScale(d.count);
-            const barX = xScale(d.difficulty) ?? 0;
             const barY = innerHeight - barHeight;
             return (
               <motion.rect
@@ -75,7 +75,8 @@ function Chart({ data, width, height }: { data: DifficultyCount[]; width: number
           />
           <AxisLeft
             scale={yScale}
-            numTicks={4}
+            tickValues={tickValues}
+            tickFormat={(value) => String(value)}
             stroke="var(--text-secondary)"
             tickStroke="var(--text-secondary)"
             tickLabelProps={() => ({ fill: 'var(--text-secondary)', fontSize: 11, textAnchor: 'end', dx: -4, dy: 4 })}

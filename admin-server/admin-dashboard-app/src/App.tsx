@@ -1,14 +1,32 @@
 import { useEffect, useState } from 'react';
-import { motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { SimpleBarChart, type DifficultyCount } from './components/SimpleBarChart';
 import { StackedBarChart, StackedBarLegend, type UnitCount } from './components/StackedBarChart';
 import { StatCard } from './components/StatCard';
+import { ActivityChart } from './components/ActivityChart';
+import { StudentTable } from './components/StudentTable';
+import { HardestProblems } from './components/HardestProblems';
+import { accuracyColor, fillMissingDays, type StudentStatsResponse } from './lib/stats';
 
-interface StatsResponse {
+interface ProblemStats {
   byDifficulty: DifficultyCount[];
   byUnit: UnitCount[];
   total: number;
 }
+
+type Tab = 'problems' | 'students';
+
+const ACTIVITY_DAYS = 14; // 서버의 listDailyActivity(14)와 맞춰야 함
+
+const TAB_LABEL: Record<Tab, string> = {
+  problems: '문제 통계',
+  students: '학생 성취도',
+};
+
+const TAB_DESCRIPTION: Record<Tab, string> = {
+  problems: '등록된 문제의 난이도/단원별 분포를 보여줘요.',
+  students: '학생별 정답률과 다들 어려워하는 문제를 보여줘요.',
+};
 
 // admin-server는 단독으로도, 통합 서버의 /admin 아래에서도 실행될 수 있어서
 // 절대 경로(/api/me 등)를 쓰면 /admin 마운트 시 깨짐. 이 페이지는 항상
@@ -34,39 +52,156 @@ function useAuthGuard() {
   return checked;
 }
 
+function Card({ title, extra, children }: { title: string; extra?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="text-sm font-bold">{title}</h2>
+        {extra}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ProblemsTab({ stats }: { stats: ProblemStats }) {
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard label="전체 문제 수" value={stats.total} />
+        {stats.byDifficulty.map((d) => (
+          <StatCard key={d.difficulty} label={`난이도 ${d.difficulty}`} value={d.count} />
+        ))}
+      </div>
+
+      <Card title="난이도별 문제 수">
+        <SimpleBarChart data={stats.byDifficulty} />
+      </Card>
+
+      <Card title="단원별 문제 수" extra={<StackedBarLegend />}>
+        {stats.byUnit.length > 0 ? (
+          <StackedBarChart data={stats.byUnit} />
+        ) : (
+          <p className="text-sm text-[var(--text-secondary)]">아직 단원이 등록된 문제가 없어요.</p>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function StudentsTab({ stats }: { stats: StudentStatsResponse }) {
+  const attempts = stats.students.reduce((sum, s) => sum + s.total, 0);
+  const correct = stats.students.reduce((sum, s) => sum + s.correct, 0);
+  const accuracy = attempts ? Math.round((correct / attempts) * 100) : 0;
+  const activity = fillMissingDays(stats.dailyActivity, ACTIVITY_DAYS);
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard label="문제 푼 학생" value={stats.students.length} suffix="명" />
+        <StatCard label="전체 풀이 수" value={attempts} suffix="번" />
+        <StatCard label="전체 정답 수" value={correct} suffix="번" />
+        <StatCard label="평균 정답률" value={accuracy} suffix="%" color={accuracyColor(accuracy)} />
+      </div>
+
+      <Card title="최근 14일 풀이 활동" extra={<ActivityLegend />}>
+        {stats.dailyActivity.length > 0 ? (
+          <ActivityChart data={activity} />
+        ) : (
+          <p className="text-sm text-[var(--text-secondary)]">최근 2주 동안 풀이 기록이 없어요.</p>
+        )}
+      </Card>
+
+      <Card title="학생별 정답률">
+        <StudentTable students={stats.students} />
+      </Card>
+
+      <Card title="다들 어려워하는 문제">
+        <HardestProblems problems={stats.hardestProblems} />
+      </Card>
+    </div>
+  );
+}
+
+function ActivityLegend() {
+  return (
+    <div className="flex items-center gap-3 text-xs font-semibold text-[var(--text-secondary)]">
+      <span className="flex items-center gap-1.5">
+        <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: '#16a34a' }} />
+        맞힘
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--border)' }} />
+        전체
+      </span>
+    </div>
+  );
+}
+
 function App() {
   const authChecked = useAuthGuard();
-  const [stats, setStats] = useState<StatsResponse | null>(null);
+  const [tab, setTab] = useState<Tab>('problems');
+  const [problemStats, setProblemStats] = useState<ProblemStats | null>(null);
+  const [studentStats, setStudentStats] = useState<StudentStatsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authChecked) return;
-    fetch('../api/stats/problem-counts', { credentials: 'include' })
-      .then((res) => {
-        if (!res.ok) throw new Error('통계를 불러오지 못했습니다.');
-        return res.json();
+    // 두 탭 모두 가벼운 집계라 처음에 한 번에 받아두고, 탭 전환은 즉시 되게 함.
+    Promise.all([
+      fetch('../api/stats/problem-counts', { credentials: 'include' }).then((res) => {
+        if (!res.ok) throw new Error('문제 통계를 불러오지 못했습니다.');
+        return res.json() as Promise<ProblemStats>;
+      }),
+      fetch('../api/stats/students', { credentials: 'include' }).then((res) => {
+        if (!res.ok) throw new Error('학생 통계를 불러오지 못했습니다.');
+        return res.json() as Promise<StudentStatsResponse>;
+      }),
+    ])
+      .then(([problems, students]) => {
+        setProblemStats(problems);
+        setStudentStats(students);
       })
-      .then((data: StatsResponse) => setStats(data))
-      .catch((err) => setError(err.message));
+      .catch((err: Error) => setError(err.message));
   }, [authChecked]);
 
   if (!authChecked) return null;
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-5 flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-black">문제 통계</h1>
-          <p className="mt-1 text-sm text-[var(--text-secondary)]">
-            등록된 문제의 난이도/단원별 분포를 보여줘요.
-          </p>
+          <h1 className="text-xl font-black">통계</h1>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">{TAB_DESCRIPTION[tab]}</p>
         </div>
         <a
           href="../dashboard.html"
-          className="rounded-full border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-sm font-bold text-[var(--text)] no-underline"
+          className="shrink-0 rounded-full border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-sm font-bold text-[var(--text)] no-underline"
         >
           ← 문제 관리로
         </a>
+      </div>
+
+      <div className="mb-6 flex gap-2">
+        {(Object.keys(TAB_LABEL) as Tab[]).map((key) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setTab(key)}
+            className="relative rounded-full px-4 py-2 text-sm font-bold text-[var(--text)]"
+          >
+            {tab === key && (
+              <motion.span
+                layoutId="tab-pill"
+                className="absolute inset-0 rounded-full bg-[var(--text)]"
+                transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+              />
+            )}
+            <span className={'relative ' + (tab === key ? 'text-white' : 'text-[var(--text-secondary)]')}>
+              {TAB_LABEL[key]}
+            </span>
+          </button>
+        ))}
       </div>
 
       {error && (
@@ -75,33 +210,30 @@ function App() {
         </div>
       )}
 
-      {stats && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25 }}>
-          <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatCard label="전체 문제 수" value={stats.total} />
-            {stats.byDifficulty.map((d) => (
-              <StatCard key={d.difficulty} label={`난이도 ${d.difficulty}`} value={d.count} />
-            ))}
-          </div>
-
-          <div className="mb-6 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
-            <h2 className="mb-4 text-sm font-bold">난이도별 문제 수</h2>
-            <SimpleBarChart data={stats.byDifficulty} />
-          </div>
-
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-sm font-bold">단원별 문제 수</h2>
-              <StackedBarLegend />
-            </div>
-            {stats.byUnit.length > 0 ? (
-              <StackedBarChart data={stats.byUnit} />
-            ) : (
-              <p className="text-sm text-[var(--text-secondary)]">아직 단원이 등록된 문제가 없어요.</p>
-            )}
-          </div>
-        </motion.div>
-      )}
+      <AnimatePresence mode="wait">
+        {tab === 'problems' && problemStats && (
+          <motion.div
+            key="problems"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+          >
+            <ProblemsTab stats={problemStats} />
+          </motion.div>
+        )}
+        {tab === 'students' && studentStats && (
+          <motion.div
+            key="students"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+          >
+            <StudentsTab stats={studentStats} />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

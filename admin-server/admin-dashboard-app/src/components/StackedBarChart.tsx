@@ -7,6 +7,8 @@ import { useTooltip, TooltipWithBounds, defaultStyles } from '@visx/tooltip';
 import { localPoint } from '@visx/event';
 import { motion } from 'motion/react';
 import { DIFFICULTY_COLOR, DIFFICULTY_LABEL, type Difficulty } from '../lib/theme';
+import { axisMax, bandBar, integerTicks } from '../lib/chart';
+import { useContainerWidth } from '../lib/useContainerWidth';
 
 export interface UnitCount {
   unit: string;
@@ -26,8 +28,9 @@ interface TooltipDatum {
   value: number;
 }
 
-function Chart({ data, height }: { data: UnitCount[]; height: number }) {
-  const width = Math.max(data.length * BAR_SLOT_WIDTH, 360);
+// 단원이 많으면 가로 스크롤, 적으면 가진 폭을 꽉 채운다.
+function Chart({ data, height, available }: { data: UnitCount[]; height: number; available: number }) {
+  const width = Math.max(data.length * BAR_SLOT_WIDTH, available, 360);
   const innerWidth = Math.max(width - margin.left - margin.right, 0);
   const innerHeight = Math.max(height - margin.top - margin.bottom, 0);
 
@@ -37,10 +40,10 @@ function Chart({ data, height }: { data: UnitCount[]; height: number }) {
     padding: 0.35,
   });
   const maxTotal = Math.max(1, ...data.map((d) => d.total));
+  const tickValues = integerTicks(maxTotal);
   const yScale = scaleLinear<number>({
-    domain: [0, maxTotal],
+    domain: [0, axisMax(maxTotal)],
     range: [innerHeight, 0],
-    nice: true,
   });
   const colorScale = scaleOrdinal<Difficulty, string>({
     domain: STACK_KEYS,
@@ -54,7 +57,7 @@ function Chart({ data, height }: { data: UnitCount[]; height: number }) {
     <div className="relative">
       <svg width={width} height={height}>
         <Group left={margin.left} top={margin.top}>
-          <GridRows scale={yScale} width={innerWidth} stroke="var(--border)" numTicks={4} />
+          <GridRows scale={yScale} width={innerWidth} stroke="var(--border)" tickValues={tickValues} />
           <BarStack<UnitCount, Difficulty>
             data={data}
             keys={STACK_KEYS}
@@ -65,11 +68,13 @@ function Chart({ data, height }: { data: UnitCount[]; height: number }) {
           >
             {(barStacks) =>
               barStacks.map((barStack) =>
-                barStack.bars.map((bar) => (
+                barStack.bars.map((bar) => {
+                  const slot = bandBar(bar.width, bar.x);
+                  return (
                   <motion.rect
                     key={`bar-${barStack.index}-${bar.index}`}
-                    x={bar.x}
-                    width={bar.width}
+                    x={slot.x}
+                    width={slot.width}
                     fill={bar.color}
                     style={{ cursor: 'pointer' }}
                     initial={{ height: 0, y: innerHeight }}
@@ -92,7 +97,8 @@ function Chart({ data, height }: { data: UnitCount[]; height: number }) {
                     }}
                     onMouseLeave={hideTooltip}
                   />
-                ))
+                  );
+                })
               )
             }
           </BarStack>
@@ -105,7 +111,8 @@ function Chart({ data, height }: { data: UnitCount[]; height: number }) {
           />
           <AxisLeft
             scale={yScale}
-            numTicks={4}
+            tickValues={tickValues}
+            tickFormat={(value) => String(value)}
             stroke="var(--text-secondary)"
             tickStroke="var(--text-secondary)"
             tickLabelProps={() => ({ fill: 'var(--text-secondary)', fontSize: 11, textAnchor: 'end', dx: -4, dy: 4 })}
@@ -134,9 +141,10 @@ function Chart({ data, height }: { data: UnitCount[]; height: number }) {
 }
 
 export function StackedBarChart({ data, height = 280 }: { data: UnitCount[]; height?: number }) {
+  const [ref, width] = useContainerWidth<HTMLDivElement>();
   return (
-    <div className="w-full overflow-x-auto">
-      <Chart data={data} height={height} />
+    <div ref={ref} className="w-full overflow-x-auto">
+      <Chart data={data} height={height} available={width} />
     </div>
   );
 }
