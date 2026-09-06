@@ -476,3 +476,33 @@ a {
   word-break: break-all;
   text-align: center;
 }
+
+/* ---- 상단 바 ---- */
+.top-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.top-bar-actions #whoami {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* 행사 당일 여는 화면으로 가는 버튼. 다른 링크보다 눈에 띄어야 한다. */
+.btn-show {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: #111;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.btn-show:hover {
+  background: #333;
+}
