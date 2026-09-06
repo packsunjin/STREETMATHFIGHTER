@@ -661,7 +661,9 @@ button,
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
   overflow: hidden;
-  transition: width 0.2s ease;
+  /* 창 크기는 JS가 직접 계산해서 넣는다. 여기에 width transition을 걸면 JS가 값을
+     넣은 직후 측정한 크기가 "전환 중인 중간 값"이라, 그 값으로 잡힌 필기 캔버스가
+     실제 창 크기와 어긋나 버린다(가장자리에 못 쓰는 영역이 생길 수 있음). */
 }
 
 .problem-card-solve.dragging,
