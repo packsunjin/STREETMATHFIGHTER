@@ -33,7 +33,6 @@ const {
   listUsedProblemIds,
   listRecentPrizes,
 } = require('../shared/db');
-const { rankClasses } = require('../shared/class-ranking');
 
 const PORT = process.env.ADMIN_PORT || 4000;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
@@ -386,11 +385,6 @@ app.get('/api/show/rounds', requireAuth, async (req, res, next) => {
   try {
     const rounds = await listShowRounds({ sinceHours: SHOW_SINCE_HOURS, limit: 200 });
     res.json({
-      // 반 순위는 서버에서 한 번만 계산한다(공개 페이지와 같은 결과가 나오도록)
-      classRanking: rankClasses(rounds.map((row) => ({
-        studentName: row.student_name,
-        correct: row.correct,
-      }))),
       rounds: rounds.map((row) => ({
         id: row.id,
         problemId: row.problem_id,

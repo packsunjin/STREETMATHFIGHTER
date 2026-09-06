@@ -354,40 +354,6 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     await context.close();
   });
 
-  test('반 대항 순위가 서버가 준 순위대로 그려진다', async () => {
-    // 집계 규칙 자체는 tests/class-ranking.test.js에서 검증한다.
-    // 여기서는 화면이 그 결과를 그대로 그리는지만 본다.
-    const { page, context } = await openShow();
-
-    await page.evaluate(() => {
-      state.classRanking = [
-        { klass: '2-3', wins: 4, tries: 5 },
-        { klass: '1-1', wins: 2, tries: 4 },
-      ];
-      renderClassRace(state.classRanking);
-    });
-
-    const rows = await page.$$eval('.class-item', (items) =>
-      items.map((item) => ({
-        name: item.querySelector('.class-name').textContent,
-        wins: item.querySelector('.class-wins').textContent,
-        width: item.querySelector('.class-bar-fill').style.width,
-        leading: item.classList.contains('leading'),
-      }))
-    );
-
-    assert.deepEqual(rows, [
-      { name: '2-3반', wins: '4승', width: '100%', leading: true },
-      { name: '1-1반', wins: '2승', width: '50%', leading: false },
-    ]);
-
-    // 반이 하나뿐이면 "대항"이 아니므로 안 보여준다
-    await page.evaluate(() => renderClassRace([{ klass: '2-3', wins: 1, tries: 1 }]));
-    assert.ok(await page.locator('#classRace').isHidden());
-
-    await context.close();
-  });
-
   test('목록 화면에서 돌아가기 버튼이 목록을 가리지 않는다', async () => {
     // 목록 높이를 vh로 고정하면 위에 뭐가 붙을 때마다 마지막 줄이 버튼에 가려진다
     const { page, context } = await openShow();

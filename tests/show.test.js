@@ -193,11 +193,3 @@ test('정상 필기는 저장되고, 좌표 범위를 벗어나면 거부된다'
   const rejected = await db.pool.query('SELECT work FROM show_rounds WHERE id = $1', [bad.body.id]);
   assert.equal(rejected.rows[0].work, null);
 });
-
-test('반 대항 순위가 응답에 함께 온다', async () => {
-  const res = await agent.get('/api/show/rounds');
-  assert.ok(Array.isArray(res.body.classRanking));
-  const mine = res.body.classRanking.find((c) => c.klass === '2-9');
-  assert.ok(mine, '방금 넣은 2-9반이 있어야 함');
-  assert.ok(mine.tries >= 3);
-});

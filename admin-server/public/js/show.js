@@ -459,9 +459,8 @@ async function goIdle() {
 
 async function loadToday() {
   try {
-    const { rounds, classRanking } = await getJSON(API.rounds);
+    const { rounds } = await getJSON(API.rounds);
     state.rounds = rounds;
-    state.classRanking = classRanking || [];
     $('todayRounds').textContent = rounds.length;
     $('todayWins').textContent = rounds.filter((r) => r.correct).length;
     $('todayPrizes').textContent = rounds.filter((r) => r.correct && r.prize).length;
@@ -485,48 +484,8 @@ async function loadPrizes() {
   }
 }
 
-// 순위 계산은 서버(shared/class-ranking.js)에서 한다. 학생용 공개 페이지와
-// 같은 결과가 나와야 해서 계산을 두 군데 두지 않는다.
-function renderClassRace(ranking) {
-  const box = $('classRace');
-  box.textContent = '';
-
-  ranking = (ranking || []).slice(0, 6);
-  // 반이 하나뿐이면 "대항"이 아니라 굳이 안 보여준다
-  box.hidden = ranking.length < 2;
-  if (box.hidden) return;
-
-  const top = Math.max(...ranking.map((r) => r.wins), 1);
-
-  ranking.forEach((entry, index) => {
-    const item = document.createElement('div');
-    item.className = 'class-item';
-    if (index === 0) item.classList.add('leading');
-
-    const name = document.createElement('span');
-    name.className = 'class-name';
-    name.textContent = `${entry.klass}반`;
-
-    const bar = document.createElement('span');
-    bar.className = 'class-bar';
-    const fill = document.createElement('span');
-    fill.className = 'class-bar-fill';
-    fill.style.width = `${(entry.wins / top) * 100}%`;
-    bar.appendChild(fill);
-
-    const wins = document.createElement('span');
-    wins.className = 'class-wins';
-    wins.textContent = `${entry.wins}승`;
-
-    item.append(name, bar, wins);
-    box.appendChild(item);
-  });
-}
-
 async function goHall() {
   await loadToday();
-  renderClassRace(state.classRanking);
-
   const winners = (state.rounds || []).filter((r) => r.correct);
   const list = $('hallList');
   list.textContent = '';

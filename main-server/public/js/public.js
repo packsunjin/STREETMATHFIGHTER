@@ -41,42 +41,6 @@ function makeRow(winner, index) {
   return li;
 }
 
-// 반 순위는 서버가 계산해서 준다(강당 진행 화면과 같은 결과가 나오도록).
-function renderClassRanking(ranking) {
-  const box = document.getElementById('classRace');
-  const list = document.getElementById('classList');
-  list.textContent = '';
-
-  // 반이 하나뿐이면 "대항"이 아니라 굳이 안 보여준다
-  box.hidden = !ranking || ranking.length < 2;
-  if (box.hidden) return;
-
-  const top = Math.max(...ranking.map((r) => r.wins), 1);
-
-  ranking.slice(0, 8).forEach((entry, index) => {
-    const li = document.createElement('li');
-    li.className = 'class-item' + (index === 0 ? ' leading' : '');
-
-    const name = document.createElement('span');
-    name.className = 'class-name';
-    name.textContent = `${entry.klass}반`;
-
-    const bar = document.createElement('span');
-    bar.className = 'class-bar';
-    const fill = document.createElement('span');
-    fill.className = 'class-bar-fill';
-    fill.style.width = `${(entry.wins / top) * 100}%`;
-    bar.appendChild(fill);
-
-    const wins = document.createElement('span');
-    wins.className = 'class-wins';
-    wins.textContent = `${entry.wins}승`;
-
-    li.append(name, bar, wins);
-    list.appendChild(li);
-  });
-}
-
 async function load() {
   failedEl.hidden = true;
   try {
@@ -87,8 +51,6 @@ async function load() {
     document.getElementById('statTotal').textContent = data.total;
     document.getElementById('statWins').textContent = data.wins;
     scoreEl.hidden = data.total === 0;
-
-    renderClassRanking(data.classRanking);
 
     winnersEl.textContent = '';
     data.winners.forEach((winner, index) => winnersEl.appendChild(makeRow(winner, index)));
