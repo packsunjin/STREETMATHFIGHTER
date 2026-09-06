@@ -41,7 +41,12 @@ jobs:
       - name: 루트 의존성 설치
         run: npm ci
 
-      - name: 백엔드 테스트 실행
+      # 문제 풀이 화면(펜 필기/되돌리기)은 실제 브라우저로 검증하므로 크로미움이 필요.
+      # 없으면 해당 테스트는 자동으로 건너뛰지만, CI에서는 반드시 돌게 설치한다.
+      - name: 테스트용 브라우저 설치
+        run: npx playwright install --with-deps chromium
+
+      - name: 테스트 실행 (백엔드 + 브라우저)
         run: npm test
 
       - name: 관리자 통계 대시보드(React) 빌드 확인
