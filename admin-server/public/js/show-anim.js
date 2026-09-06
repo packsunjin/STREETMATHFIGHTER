@@ -142,31 +142,65 @@ window.SMFShowAnim = (function () {
     },
   };
 
-  /* ================= 배경 거품 =================
-   * 화면이 완전히 멈춰 있으면 죽은 화면처럼 보인다. 점심시간 내내 켜두는
-   * 물건이라 더 그렇다. 거품은 CSS 애니메이션으로 띄운다. 합성만으로
-   * 처리돼서 저사양 전자칠판에서도 프레임을 안 잡아먹는다. */
-  function ambient(host, count = 22) {
+  /* ================= 배경 먼지 =================
+   * 화면이 완전히 멈춰 있으면 죽은 화면처럼 보인다. 점심시간 내내 켜두니 더 그렇다.
+   * 알갱이마다 다른 깊이(z)에 놓는다. 원근이 걸려 있어서 멀리 있는 건 저절로
+   * 작고 흐리게 보이고, 카메라가 움직이면 앞뒤가 다른 속도로 흐른다(시차). */
+  function ambient(host, count = 34) {
     if (!host) return;
     host.textContent = '';
     if (!enabled) return;
 
     for (let i = 0; i < count; i += 1) {
-      const bubble = document.createElement('span');
-      bubble.className = 'bubble';
-      // 크기가 제각각이어야 깊이가 있어 보인다. 작을수록 멀리, 느리게.
-      const size = 0.8 + Math.random() * 3.6; // vmin
-      const far = 1 - size / 4.4; // 0(가까움) ~ 1(멂)
-      bubble.style.setProperty('--size', `${size.toFixed(2)}vmin`);
-      bubble.style.setProperty('--x', `${(Math.random() * 100).toFixed(1)}%`);
-      bubble.style.setProperty('--drift', `${jitter(9).toFixed(1)}vw`);
-      bubble.style.setProperty('--dur', `${(15 + far * 22 + Math.random() * 6).toFixed(1)}s`);
+      const mote = document.createElement('span');
+      mote.className = 'mote';
+      // z가 뒤로 갈수록 멀다. 멀면 작고, 어둡고, 느리게 흐른다.
+      const z = -(Math.random() * 620);
+      const far = -z / 620; // 0(가까움) ~ 1(멂)
+      mote.style.setProperty('--z', `${z.toFixed(0)}px`);
+      mote.style.setProperty('--size', `${(1.5 + (1 - far) * 4).toFixed(1)}px`);
+      mote.style.setProperty('--soft', `${(0.2 + far * 1.6).toFixed(2)}px`);
+      mote.style.setProperty('--x', `${(Math.random() * 100).toFixed(1)}%`);
+      mote.style.setProperty('--drift', `${jitter(7).toFixed(1)}vw`);
+      mote.style.setProperty('--dur', `${(20 + far * 34 + Math.random() * 8).toFixed(1)}s`);
       // 처음부터 화면 곳곳에 흩어져 있어야 한다. 다 같이 바닥에서 출발하면
       // 첫 20초 동안 화면이 비어 보인다.
-      bubble.style.setProperty('--delay', `${(-Math.random() * 30).toFixed(1)}s`);
-      bubble.style.setProperty('--peak', (0.16 + (1 - far) * 0.4).toFixed(2));
-      host.appendChild(bubble);
+      mote.style.setProperty('--delay', `${(-Math.random() * 45).toFixed(1)}s`);
+      mote.style.setProperty('--peak', (0.1 + (1 - far) * 0.45).toFixed(2));
+      host.appendChild(mote);
     }
+  }
+
+  /* ================= 두께 만들기(압출) =================
+   * 같은 글자를 z만 뒤로 밀어 여러 장 겹치면 실제 두께가 생긴다. 뒤로 갈수록
+   * 어두워야 깎인 면처럼 보인다. 이 상태에서 돌리면 옆면이 드러나면서
+   * 평면 글자가 아니라 깎아 만든 물체로 읽힌다.
+   *
+   * 주의: 겹친 층도 글자라서, 이걸 씌운 요소의 textContent에는 같은 글자가
+   * 여러 번 들어간다. 값을 읽어 가는 요소(정답 등)에는 쓰지 않는다. */
+  function makeExtruded(text, { layers = 14, step = 3, front = '#ffffff' } = {}) {
+    const box = document.createElement('span');
+    box.className = 'extrude';
+
+    for (let i = layers; i >= 1; i -= 1) {
+      const layer = document.createElement('span');
+      layer.className = 'extrude-layer';
+      layer.setAttribute('aria-hidden', 'true');
+      // 뒤로 갈수록 어둡게. 맨 뒤가 거의 검게 잠겨야 두께가 두께로 보인다.
+      const shade = Math.round(150 * (1 - i / layers));
+      layer.style.transform = `translateZ(${-i * step}px)`;
+      layer.style.color = `rgb(${shade},${shade},${shade + 2})`;
+      layer.textContent = text;
+      box.appendChild(layer);
+    }
+
+    const face = document.createElement('span');
+    face.style.position = 'relative';
+    face.style.color = front;
+    face.textContent = text;
+    box.appendChild(face);
+
+    return box;
   }
 
   /* ================= 글자 단위 등장 =================
@@ -222,6 +256,24 @@ window.SMFShowAnim = (function () {
     );
   }
 
+  /* ================= 카메라 =================
+   * 무대의 소실점(perspective-origin)을 옮기면, 물건은 가만히 있는데
+   * 보는 자리가 옮겨간 것처럼 보인다. 화면이 바뀔 때마다 살짝 흘려주면
+   * 같은 배치라도 매번 다르게 읽힌다.
+   *
+   * 소실점을 통째로 애니메이션하는 대신 CSS 변수 두 개를 움직인다.
+   * 값이 숫자라 중간값이 제대로 만들어진다. */
+  function cameraMove(el) {
+    if (!el || !enabled) return;
+    const fromX = 50 + jitter(9);
+    const fromY = 45 + jitter(7);
+    animate(
+      el,
+      { '--cam-x': [`${fromX.toFixed(1)}%`, '50%'], '--cam-y': [`${fromY.toFixed(1)}%`, '45%'] },
+      { duration: 1.4, ease: 'outQuint' }
+    );
+  }
+
   /* ================= 화면 전환 =================
    * 전체 화면을 scale로 키우면 그 동안 자식(캔버스/사진) 크기를 재는 코드가
    * 애니메이션 중간값을 읽어서 어긋난다. 그래서 이동/회전/투명도만 쓴다. */
@@ -233,7 +285,7 @@ window.SMFShowAnim = (function () {
    * 급하게 두 번 누르면 엉뚱한 게 눌린다(브라우저 테스트에서 실제로 났다).
    * 그래서 버튼과 카드는 지나침 없이 빠르게 앉히고, 장식만 스프링으로 둔다.
    */
-  const TAPPABLE = '.btn, .pick-card, .choose-row';
+  const TAPPABLE = '.btn, .pick-face, .choose-row';
   const SETTLE_MS = 500;
 
   function stageIn(el) {
@@ -241,16 +293,19 @@ window.SMFShowAnim = (function () {
 
     // data-solo가 붙은 건 제 몫의 등장 연출(titleIn, badgeSlam 등)이 따로 있다.
     // 여기서 같이 움직이면 두 애니메이션이 같은 transform을 두고 싸운다.
+    // .pick-card가 아니라 .pick-face를 움직인다. 겉껍데기는 원호 위 각도를
+    // 붙들고 있어서, 거기에 transform을 걸면 그 각도가 지워진다.
     const all = Array.from(
       el.querySelectorAll(
         '.show-logo:not([data-solo]), .show-tagline, .idle-actions > *, .idle-emblem, ' +
-          '.stage-title, .pick-card, .center-block > *:not([data-solo]), .choose-row'
+          '.stage-title, .pick-face, .center-block > *:not([data-solo]), .choose-row'
       )
     );
     const tappable = all.filter((node) => node.matches(TAPPABLE));
     const decor = all.filter((node) => !node.matches(TAPPABLE));
 
     animate(el, { opacity: [0, 1] }, { duration: 0.22, ease: 'outQuad' });
+    cameraMove(el);
 
     // 장식: 깊이에서 느긋하게 다가와 스프링으로 안착
     if (decor.length) {
@@ -370,7 +425,7 @@ window.SMFShowAnim = (function () {
   }
 
   /** 빛이 확 부풀었다 사그라든다. 뭔가가 "켜지는" 순간에. */
-  function bloom(color = 'rgba(233,193,136,.55)', ms = 900) {
+  function bloom(color = 'rgba(255,255,255,.5)', ms = 900) {
     if (!enabled) return;
     const layer = makeLayer(';overflow:hidden', 'bloom');
     const orb = document.createElement('div');
@@ -420,7 +475,7 @@ window.SMFShowAnim = (function () {
    * 화면 한가운데에 큰 글자를 한 번 띄웠다 지운다("시간 종료!" 같은 것).
    * 학생이 쓴 글씨를 계속 덮고 있으면 안 되므로 반드시 사라진다.
    */
-  function titleCard(text, color = 'var(--gold)', ms = 1500) {
+  function titleCard(text, color = '#f4f4f2', ms = 1500) {
     if (!enabled) return;
     const layer = makeLayer(';z-index:66', 'titlecard');
 
@@ -455,7 +510,7 @@ window.SMFShowAnim = (function () {
   function urgentOn() {
     if (!enabled || urgentLayer) return;
     urgentLayer = makeLayer(
-      ';z-index:20;box-shadow:inset 0 0 14vmin 3vmin rgba(255,111,107,.5);opacity:0',
+      ';z-index:20;box-shadow:inset 0 0 14vmin 3vmin rgba(255,95,86,.5);opacity:0',
       'urgent'
     );
     animate(
@@ -474,21 +529,22 @@ window.SMFShowAnim = (function () {
 
   /* ================= 정답 공개 ================= */
 
-  /** 정답이 깊이에서 다가와 자리를 잡는다. */
+  /**
+   * 정답판이 옆으로 선 채(거의 날처럼 얇게 보이는 상태) 날아와 돌아선다.
+   * 그냥 커지면서 나타나면 그림이 바뀐 것이고, 돌아서면 물건이 움직인 것이다.
+   */
   function slam(el) {
     if (!el || !enabled) return;
-    // 3.2배에서 줄어들면 화면을 뚫고 나온 것처럼 보인다. z로 다가오게 하면
-    // 같은 크기 변화라도 "가까워졌다"로 읽혀서 훨씬 자연스럽다.
     animate(
       el,
-      { z: [520, 0], opacity: [0, 1], rotateX: [-24, 0], scale: [1.25, 1] },
+      { rotateY: [-96, 0], z: [420, 0], opacity: [0, 1], scale: [1.18, 1] },
       { ease: SPRING.heavy }
     );
-    bloom('rgba(233,193,136,.5)', 800);
+    bloom('rgba(255,255,255,.45)', 800);
     setTimeout(() => {
       shakeScreen(14);
-      ring('rgba(233,193,136,.85)', 2);
-    }, 220);
+      ring('rgba(255,255,255,.8)', 2);
+    }, 240);
   }
 
   function shake(el) {
@@ -565,17 +621,18 @@ window.SMFShowAnim = (function () {
     );
   }
 
-  /** 난이도 배지가 동전처럼 뒤집히며 들어온다. */
+  /**
+   * 난이도 배지가 동전처럼 뒤집히며 들어온다.
+   * 뒷면을 보인 채 날아와 한 바퀴 반을 돌아 앞면으로 멎는다.
+   * 앞/뒤 면이 실제로 따로 있어서(backface-visibility) 돌 때 두께가 읽힌다.
+   */
   function badgeSlam(el) {
     if (!el || !enabled) return;
-    // 예전엔 4배 크기에서 한 바퀴 돌며 쿵 박혔는데, 그건 눈에만 크고
-    // 물건 같지가 않았다. Y축으로 뒤집으면 두께가 있는 원판처럼 보인다.
-    animate(
-      el,
-      { rotateY: [-180, 0], z: [-320, 0], opacity: [0, 1], scale: [0.7, 1] },
-      { ease: SPRING.heavy }
-    );
-    setTimeout(() => bloom('rgba(233,193,136,.4)', 700), 260);
+    const body = el.querySelector('.coin-body') || el;
+
+    animate(el, { z: [-420, 0], opacity: [0, 1], scale: [0.72, 1] }, { ease: SPRING.heavy });
+    animate(body, { rotateY: [-540, 0], rotateX: [16, 0] }, { ease: SPRING.heavy });
+    setTimeout(() => bloom('rgba(255,255,255,.32)', 700), 300);
   }
 
   /** 타이머가 위에서 떨어지며 자리를 잡는다. */
@@ -615,11 +672,11 @@ window.SMFShowAnim = (function () {
 
     // 어두운 천 + 그 앞머리를 달리는 가느다란 금빛
     const sheet = makeBar(
-      'linear-gradient(100deg, rgba(4,24,30,0) 0%, rgba(4,24,30,.97) 18%, rgba(10,48,56,.97) 82%, rgba(4,24,30,0) 100%)',
+      'linear-gradient(100deg, rgba(8,8,10,0) 0%, rgba(8,8,10,.97) 18%, rgba(24,25,29,.97) 82%, rgba(8,8,10,0) 100%)',
       '92vw'
     );
     const edge = makeBar(
-      'linear-gradient(90deg, rgba(233,193,136,0), rgba(233,193,136,.85), rgba(233,193,136,0))',
+      'linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.9), rgba(255,255,255,0))',
       '9vw'
     );
 
@@ -662,8 +719,8 @@ window.SMFShowAnim = (function () {
   /* ================= 3, 2, 1 카운트다운 ================= */
 
   const NUMBER_STYLE =
-    'position:absolute;font-family:var(--serif);font-size:48vmin;font-weight:700;' +
-    'color:#f7f0e2;line-height:1;opacity:0;text-shadow:0 0 10vmin rgba(233,193,136,.45)';
+    'position:absolute;font-family:var(--serif);font-size:46vmin;font-weight:700;' +
+    'line-height:1;opacity:0;transform-style:preserve-3d';
 
   /**
    * 3 → 2 → 1 → 시작! 을 화면 가득 띄우고 끝나면 resolve.
@@ -675,7 +732,7 @@ window.SMFShowAnim = (function () {
 
     return new Promise((resolve) => {
       const layer = makeLayer(
-        ';z-index:70;background:radial-gradient(70vmin 70vmin at 50% 50%, rgba(10,48,56,.97), rgba(4,24,30,.99))',
+        ';z-index:70;background:radial-gradient(70vmin 70vmin at 50% 50%, rgba(23,24,28,.97), rgba(8,8,10,.99))',
         'countdown'
       );
 
@@ -692,26 +749,34 @@ window.SMFShowAnim = (function () {
       const STEP_MS = 800;
 
       const showNumber = (text, index) => {
+        // 평면 숫자가 아니라 깎아 만든 숫자. 돌면서 다가오면 옆면이 드러난다.
         const num = document.createElement('div');
         num.setAttribute('style', NUMBER_STYLE);
-        num.textContent = text;
+        num.appendChild(makeExtruded(text, { layers: 18, step: 4 }));
         layer.appendChild(num);
 
         const circle = document.createElement('div');
         circle.setAttribute(
           'style',
           'position:absolute;width:66vmin;height:66vmin;border-radius:50%;' +
-            'border:0.4vmin solid rgba(233,193,136,.75);opacity:0;' +
-            'box-shadow:0 0 4vmin rgba(233,193,136,.35)'
+            'border:0.4vmin solid rgba(255,255,255,.7);opacity:0;' +
+            'box-shadow:0 0 4vmin rgba(255,255,255,.3)'
         );
         layer.appendChild(circle);
 
         sounds.countdown();
 
-        // 깊이에서 다가와 지나쳐 간다
+        // 깊이에서 돌면서 다가와 지나쳐 간다. 좌우로 번갈아 돌려서
+        // 세 숫자가 같은 그림의 반복으로 보이지 않게 한다.
+        const spin = index % 2 ? 1 : -1;
         animate(
           num,
-          { z: [-700, 180], opacity: [0, 1, 1, 0], rotateX: [index % 2 ? 16 : -16, 0] },
+          {
+            z: [-900, 260],
+            opacity: [0, 1, 1, 0],
+            rotateY: [42 * spin, -10 * spin],
+            rotateX: [index % 2 ? 14 : -14, 0],
+          },
           { duration: STEP_MS / 1000, ease: 'outQuint' }
         );
         animate(
@@ -732,12 +797,16 @@ window.SMFShowAnim = (function () {
       const step = () => {
         if (n <= 0) {
           const go = document.createElement('div');
-          go.setAttribute('style', NUMBER_STYLE + ';font-size:24vmin;color:#e9c188');
-          go.textContent = '시작!';
+          go.setAttribute('style', NUMBER_STYLE + ';font-size:22vmin');
+          go.appendChild(makeExtruded('시작!', { layers: 14, step: 4 }));
           layer.appendChild(go);
 
           boom(0.32);
-          animate(go, { scale: [0.45, 1.1], opacity: [0, 1] }, { ease: SPRING.firm });
+          animate(
+            go,
+            { scale: [0.5, 1.06], opacity: [0, 1], rotateX: [-38, 0] },
+            { ease: SPRING.firm }
+          );
           animate(layer, { opacity: [1, 0] }, { duration: 0.5, delay: 0.34, ease: 'outQuad' });
           setTimeout(finish, 880);
           return;
@@ -755,7 +824,8 @@ window.SMFShowAnim = (function () {
 
   /* ================= 축하 ================= */
 
-  const CONFETTI_COLORS = ['#e9c188', '#5ed69b', '#f7f0e2', '#7fd0dd', '#ff9f8b', '#c9975a'];
+  // 무채색 무대라 색종이도 흰색 계열로 간다. 밝기만 달리해도 충분히 흩날려 보인다.
+  const CONFETTI_COLORS = ['#ffffff', '#e6e6e3', '#c9c9c6', '#f4f4f2', '#a8a8a5', '#ffffff'];
 
   /**
    * 가운데에서 색종이가 터져 나온다.
@@ -764,7 +834,10 @@ window.SMFShowAnim = (function () {
    */
   function confetti(count = 90) {
     if (!enabled) return;
-    const layer = makeLayer(';z-index:50;overflow:hidden', 'confetti');
+    const layer = makeLayer(
+      ';z-index:50;overflow:hidden;perspective:1000px;transform-style:preserve-3d',
+      'confetti'
+    );
 
     const W = window.innerWidth;
     const H = window.innerHeight;
@@ -797,9 +870,12 @@ window.SMFShowAnim = (function () {
           { to: () => -H * (0.18 + Math.random() * 0.34), duration: 700, ease: 'outQuad' },
           { to: () => H * (0.6 + Math.random() * 0.4), duration: 2200, ease: 'inQuad' },
         ],
+        // 앞뒤로도 흩어진다. 어떤 건 내 앞을 스쳐 가고 어떤 건 멀리서 떨어진다.
+        z: () => (Math.random() - 0.35) * 900,
         rotate: () => (Math.random() - 0.5) * 900,
         // 종잇조각이 뒤집히며 반짝인다
         rotateX: () => Math.random() * 1080,
+        rotateY: () => (Math.random() - 0.5) * 900,
         opacity: [{ to: 1, duration: 120 }, { to: 1, duration: 2100 }, { to: 0, duration: 600 }],
       },
       { duration: DURATION_MS / 1000, ease: 'outQuad' }
@@ -842,10 +918,10 @@ window.SMFShowAnim = (function () {
    */
   function celebrate() {
     if (!enabled) return;
-    flash('#5ed69b', 0.6);
-    bloom('rgba(94,214,155,.6)', 1100);
-    rays('rgba(94,214,155,.55)');
-    ring('rgba(94,214,155,.9)', 4);
+    flash('#4ade80', 0.55);
+    bloom('rgba(74,222,128,.5)', 1100);
+    rays('rgba(255,255,255,.42)');
+    ring('rgba(255,255,255,.85)', 4);
     shakeScreen(13);
     confetti();
     // 한 번 터지고 끝나면 금방 조용해진다. 잦아들 때쯤 한 번 더.
@@ -855,7 +931,7 @@ window.SMFShowAnim = (function () {
   /** 오답 순간: 붉은 번쩍 + 흔들림. */
   function reject() {
     if (!enabled) return;
-    flash('#ff6f6b', 0.45);
+    flash('#ff5f56', 0.45);
     shakeScreen(24);
   }
 
@@ -902,6 +978,8 @@ window.SMFShowAnim = (function () {
     toggleMute,
     unlockAudio,
     ambient,
+    makeExtruded,
+    cameraMove,
     stageIn,
     listIn,
     pressable,

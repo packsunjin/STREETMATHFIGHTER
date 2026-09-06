@@ -267,11 +267,11 @@ function startTimer() {
       SMFShowAnim.urgentOff();
       SMFShowAnim.sounds.timesUp();
       SMFShowAnim.shakeScreen(30);
-      SMFShowAnim.flash('#e0393e', 0.4);
+      SMFShowAnim.flash('#ff5f56', 0.4);
       SMFShowAnim.shake($('playTimer'));
       // 진행 바의 작은 글자만으로는 강당 뒤에서 끝난 걸 모른다.
       // 한가운데에 크게 띄웠다가 지운다(학생이 쓴 걸 계속 덮으면 안 되므로).
-      SMFShowAnim.titleCard('시간 종료!', '#e0393e');
+      SMFShowAnim.titleCard('시간 종료!', '#ff5f56');
       // 시간이 끝나도 화면을 강제로 넘기지 않는다. 진행자가 상황 보고 넘기게.
     }
   }, 1000);
@@ -368,7 +368,7 @@ function startWithProblem(problem) {
   state.roundNo += 1;
 
   $('readyRound').textContent = `제 ${state.roundNo} 문제`;
-  $('readyBadge').textContent = problem.difficulty;
+  $('readyBadgeFace').textContent = problem.difficulty;
   // 단원을 미리 알려주면 학생들이 무슨 내용인지 감을 잡고 손을 든다
   $('readyUnit').textContent = problem.unit || '';
   $('readyUnit').hidden = !problem.unit;
@@ -621,7 +621,7 @@ function wireUp() {
   // 첫 터치에 소리를 깨운다(브라우저 자동재생 정책)
   document.addEventListener('pointerdown', SMFShowAnim.unlockAudio, { once: true });
 
-  SMFShowAnim.pressable(document.querySelectorAll('.btn, .pick-card'));
+  SMFShowAnim.pressable(document.querySelectorAll('.btn, .pick-face'));
 }
 
 /* ---------- 시작 ---------- */

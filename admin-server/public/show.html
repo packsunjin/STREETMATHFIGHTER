@@ -63,21 +63,32 @@
 <!-- 2. 난이도 고르기 -->
 <section class="stage" id="stagePick" hidden>
   <h2 class="stage-title">난이도를 골라</h2>
+  <!-- 세 겹인 이유:
+       .pick-card  버튼. 절대 안 기울인다. 3D로 돌린 <button>은 크롬이 그 자리를
+                   못 짚어서 눌리지 않는다(가운데 카드만 눌리는 증상으로 확인).
+       .pick-tilt  원호 위 각도만 담당. 여기는 JS가 건드리지 않는다.
+       .pick-face  실제로 보이는 판. 등장/눌림 연출은 여기에만 건다. -->
   <div class="pick-grid" id="pickGrid">
     <button type="button" class="pick-card" data-level="하">
-      <span class="pick-level">하</span>
-      <span class="pick-time">1분 30초</span>
-      <span class="pick-count" data-count="하">-</span>
+      <span class="pick-tilt"><span class="pick-face">
+        <span class="pick-level">하</span>
+        <span class="pick-time">1분 30초</span>
+        <span class="pick-count" data-count="하">-</span>
+      </span></span>
     </button>
     <button type="button" class="pick-card" data-level="중">
-      <span class="pick-level">중</span>
-      <span class="pick-time">3분</span>
-      <span class="pick-count" data-count="중">-</span>
+      <span class="pick-tilt"><span class="pick-face">
+        <span class="pick-level">중</span>
+        <span class="pick-time">3분</span>
+        <span class="pick-count" data-count="중">-</span>
+      </span></span>
     </button>
     <button type="button" class="pick-card" data-level="상">
-      <span class="pick-level">상</span>
-      <span class="pick-time">5분</span>
-      <span class="pick-count" data-count="상">-</span>
+      <span class="pick-tilt"><span class="pick-face">
+        <span class="pick-level">상</span>
+        <span class="pick-time">5분</span>
+        <span class="pick-count" data-count="상">-</span>
+      </span></span>
     </button>
   </div>
   <button type="button" class="btn btn-ghost btn-big" id="chooseBtn">문제 직접 고르기</button>
@@ -96,7 +107,13 @@
 <section class="stage" id="stageReady" hidden>
   <div class="center-block">
     <p class="ready-round" id="readyRound" data-solo>제 1 문제</p>
-    <div class="ready-badge" id="readyBadge" data-solo>중</div>
+    <!-- 앞/뒤 면을 따로 둔 동전. 뒤집으면 두께 있는 원판처럼 보인다. -->
+    <div class="coin" id="readyBadge" data-solo>
+      <div class="coin-body" id="readyBadgeBody">
+        <div class="coin-face coin-front" id="readyBadgeFace">중</div>
+        <div class="coin-face coin-back">STREET<br />MATH</div>
+      </div>
+    </div>
     <p class="ready-unit" id="readyUnit" hidden></p>
     <p class="ready-time" id="readyTime">제한시간 3분</p>
     <button type="button" class="btn btn-primary btn-huge" id="goBtn">시작!</button>
@@ -149,7 +166,9 @@
 <section class="stage" id="stageReveal" hidden>
   <div class="center-block">
     <p class="reveal-label" id="revealLabel">정답은</p>
-    <div class="reveal-answer" id="revealAnswer">42</div>
+    <div class="reveal-plate" id="revealPlate">
+      <div class="reveal-answer" id="revealAnswer">42</div>
+    </div>
     <div class="judge-actions" id="revealJudge">
       <button type="button" class="btn btn-correct btn-huge" id="correctBtn">맞혔다!</button>
       <button type="button" class="btn btn-wrong btn-huge" id="wrongBtn">틀렸다</button>
