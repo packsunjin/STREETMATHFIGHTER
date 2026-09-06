@@ -15,22 +15,22 @@ export interface Work {
   strokes: WorkStroke[];
 }
 
+/** 진행 화면에서 남긴 한 라운드(목록용 — 필기 본문은 빠져 있다). */
 export interface AttemptSummary {
   id: number;
-  problemId: number;
-  studentKey: string;
-  studentName: string | null;
+  problemId: number | null;
+  problemTitle: string | null;
+  difficulty: string | null;
+  studentName: string;
   correct: boolean;
-  submittedAnswer: string | null;
+  prize: string | null;
   durationMs: number | null;
   createdAt: string;
-  title: string;
-  difficulty: string;
-  unit: string | null;
-  imageUrl: string;
 }
 
+/** 단건 조회 — 필기와 문제 사진까지. 문제가 삭제됐으면 사진이 없다. */
 export interface AttemptDetail extends AttemptSummary {
+  imageUrl: string | null;
   work: Work | null;
 }
 
@@ -54,7 +54,11 @@ function computeBounds(work: Work) {
   return { minX: minX - PADDING, minY: minY - PADDING, maxX: maxX + PADDING, maxY: maxY + PADDING };
 }
 
-export function renderWork(canvas: HTMLCanvasElement, image: HTMLImageElement, work: Work) {
+/**
+ * 사진 위에 필기를 다시 그린다.
+ * 문제가 삭제돼 사진이 없으면(image === null) 흰 배경 위에 필기만 그린다.
+ */
+export function renderWork(canvas: HTMLCanvasElement, image: HTMLImageElement | null, work: Work) {
   const rect = canvas.getBoundingClientRect();
   if (rect.width < 1 || rect.height < 1) return;
 
@@ -72,7 +76,8 @@ export function renderWork(canvas: HTMLCanvasElement, image: HTMLImageElement, w
   const bounds = computeBounds(work);
   const spanX = bounds.maxX - bounds.minX;
   const spanY = bounds.maxY - bounds.minY;
-  const photoAspect = (image.naturalHeight || 1) / (image.naturalWidth || 1);
+  // 사진이 없으면 판을 정사각으로 보고 그린다(필기 위치의 가로세로 비율만 유지)
+  const photoAspect = image ? (image.naturalHeight || 1) / (image.naturalWidth || 1) : 1;
 
   const scale = Math.min(canvas.width / spanX, canvas.height / (spanY * photoAspect));
   const contentW = spanX * scale;
@@ -84,9 +89,11 @@ export function renderWork(canvas: HTMLCanvasElement, image: HTMLImageElement, w
     y: originY + y * photoAspect * scale,
   });
 
-  const topLeft = toPx(0, 0);
-  const bottomRight = toPx(1, 1);
-  ctx.drawImage(image, topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
+  if (image) {
+    const topLeft = toPx(0, 0);
+    const bottomRight = toPx(1, 1);
+    ctx.drawImage(image, topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
+  }
 
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';

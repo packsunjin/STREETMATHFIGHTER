@@ -6,7 +6,10 @@ import { StatCard } from './components/StatCard';
 import { ActivityChart } from './components/ActivityChart';
 import { StudentTable } from './components/StudentTable';
 import { HardestProblems } from './components/HardestProblems';
+import { StudentRounds } from './components/StudentRounds';
+import { WorkViewer } from './components/WorkViewer';
 import { accuracyColor, fillMissingDays, type StudentStatsResponse } from './lib/stats';
+import type { AttemptDetail, AttemptSummary } from './lib/work';
 
 interface ProblemStats {
   byDifficulty: DifficultyCount[];
@@ -90,6 +93,32 @@ function ProblemsTab({ stats }: { stats: ProblemStats }) {
 }
 
 function StudentsTab({ stats }: { stats: StudentStatsResponse }) {
+  // 학생을 누르면 그 학생이 칠판에 쓴 풀이를 불러온다(목록에는 필기 본문을 안 싣는다)
+  const [selected, setSelected] = useState<string | null>(null);
+  const [rounds, setRounds] = useState<AttemptSummary[]>([]);
+  const [loadingRounds, setLoadingRounds] = useState(false);
+  const [viewing, setViewing] = useState<AttemptDetail | null>(null);
+
+  useEffect(() => {
+    if (!selected) return;
+    setLoadingRounds(true);
+    setRounds([]);
+    fetch(`../api/rounds?studentName=${encodeURIComponent(selected)}`, { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data) => setRounds(data.rounds || []))
+      .catch(() => setRounds([]))
+      .finally(() => setLoadingRounds(false));
+  }, [selected]);
+
+  const openRound = (round: AttemptSummary) => {
+    fetch(`../api/rounds/${round.id}`, { credentials: 'include' })
+      .then((res) => res.json())
+      .then((detail: AttemptDetail) => {
+        if (detail.work) setViewing(detail);
+      })
+      .catch(() => {});
+  };
+
   const attempts = stats.students.reduce((sum, s) => sum + s.total, 0);
   const correct = stats.students.reduce((sum, s) => sum + s.correct, 0);
   const accuracy = attempts ? Math.round((correct / attempts) * 100) : 0;
@@ -113,12 +142,29 @@ function StudentsTab({ stats }: { stats: StudentStatsResponse }) {
       </Card>
 
       <Card title="학생별 성공률">
-        <StudentTable students={stats.students} />
+        <StudentTable
+          students={stats.students}
+          selected={selected}
+          onSelect={(name) => setSelected((prev) => (prev === name ? null : name))}
+          renderDetail={(name) => (
+            <StudentRounds
+              name={name}
+              rounds={rounds}
+              loading={loadingRounds}
+              onOpen={openRound}
+              onClose={() => setSelected(null)}
+            />
+          )}
+        />
       </Card>
 
       <Card title="아무도 못 맞힌 문제">
         <HardestProblems problems={stats.hardestProblems} />
       </Card>
+
+      <AnimatePresence>
+        {viewing && <WorkViewer round={viewing} onClose={() => setViewing(null)} />}
+      </AnimatePresence>
     </div>
   );
 }

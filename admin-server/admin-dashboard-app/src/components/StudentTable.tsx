@@ -12,7 +12,17 @@ const SORT_LABEL: Record<SortKey, string> = {
 
 // 선생님이 실제로 궁금한 건 "누가 자주 나오는데 못 맞히나"라서, 정렬 기본값은
 // 최근 활동순으로 두되 성공률 낮은순으로 한 번에 바꿀 수 있게 함.
-export function StudentTable({ students }: { students: StudentStat[] }) {
+export function StudentTable({
+  students,
+  selected,
+  onSelect,
+  renderDetail,
+}: {
+  students: StudentStat[];
+  selected: string | null;
+  onSelect: (name: string) => void;
+  renderDetail: (name: string) => React.ReactNode;
+}) {
   const [sortKey, setSortKey] = useState<SortKey>('recent');
 
   const sorted = useMemo(() => {
@@ -54,8 +64,16 @@ export function StudentTable({ students }: { students: StudentStat[] }) {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25, delay: Math.min(index * 0.03, 0.3) }}
-            className="flex items-center gap-4 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3"
           >
+            {/* 정답률만 봐서는 "왜 틀렸는지"를 모른다. 눌러서 실제 필기로 들어간다. */}
+            <button
+              type="button"
+              onClick={() => onSelect(student.name)}
+              className={
+                'flex w-full items-center gap-4 rounded-xl border bg-[var(--card)] px-4 py-3 text-left ' +
+                (selected === student.name ? 'border-[var(--text)]' : 'border-[var(--border)]')
+              }
+            >
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-bold">{displayName(student)}</div>
               <div className="mt-0.5 text-xs text-[var(--text-secondary)]">
@@ -81,6 +99,9 @@ export function StudentTable({ students }: { students: StudentStat[] }) {
             >
               {student.accuracy}%
             </div>
+            </button>
+
+            {selected === student.name && renderDetail(student.name)}
           </motion.li>
         ))}
       </ul>
