@@ -50,26 +50,47 @@ window.SMFDraw = (function () {
     return { x: point.x * boardWidth * dpr, y: point.y * boardWidth * dpr };
   }
 
-  function drawStroke(stroke) {
-    if (!stroke.points.length) return;
+  function mid(a, b) {
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  }
+
+  function applyStrokeStyle(stroke) {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.lineWidth = stroke.widthFrac * boardWidth * dpr;
     ctx.strokeStyle = stroke.color;
     ctx.globalCompositeOperation = stroke.eraser ? 'destination-out' : 'source-over';
+  }
+
+  // 점을 직선으로 이으면 글씨가 각지게 나온다. 각 점을 곡선의 조종점으로 쓰고
+  // 점과 점의 중간을 지나가게 하면(2차 베지에) 실제로 쓴 것처럼 매끄러워진다.
+  function drawStroke(stroke) {
+    const points = stroke.points;
+    if (!points.length) return;
+    applyStrokeStyle(stroke);
 
     ctx.beginPath();
-    const first = toPx(stroke.points[0]);
-    ctx.moveTo(first.x, first.y);
-    if (stroke.points.length === 1) {
+    const first = toPx(points[0]);
+
+    if (points.length === 1) {
       // 톡 찍은 점도 보이도록 아주 짧은 선으로
+      ctx.moveTo(first.x, first.y);
       ctx.lineTo(first.x + 0.01, first.y + 0.01);
+    } else if (points.length === 2) {
+      ctx.moveTo(first.x, first.y);
+      const second = toPx(points[1]);
+      ctx.lineTo(second.x, second.y);
     } else {
-      for (let i = 1; i < stroke.points.length; i += 1) {
-        const p = toPx(stroke.points[i]);
-        ctx.lineTo(p.x, p.y);
+      ctx.moveTo(first.x, first.y);
+      for (let i = 1; i < points.length - 1; i += 1) {
+        const control = toPx(points[i]);
+        const end = toPx(mid(points[i], points[i + 1]));
+        ctx.quadraticCurveTo(control.x, control.y, end.x, end.y);
       }
+      const last = toPx(points[points.length - 1]);
+      ctx.lineTo(last.x, last.y);
     }
+
     ctx.stroke();
   }
 
@@ -126,27 +147,50 @@ window.SMFDraw = (function () {
     drawStroke(current);
   }
 
+  // 손이 거의 안 움직였는데 들어온 점은 버린다(떨림이 그대로 그려지는 걸 막고,
+  // 저장 용량도 줄인다). 판 가로폭 대비 비율이라 화면 크기와 무관하다.
+  const MIN_MOVE = 0.0008;
+
+  /** 점 하나를 획에 붙이고, 새로 생긴 구간만 그린다(전체를 다시 그리지 않는다). */
+  function extendStroke(point) {
+    const points = current.points;
+    const last = points[points.length - 1];
+    if (Math.hypot(point.x - last.x, point.y - last.y) < MIN_MOVE) return;
+
+    points.push(point);
+    applyStrokeStyle(current);
+    ctx.beginPath();
+
+    if (points.length === 2) {
+      const a = toPx(points[0]);
+      const b = toPx(points[1]);
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+    } else {
+      // 직전 두 점의 중간에서 시작해, 직전 점을 조종점으로 새 중간점까지 곡선을 잇는다.
+      // 이렇게 하면 다시 그릴 때(drawStroke)와 같은 모양이 이어서 나온다.
+      const n = points.length;
+      const start = toPx(mid(points[n - 3], points[n - 2]));
+      const control = toPx(points[n - 2]);
+      const end = toPx(mid(points[n - 2], points[n - 1]));
+      ctx.moveTo(start.x, start.y);
+      ctx.quadraticCurveTo(control.x, control.y, end.x, end.y);
+    }
+
+    ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
   function onPointerMove(event) {
     if (!drawing || event.pointerId !== activePointerId) return;
     event.preventDefault();
 
-    const point = toFrac(event.clientX, event.clientY);
-    const prev = current.points[current.points.length - 1];
-    current.points.push(point);
-
-    // 진행 중인 획은 전체를 다시 그리지 않고 마지막 선분만 이어 붙인다(반응 속도).
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.lineWidth = current.widthFrac * boardWidth * dpr;
-    ctx.strokeStyle = current.color;
-    ctx.globalCompositeOperation = current.eraser ? 'destination-out' : 'source-over';
-    const a = toPx(prev);
-    const b = toPx(point);
-    ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
-    ctx.stroke();
-    ctx.globalCompositeOperation = 'source-over';
+    // 펜은 화면 주사율보다 빠르게 움직여서, 브라우저가 여러 입력을 하나로 묶어 준다.
+    // 묶인 것들을 다 꺼내 쓰면 빠르게 그은 획도 각지지 않고 실제 궤적대로 남는다.
+    const points = event.getCoalescedEvents ? event.getCoalescedEvents() : [event];
+    for (const sample of points.length ? points : [event]) {
+      extendStroke(toFrac(sample.clientX, sample.clientY));
+    }
   }
 
   function onPointerUp(event) {
