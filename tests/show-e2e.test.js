@@ -308,6 +308,84 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     await context.close();
   });
 
+  test('문제를 직접 골라서 낼 수 있고, 이미 낸 문제는 못 고른다', async () => {
+    const { page, context } = await openShow();
+
+    await page.click('#startBtn');
+    await page.waitForSelector('#stagePick:not([hidden])');
+    await page.click('#chooseBtn');
+    await page.waitForSelector('#stageChoose:not([hidden])');
+
+    const rows = await page.locator('.choose-row').count();
+    assert.ok(rows > 0, '등록된 문제가 목록에 나와야 함');
+
+    // 이번 회차에 이미 쓴 것으로 표시하면 목록에서 눌리지 않아야 한다
+    await page.evaluate(() => {
+      state.used.add(state.problems[0].id);
+    });
+    await page.click('#chooseBackBtn');
+    await page.waitForSelector('#stagePick:not([hidden])');
+    await page.click('#chooseBtn');
+    await page.waitForSelector('#stageChoose:not([hidden])');
+
+    const disabled = await page.locator('.choose-row[disabled]').count();
+    assert.ok(disabled > 0, '이미 낸 문제는 선택 불가여야 함');
+
+    // 고를 수 있는 문제를 누르면 그 문제로 예고 화면에 간다
+    const available = page.locator('.choose-row:not([disabled])');
+    if ((await available.count()) > 0) {
+      const title = await available.first().locator('.choose-title').textContent();
+      await available.first().click();
+      await page.waitForSelector('#stageReady:not([hidden])');
+      assert.equal(await page.evaluate(() => state.problem.title), title, '고른 문제가 나와야 함');
+    }
+
+    await context.close();
+  });
+
+  test('반 대항 순위가 이름 앞의 반으로 집계된다', async () => {
+    const { page, context } = await openShow();
+
+    const ranking = await page.evaluate(() =>
+      classRanking([
+        { studentName: '2-3 김민수', correct: true },
+        { studentName: '2-3 이지훈', correct: true },
+        { studentName: '1-1 박서준', correct: true },
+        { studentName: '1-1 최유리', correct: false },
+        { studentName: '이름만', correct: true }, // 반을 못 뽑으므로 빠진다
+      ])
+    );
+
+    assert.deepEqual(
+      ranking.map((r) => [r.klass, r.wins]),
+      [
+        ['2-3', 2],
+        ['1-1', 1],
+      ]
+    );
+    await context.close();
+  });
+
+  test('목록 화면에서 돌아가기 버튼이 목록을 가리지 않는다', async () => {
+    // 목록 높이를 vh로 고정하면 위에 뭐가 붙을 때마다 마지막 줄이 버튼에 가려진다
+    const { page, context } = await openShow();
+    await page.click('#hallBtn');
+    await page.waitForSelector('#stageHall:not([hidden])');
+    await page.waitForTimeout(600);
+
+    const clash = await page.evaluate(() => {
+      const stage = document.querySelector('.stage-list:not([hidden])');
+      const back = stage.querySelector('.stage-back').getBoundingClientRect();
+      const list = stage.querySelector('.hall-list').getBoundingClientRect();
+      const overlap = !(list.bottom <= back.top || list.top >= back.bottom);
+      return { overlap, offscreen: list.bottom > window.innerHeight + 1 };
+    });
+    assert.equal(clash.overlap, false, '목록과 버튼이 겹치면 안 됨');
+    assert.equal(clash.offscreen, false, '목록이 화면 밖으로 나가면 안 됨');
+
+    await context.close();
+  });
+
   test('타이머를 멈추면 실제로 멈춰 있는다', async () => {
     const { page, context } = await openShow();
     await startRound(page);

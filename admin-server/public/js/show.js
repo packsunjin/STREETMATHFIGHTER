@@ -31,6 +31,7 @@ const stages = {
   award: $('stageAward'),
   celebrate: $('stageCelebrate'),
   hall: $('stageHall'),
+  choose: $('stageChoose'),
 };
 
 const state = {
@@ -135,6 +136,55 @@ function preloadImage(url) {
   return preloaded.get(url);
 }
 
+/* ---------- 문제 직접 고르기 ---------- */
+
+// 난이도 랜덤이 기본이지만, "오늘은 이거 낼래" 하는 경우가 있다.
+// 이미 쓴 문제도 목록에는 보여주되 눌리지 않게 해서, 왜 안 나오는지 알 수 있게 한다.
+function goChoose() {
+  const list = $('chooseList');
+  list.textContent = '';
+
+  const sorted = [...state.problems].sort((a, b) => {
+    const order = { 하: 0, 중: 1, 상: 2 };
+    return (order[a.difficulty] ?? 9) - (order[b.difficulty] ?? 9);
+  });
+
+  $('chooseEmpty').hidden = sorted.length > 0;
+
+  sorted.forEach((problem) => {
+    const used = state.used.has(problem.id);
+
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'choose-row';
+    row.disabled = used;
+
+    const badge = document.createElement('span');
+    badge.className = 'choose-badge';
+    badge.textContent = problem.difficulty;
+
+    const body = document.createElement('span');
+    body.className = 'choose-body';
+
+    // 관리자가 입력한 값이라 textContent로만 넣는다(태그로 해석 금지)
+    const title = document.createElement('span');
+    title.className = 'choose-title';
+    title.textContent = problem.title;
+
+    const meta = document.createElement('span');
+    meta.className = 'choose-meta';
+    meta.textContent = used ? '이번 회차에 이미 냈음' : problem.unit || '단원 미지정';
+
+    body.append(title, meta);
+    row.append(badge, body);
+    row.addEventListener('click', () => startWithProblem(problem));
+    list.appendChild(row);
+  });
+
+  show('choose');
+  SMFShowAnim.listIn(list.querySelectorAll('.choose-row'), 30);
+}
+
 /* ---------- 타이머 ---------- */
 
 function formatTime(seconds) {
@@ -233,7 +283,10 @@ function goPick() {
 function goReady(level) {
   const problem = pickProblem(level);
   if (!problem) return;
+  startWithProblem(problem);
+}
 
+function startWithProblem(problem) {
   state.problem = problem;
   state.roundNo += 1;
 
@@ -386,9 +439,71 @@ async function loadPrizes() {
   }
 }
 
+// 이름을 "2-3 김민수" 형식으로 넣으면 앞부분이 반이 된다.
+// 형식이 안 맞으면(그냥 "김민수") 반을 못 뽑으므로 집계에서 빠진다.
+const CLASS_RE = /^\s*(\d{1,2}\s*-\s*\d{1,2})/;
+
+function classOf(name) {
+  const matched = CLASS_RE.exec(name || '');
+  return matched ? matched[1].replace(/\s+/g, '') : null;
+}
+
+/** 반별 성공 수를 세어 많이 맞힌 순으로 준다. */
+function classRanking(rounds) {
+  const byClass = new Map();
+  rounds.forEach((round) => {
+    const klass = classOf(round.studentName);
+    if (!klass) return;
+    const entry = byClass.get(klass) || { klass, wins: 0, tries: 0 };
+    entry.tries += 1;
+    if (round.correct) entry.wins += 1;
+    byClass.set(klass, entry);
+  });
+  return [...byClass.values()].sort((a, b) => b.wins - a.wins || b.tries - a.tries);
+}
+
+function renderClassRace(rounds) {
+  const box = $('classRace');
+  box.textContent = '';
+
+  const ranking = classRanking(rounds).slice(0, 6);
+  // 반이 하나뿐이면 "대항"이 아니라 굳이 안 보여준다
+  box.hidden = ranking.length < 2;
+  if (box.hidden) return;
+
+  const top = Math.max(...ranking.map((r) => r.wins), 1);
+
+  ranking.forEach((entry, index) => {
+    const item = document.createElement('div');
+    item.className = 'class-item';
+    if (index === 0) item.classList.add('leading');
+
+    const name = document.createElement('span');
+    name.className = 'class-name';
+    name.textContent = `${entry.klass}반`;
+
+    const bar = document.createElement('span');
+    bar.className = 'class-bar';
+    const fill = document.createElement('span');
+    fill.className = 'class-bar-fill';
+    fill.style.width = `${(entry.wins / top) * 100}%`;
+    bar.appendChild(fill);
+
+    const wins = document.createElement('span');
+    wins.className = 'class-wins';
+    wins.textContent = `${entry.wins}승`;
+
+    item.append(name, bar, wins);
+    box.appendChild(item);
+  });
+}
+
 async function goHall() {
   await loadToday();
-  const winners = (state.rounds || []).filter((r) => r.correct);
+  const rounds = state.rounds || [];
+  renderClassRace(rounds);
+
+  const winners = rounds.filter((r) => r.correct);
   const list = $('hallList');
   list.textContent = '';
 
@@ -482,6 +597,8 @@ function wireUp() {
     card.addEventListener('click', () => goReady(card.dataset.level));
   });
 
+  $('chooseBtn').addEventListener('click', goChoose);
+  $('chooseBackBtn').addEventListener('click', goPick);
   $('goBtn').addEventListener('click', goPlay);
   $('readyBackBtn').addEventListener('click', goPick);
 

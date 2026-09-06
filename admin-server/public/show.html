@@ -69,7 +69,16 @@
       <span class="pick-count" data-count="">-</span>
     </button>
   </div>
+  <button type="button" class="btn btn-ghost btn-big" id="chooseBtn">문제 직접 고르기</button>
   <button type="button" class="btn btn-ghost btn-big stage-back" id="pickBackBtn">뒤로</button>
+</section>
+
+<!-- 2-1. 문제 직접 고르기 -->
+<section class="stage stage-list" id="stageChoose" hidden>
+  <h2 class="stage-title">낼 문제를 골라</h2>
+  <div class="choose-list" id="chooseList"></div>
+  <p class="hall-empty" id="chooseEmpty" hidden>등록된 문제가 없어. 관리자 화면에서 먼저 등록해줘.</p>
+  <button type="button" class="btn btn-ghost btn-big stage-back" id="chooseBackBtn">뒤로</button>
 </section>
 
 <!-- 3. 문제 예고 -->
@@ -168,8 +177,11 @@
 </section>
 
 <!-- 8. 명예의 전당 -->
-<section class="stage" id="stageHall" hidden>
+<section class="stage stage-list" id="stageHall" hidden>
   <h2 class="stage-title">오늘의 명예의 전당</h2>
+
+  <div class="class-race" id="classRace" hidden></div>
+
   <div class="hall-list" id="hallList"></div>
   <p class="hall-empty" id="hallEmpty" hidden>아직 아무도 못 맞혔어</p>
   <button type="button" class="btn btn-ghost btn-big stage-back" id="hallBackBtn">돌아가기</button>
