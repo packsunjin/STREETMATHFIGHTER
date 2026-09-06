@@ -11,8 +11,33 @@
     <div class="home-inner">
       <header class="home-hero">
         <h1 class="home-title">스트릿<em>매쓰</em>파이터</h1>
-        <p class="home-subtitle">난이도를 고르면 바로 한 판 시작</p>
+        <p class="home-subtitle">
+          <span id="greeting">난이도를 고르면 바로 한 판 시작</span>
+          <button type="button" class="link-inline" id="nameBtn">이름 설정</button>
+        </p>
       </header>
+
+      <!-- 내 기록: 지금까지 푼 문제 / 정답률 / 연속 정답 -->
+      <section class="my-stats" id="myStats" hidden>
+        <div class="my-stats-row">
+          <div class="my-stat">
+            <span class="my-stat-value" id="statSolved">0</span>
+            <span class="my-stat-label">푼 문제</span>
+          </div>
+          <div class="my-stat">
+            <span class="my-stat-value" id="statAccuracy">0%</span>
+            <span class="my-stat-label">정답률</span>
+          </div>
+          <div class="my-stat">
+            <span class="my-stat-value" id="statStreak">0</span>
+            <span class="my-stat-label">연속 정답</span>
+          </div>
+        </div>
+        <a class="my-stats-link" id="reviewLink" href="review.html" hidden>
+          <span id="reviewLinkText">오답 노트</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        </a>
+      </section>
 
       <div class="difficulty-list">
         <button class="difficulty-bar" data-difficulty="하" data-level="하">
@@ -52,6 +77,7 @@
   <script src="vendor/anime.umd.min.js"></script>
   <script src="vendor/motion.min.js"></script>
   <script src="js/anim.js"></script>
+  <script src="js/student.js"></script>
   <script src="js/index.js"></script>
 </body>
 </html>

@@ -8,7 +8,16 @@ const compression = require('compression');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 
-const { DIFFICULTIES, listProblems, listUnits, getProblem } = require('../shared/db');
+const {
+  DIFFICULTIES,
+  listProblems,
+  listUnits,
+  getProblem,
+  recordAttempt,
+  getStudentSummary,
+  listRecentAttempts,
+  listWrongProblems,
+} = require('../shared/db');
 
 const PORT = process.env.MAIN_PORT || 3000;
 
@@ -43,6 +52,22 @@ function parseId(req, res, next) {
   }
   req.problemId = id;
   next();
+}
+
+// 학생 식별자는 브라우저가 만들어 보내는 값이라 형식을 좁게 제한한다
+// (DB에 이상한 값이 쌓이거나 길이 폭탄이 들어오지 않도록).
+function normalizeStudentKey(raw) {
+  if (typeof raw !== 'string') return null;
+  const key = raw.trim();
+  if (!/^[A-Za-z0-9_-]{8,64}$/.test(key)) return null;
+  return key;
+}
+
+function normalizeStudentName(raw) {
+  if (typeof raw !== 'string') return null;
+  const name = raw.trim().replace(/\s+/g, ' ');
+  if (!name) return null;
+  return name.slice(0, 20);
 }
 
 function toPublicProblem(problem) {
@@ -113,7 +138,83 @@ app.post('/api/problems/:id/check', parseId, checkAnswerLimiter, async (req, res
         ? submitted === correctAnswer
         : submitted.toLowerCase() === correctAnswer.toLowerCase());
 
+    // 학생 식별자가 같이 오면 풀이 기록을 남긴다(내 기록/오답 노트/선생님 통계용).
+    // 기록이 실패하더라도 채점 결과는 정상적으로 돌려줘야 하므로 따로 감싼다.
+    const studentKey = normalizeStudentKey(req.body?.studentKey);
+    if (studentKey) {
+      try {
+        await recordAttempt({
+          problem_id: req.problemId,
+          student_key: studentKey,
+          student_name: normalizeStudentName(req.body?.studentName),
+          correct,
+          submitted_answer: submitted,
+          duration_ms: Number(req.body?.durationMs),
+        });
+      } catch (recordErr) {
+        console.error('풀이 기록 저장 실패:', recordErr);
+      }
+    }
+
     res.json({ correct, correctAnswer });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---- 내 기록 / 오답 노트 ----
+// 학생 로그인이 없는 서비스라 브라우저에 저장된 student_key로 본인을 구분한다.
+// 남의 키를 알아야만 조회가 되므로 사실상 본인 기록만 보게 되고, 성적 외의
+// 민감한 정보는 담지 않는다.
+
+app.get('/api/me/summary', async (req, res, next) => {
+  try {
+    const studentKey = normalizeStudentKey(req.query.studentKey);
+    if (!studentKey) return res.status(400).json({ error: '학생 식별자가 필요합니다.' });
+
+    const [summary, recent] = await Promise.all([
+      getStudentSummary(studentKey),
+      listRecentAttempts(studentKey, 30),
+    ]);
+
+    // 최근 기록부터 연속으로 맞힌 개수
+    let streak = 0;
+    for (const attempt of recent) {
+      if (!attempt.correct) break;
+      streak += 1;
+    }
+
+    res.json({
+      total: summary.total || 0,
+      correct: summary.correct || 0,
+      distinctProblems: summary.distinct_problems || 0,
+      lastSolvedAt: summary.last_solved_at,
+      streak,
+      byDifficulty: summary.byDifficulty || [],
+      recent: recent.slice(0, 10),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/me/wrong', async (req, res, next) => {
+  try {
+    const studentKey = normalizeStudentKey(req.query.studentKey);
+    if (!studentKey) return res.status(400).json({ error: '학생 식별자가 필요합니다.' });
+
+    const rows = await listWrongProblems(studentKey, 50);
+    res.json({
+      problems: rows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        difficulty: row.difficulty,
+        unit: row.unit || null,
+        imageUrl: row.image_path,
+        questionType: row.question_type,
+        lastTriedAt: row.last_tried_at,
+      })),
+    });
   } catch (err) {
     next(err);
   }

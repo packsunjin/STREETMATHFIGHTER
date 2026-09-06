@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>오답 노트 - 스트릿매쓰파이터</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="unit-page">
+    <div class="top-bar">
+      <button class="icon-btn" id="backBtn" title="홈으로">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <h2 class="solve-title">오답 노트</h2>
+    </div>
+    <div class="home-wrap">
+      <div class="home-inner">
+        <header class="home-hero">
+          <h1 class="home-title">오답 노트</h1>
+          <p class="home-subtitle" id="reviewSubtitle">틀린 문제를 다시 풀어보자</p>
+        </header>
+        <div class="difficulty-list" id="wrongList"></div>
+        <p class="empty-state" id="emptyState" hidden>아직 틀린 문제가 없어. 계속 이렇게 가자 💪</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="vendor/anime.umd.min.js"></script>
+  <script src="vendor/motion.min.js"></script>
+  <script src="js/anim.js"></script>
+  <script src="js/student.js"></script>
+  <script src="js/review.js"></script>
+</body>
+</html>

@@ -51,6 +51,7 @@ let drawing = false;
 let strokes = []; // {points:[{x,y}](사진 기준 비율, 여백은 0~1 밖), color, widthFrac, composite}
 let currentStroke = null;
 let currentProblem = null;
+let problemStartedAt = null; // 문제를 열어 푼 시간을 재서 기록에 남김
 let answered = false;
 let selectedChoice = null;
 let penColor = '#191b1f';
@@ -887,7 +888,13 @@ async function checkAnswer(value) {
     const res = await fetch(`/api/problems/${problemId}/check`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ answer: value }),
+      body: JSON.stringify({
+        answer: value,
+        // 내 기록/오답 노트/선생님 통계를 위해 누가 얼마나 걸려 풀었는지 함께 보냄
+        studentKey: SMFStudent.getKey(),
+        studentName: SMFStudent.getName() || undefined,
+        durationMs: problemStartedAt ? Date.now() - problemStartedAt : undefined,
+      }),
     });
     if (!res.ok) return null;
     return res.json();
@@ -1038,6 +1045,7 @@ async function loadProblem() {
     const data = await res.json();
     const problem = data.problem;
     currentProblem = problem;
+    problemStartedAt = Date.now();
     resetAnswerPanel(problem);
 
     const badge = document.getElementById('difficultyBadge');

@@ -160,6 +160,82 @@ button,
   color: var(--text-secondary);
 }
 
+/* 인사말 옆의 작은 텍스트 버튼(이름 설정 등) */
+.link-inline {
+  border: none;
+  background: none;
+  padding: 0 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--blue);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+/* 홈 화면의 "내 기록" 패널: 푼 문제 / 정답률 / 연속 정답 */
+.my-stats {
+  margin-bottom: 20px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.my-stats[hidden] {
+  display: none;
+}
+
+.my-stats-row {
+  display: flex;
+}
+
+.my-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 14px 8px;
+}
+
+.my-stat + .my-stat {
+  border-left: 1px solid var(--border);
+}
+
+.my-stat-value {
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.my-stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.my-stats-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--red-light);
+  color: var(--red);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.my-stats-link[hidden] {
+  display: none;
+}
+
+.my-stats-link svg {
+  width: 16px;
+  height: 16px;
+}
+
 /* 단원 선택 화면에서 지금 고른 난이도를 색으로 알려주는 작은 배지 */
 .hero-level-badge {
   display: inline-flex;

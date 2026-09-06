@@ -23,6 +23,9 @@ const {
   createProblem,
   updateProblem,
   deleteProblem,
+  listStudentStats,
+  listHardestProblems,
+  listDailyActivity,
 } = require('../shared/db');
 
 const PORT = process.env.ADMIN_PORT || 4000;
@@ -243,6 +246,40 @@ app.get('/api/stats/problem-counts', requireAuth, async (req, res, next) => {
     byUnitList.sort((a, b) => b.total - a.total);
 
     res.json({ byDifficulty: byDifficultyList, byUnit: byUnitList, total: problems.length });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// 선생님용: 학생들이 실제로 어떻게 풀고 있는지(등록된 문제 수가 아니라 성취도)
+app.get('/api/stats/students', requireAuth, async (req, res, next) => {
+  try {
+    const [students, hardest, daily] = await Promise.all([
+      listStudentStats(100),
+      listHardestProblems(8),
+      listDailyActivity(14),
+    ]);
+
+    res.json({
+      students: students.map((s) => ({
+        studentKey: s.student_key,
+        name: s.student_name || null,
+        total: s.total,
+        correct: s.correct,
+        accuracy: s.total ? Math.round((s.correct / s.total) * 100) : 0,
+        lastSolvedAt: s.last_solved_at,
+      })),
+      hardestProblems: hardest.map((p) => ({
+        id: p.id,
+        title: p.title,
+        difficulty: p.difficulty,
+        unit: p.unit || null,
+        total: p.total,
+        correct: p.correct,
+        accuracy: p.total ? Math.round((p.correct / p.total) * 100) : 0,
+      })),
+      dailyActivity: daily,
+    });
   } catch (err) {
     next(err);
   }
