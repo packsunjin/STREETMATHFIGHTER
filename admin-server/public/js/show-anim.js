@@ -100,6 +100,20 @@ window.SMFShowAnim = (function () {
       tones([[392, 0, 0.1], [523, 0.1, 0.1], [784, 0.2, 0.35]]);
       boom(0.28);
     },
+    /** 화면이 넘어갈 때 스치는 소리. 전환이 있었다는 걸 귀로도 알린다. */
+    whoosh: () => tones([[180, 0, 0.05], [420, 0.05, 0.08], [140, 0.14, 0.16]], 'sine', 0.1),
+    /** 정답 축하 팡파르. 소리가 커야 강당이 같이 터진다. */
+    fanfare: () => {
+      tones(
+        [
+          [523, 0, 0.12], [523, 0.12, 0.1], [523, 0.24, 0.1], [698, 0.36, 0.34],
+          [659, 0.7, 0.12], [698, 0.82, 0.12], [880, 0.94, 0.55],
+        ],
+        'triangle',
+        0.24
+      );
+      boom(0.3);
+    },
   };
 
   /* ================= 화면 전환 =================
@@ -109,9 +123,11 @@ window.SMFShowAnim = (function () {
     if (!el || !enabled) return;
 
     // 안에 있는 것들이 아래에서 차례로 밀려 올라온다.
+    // data-solo가 붙은 건 제 몫의 등장 연출(titleIn, badgeSlam 등)이 따로 있다.
+    // 여기서 같이 움직이면 두 애니메이션이 같은 transform을 두고 싸운다.
     const items = el.querySelectorAll(
-      '.show-logo, .show-tagline, .idle-actions > *, .stage-title, .pick-card, ' +
-        '.center-block > *, .choose-row'
+      '.show-logo:not([data-solo]), .show-tagline, .idle-actions > *, .stage-title, .pick-card, ' +
+        '.center-block > *:not([data-solo]), .choose-row'
     );
 
     animate(el, { opacity: [0, 1] }, { duration: 0.18, ease: 'outQuad' });
@@ -160,11 +176,17 @@ window.SMFShowAnim = (function () {
     'position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;' +
     'pointer-events:none;font-family:inherit';
 
-  function makeLayer(extra = '', name = 'fx') {
+  /**
+   * 연출용 겹치는 판을 만든다.
+   * behind=true면 무대(.stage)보다 뒤에 깐다. 무대 배경이 투명해서
+   * body의 첫 자식으로 넣으면 내용 뒤에서 비친다(햇살, 배경 글자 등).
+   */
+  function makeLayer(extra = '', name = 'fx', behind = false) {
     const layer = document.createElement('div');
     layer.className = `fx fx-${name}`;
     layer.setAttribute('style', layerStyle + extra);
-    document.body.appendChild(layer);
+    if (behind) document.body.insertBefore(layer, document.body.firstChild);
+    else document.body.appendChild(layer);
     return layer;
   }
 
@@ -329,13 +351,13 @@ window.SMFShowAnim = (function () {
     if (!el || !enabled) return;
     animate(
       el,
-      { scale: [4, 1], rotate: [-360, 0], opacity: [0, 1] },
-      { duration: 0.85, ease: 'out(5)' }
+      { scale: [3, 1], rotate: [-360, 0], opacity: [0, 1] },
+      { duration: 0.7, ease: 'out(5)' }
     );
     setTimeout(() => {
       boom(0.2);
       shakeScreen(10);
-    }, 420);
+    }, 340);
   }
 
   /** 타이머가 위에서 떨어지며 자리를 잡는다. */
@@ -480,13 +502,44 @@ window.SMFShowAnim = (function () {
     setTimeout(() => layer.remove(), DURATION_MS + 300);
   }
 
-  /** 정답 순간 전체 연출: 초록 번쩍 + 링 + 색종이 + 흔들림. */
+  /**
+   * 정답 순간 전체 연출.
+   * 강당에서 제일 크게 터져야 하는 순간이라 겹칠 수 있는 건 다 겹친다:
+   * 초록 번쩍 -> 뒤에서 퍼지는 햇살 -> 링 -> 색종이 두 번 -> 흔들림.
+   */
   function celebrate() {
     if (!enabled) return;
     flash('#16a34a', 0.55);
+    rays('#16a34a');
     ring('#16a34a', 4);
     shakeScreen(16);
     confetti();
+    // 한 번 터지고 끝나면 금방 조용해진다. 잦아들 때쯤 한 번 더.
+    setTimeout(() => confetti(60), 900);
+  }
+
+  /**
+   * 뒤에서 퍼지는 햇살. 무대 배경이 투명해서 body 맨 앞에 깔면
+   * 트로피와 글자 뒤에서 돌아간다.
+   */
+  function rays(color, ms = 2600) {
+    if (!enabled) return;
+    const layer = makeLayer(';overflow:hidden;z-index:0', 'rays', true);
+
+    const sun = document.createElement('div');
+    sun.setAttribute(
+      'style',
+      'position:absolute;width:300vmax;height:300vmax;opacity:0;' +
+        `background:repeating-conic-gradient(from 0deg, ${color} 0deg 7deg, transparent 7deg 18deg)`
+    );
+    layer.appendChild(sun);
+
+    animate(
+      sun,
+      { scale: [0.1, 1], rotate: [0, 22], opacity: [0, 0.28, 0.28, 0] },
+      { duration: ms / 1000, ease: 'out(2)' }
+    );
+    setTimeout(() => layer.remove(), ms + 200);
   }
 
   /** 오답 순간: 붉은 번쩍 + 흔들림. */
@@ -513,6 +566,79 @@ window.SMFShowAnim = (function () {
         { duration: 0.6, delay: 0.25, ease: 'out(5)' }
       );
     }
+  }
+
+  /* ================= 화면 전환 와이프 =================
+   * 무대가 슬그머니 바뀌면 뒤에 앉은 학생은 넘어간 줄도 모른다.
+   * 굵은 띠가 화면을 한 번 쓸고 지나가면 "장면이 바뀌었다"가 멀리서도 읽힌다. */
+
+  const WIPE_MS = 620;
+
+  function wipe() {
+    if (!enabled) return;
+    sounds.whoosh();
+
+    const layer = makeLayer(';overflow:hidden;z-index:65', 'wipe');
+
+    // left를 안 잡으면 flex 가운데 정렬이 시작 위치가 돼서 띠가 화면 중앙에서 튀어나온다
+    const makeBar = (color, width) => {
+      const bar = document.createElement('div');
+      bar.setAttribute(
+        'style',
+        `position:absolute;left:0;top:-20%;height:140%;width:${width};background:${color}`
+      );
+      layer.appendChild(bar);
+      return bar;
+    };
+
+    // 굵은 먹색 띠가 지나가고, 얇은 띠가 뒤따라와 잔상을 남긴다
+    const main = makeBar('#111111', '80vw');
+    const trail = makeBar('#e5e7eb', '20vw');
+
+    // skewX는 [값, 값]으로 줘야 기운 채로 고정된다.
+    // anime가 transform을 통째로 다시 쓰기 때문에 인라인 transform은 남지 않는다.
+    animate(
+      [main, trail],
+      { x: ['-105vw', '190vw'], skewX: [-12, -12] },
+      { duration: WIPE_MS / 1000, delay: stagger(0.07), ease: 'inOutQuad' }
+    );
+
+    // 애니메이션 콜백에 기대지 않는다. 이 판이 남으면 화면이 까맣게 덮인다.
+    setTimeout(() => layer.remove(), WIPE_MS + 300);
+  }
+
+  /** "제 N 문제" 같은 제목이 왼쪽에서 밀려 들어온다. */
+  function titleIn(el) {
+    if (!el || !enabled) return;
+    animate(
+      el,
+      { x: [-window.innerWidth * 0.6, 0], opacity: [0, 1], skewX: [-14, 0] },
+      { duration: 0.7, ease: 'out(4)' }
+    );
+  }
+
+  /* ================= 대기 화면 =================
+   * 점심시간 내내 켜둔 채로 학생들이 들어온다. 완전히 멈춘 화면은
+   * 고장 난 것처럼 보인다. 로고가 천천히 숨쉬게 둔다. */
+  let breathing = null;
+
+  function breathe(el) {
+    stopBreathe();
+    if (!el || !enabled) return;
+    // 화면 등장 연출(stageIn)이 끝난 뒤에 시작한다. 겹치면 둘이 같은
+    // transform을 두고 싸워서 로고가 튄다.
+    breathing = animate(
+      el,
+      { scale: [1, 1.05], rotate: [-1.2, 1.2] },
+      { duration: 2.4, delay: 0.9, loop: true, alternate: true, ease: 'inOutQuad' }
+    );
+  }
+
+  function stopBreathe() {
+    if (!breathing) return;
+    // 멈추면서 원래 자리로 돌려놓는다(다음 화면에 기울어진 채로 남지 않게)
+    if (typeof breathing.pause === 'function') breathing.pause();
+    breathing = null;
   }
 
   /** 문제 사진이 확 커지며 등장. */
@@ -543,6 +669,11 @@ window.SMFShowAnim = (function () {
     flash,
     ring,
     countdown,
+    wipe,
+    titleIn,
+    rays,
+    breathe,
+    stopBreathe,
     drumroll,
     suspense,
     badgeSlam,

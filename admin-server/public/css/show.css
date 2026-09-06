@@ -221,8 +221,10 @@ body {
 /* ---- 3. 문제 예고 ---- */
 .ready-round {
   margin: 0;
-  font-size: 4vmin;
-  color: var(--muted);
+  font-size: 7vmin;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: var(--ink);
 }
 
 .ready-badge {
@@ -402,8 +404,9 @@ body {
 /* ---- 5. 정답 공개 ---- */
 .reveal-label {
   margin: 0;
-  font-size: 4vmin;
-  color: var(--muted);
+  font-size: 5.5vmin;
+  font-weight: 900;
+  color: var(--ink);
 }
 
 .reveal-answer {
@@ -605,8 +608,8 @@ body {
 }
 
 .suspense-dot {
-  width: 1.6vmin;
-  height: 1.6vmin;
+  width: 2.2vmin;
+  height: 2.2vmin;
   border-radius: 50%;
   background: var(--ink);
 }

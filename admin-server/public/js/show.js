@@ -48,12 +48,21 @@ const state = {
 /* ---------- 화면 전환 ---------- */
 
 function show(name) {
+  const already = stages[name] && !stages[name].hidden;
+
   Object.values(stages).forEach((el) => {
     el.hidden = true;
   });
   const el = stages[name];
   el.hidden = false;
+
+  // 같은 화면을 다시 그리는 경우(목록 갱신 등)까지 쓸어버리면 산만하다
+  if (!already) SMFShowAnim.wipe();
   SMFShowAnim.stageIn(el);
+
+  // 대기 화면에서만 로고가 숨쉰다. 다른 화면으로 넘어가면 멈춘다.
+  if (name === 'idle') SMFShowAnim.breathe(document.querySelector('.show-logo'));
+  else SMFShowAnim.stopBreathe();
 }
 
 /* ---------- 서버 통신 ---------- */
@@ -333,6 +342,7 @@ function startWithProblem(problem) {
   const limit = TIME_LIMITS[problem.difficulty] ?? DEFAULT_LIMIT;
   $('readyTime').textContent = `제한시간 ${formatTime(limit)}`;
   show('ready');
+  SMFShowAnim.titleIn($('readyRound'));
   SMFShowAnim.badgeSlam($('readyBadge'));
 
   // 이 화면이 떠 있는 동안 사진을 미리 받아둔다(시작하자마자 보이도록)
@@ -422,7 +432,7 @@ function judge(correct) {
   state.used.add(state.problem.id);
 
   if (correct) {
-    SMFShowAnim.sounds.correct();
+    SMFShowAnim.sounds.fanfare();
     show('celebrate');
     SMFShowAnim.celebrate();
     SMFShowAnim.trophyIn(

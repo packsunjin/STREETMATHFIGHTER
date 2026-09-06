@@ -122,6 +122,58 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     await context.close();
   });
 
+  test('정답을 바로 까지 않고 뜸을 들인다', async () => {
+    // 누르자마자 답이 뜨면 강당이 조용해질 틈이 없다.
+    // "정답은 ..." 하고 기다렸다가 나와야 한다.
+    const { page, context, errors } = await openShow();
+    await startRound(page);
+
+    await page.click('#revealBtn');
+    await page.waitForSelector('#stageReveal:not([hidden])');
+
+    const 뜸 = await page.evaluate(() => ({
+      정답숨김: document.getElementById('revealAnswer').hidden,
+      판정버튼숨김: document.getElementById('revealJudge').hidden,
+      점: document.querySelectorAll('.suspense-dot').length,
+    }));
+    assert.equal(뜸.정답숨김, true, '정답이 바로 떠버림');
+    assert.equal(뜸.판정버튼숨김, true, '판정 버튼이 정답보다 먼저 뜸');
+    assert.equal(뜸.점, 3, '기다리는 표시(점 세 개)가 안 나옴');
+
+    // 그리고 반드시 나와야 한다. 안 나오면 행사가 여기서 멈춘다.
+    await page.waitForSelector('#revealAnswer:not([hidden])', { timeout: 5000 });
+    await page.waitForSelector('#revealJudge:not([hidden])', { timeout: 5000 });
+    assert.equal(
+      await page.evaluate(() => document.querySelectorAll('.suspense-dot').length),
+      0,
+      '뜸 들이던 점이 안 치워짐'
+    );
+
+    assert.equal(errors.length, 0, `자바스크립트 에러: ${errors.join(', ')}`);
+    await context.close();
+  });
+
+  test('화면이 바뀔 때 와이프가 지나가고 스스로 치워진다', async () => {
+    // 화면을 덮는 검은 띠라, 안 치워지면 행사가 그대로 끝난다.
+    const { page, context } = await openShow();
+
+    await page.click('#startBtn');
+    await page.waitForSelector('#stagePick:not([hidden])');
+    assert.ok(
+      await page.evaluate(() => document.querySelectorAll('.fx-wipe').length > 0),
+      '전환 연출이 아예 안 나옴'
+    );
+
+    await page.waitForTimeout(1200);
+    assert.equal(await page.evaluate(() => document.querySelectorAll('.fx-wipe').length), 0);
+
+    // 덮개가 남아 있으면 이 클릭이 타임아웃난다
+    await page.click('.pick-card:not([disabled])', { timeout: 3000 });
+    await page.waitForSelector('#stageReady:not([hidden])');
+
+    await context.close();
+  });
+
   test('연출 레이어는 끝나면 모두 치워진다', async () => {
     // 안 치우면 화면 위에 쌓여서 결국 조작을 막는다.
     const { page, context } = await openShow();
