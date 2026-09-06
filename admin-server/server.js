@@ -62,7 +62,11 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      maxAge: 1000 * 60 * 60 * 8, // 8시간
+      // 전자칠판에 한 번 로그인해두면 학기 내내 유지되게 길게 잡는다.
+      // 짧게 잡으면 하필 점심시간에 세션이 풀려서, 학생들 앞에서 로그인부터
+      // 하고 있어야 한다. 기기가 강당에 고정돼 있고 쓰는 사람이 진행자
+      // 한 명이라 이 길이가 실제 위험을 늘리지 않는다.
+      maxAge: 1000 * 60 * 60 * 24 * 60, // 60일
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
@@ -124,10 +128,9 @@ function uploadImageToCloudinary(buffer) {
   });
 }
 
+// public 아래에 화면과 vendor(글꼴/애니메이션 라이브러리)가 같이 있다.
+// 단독 실행이든 /admin 마운트든 같은 상대경로로 잡히도록 여기서만 서빙한다.
 app.use(express.static(path.join(__dirname, 'public')));
-// 애니메이션 라이브러리는 main-server와 같은 파일을 쓴다. 복사본을 두면 버전이
-// 갈라지므로, 단독 실행이든 /admin 마운트든 같은 경로로 서빙만 한다.
-app.use('/vendor', express.static(path.join(__dirname, '..', 'main-server', 'public', 'vendor')));
 app.use('/stats', express.static(path.join(__dirname, 'admin-dashboard-app', 'dist')));
 
 // 정답 문자열 정규화. 미입력이면 null(채점 기능 없음), 객관식이면 1~5만 허용.

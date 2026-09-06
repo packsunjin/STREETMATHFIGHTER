@@ -48,14 +48,22 @@
 
 ### 구성
 
-- **admin-server**: 로그인, 문제 등록/수정/삭제(사진 업로드), 진행 화면, 행사 통계 대시보드
-- **main-server**: 로그인 없이 열리는 공개 결과 페이지. 정답·문제 사진·필기는 절대 내보내지 않습니다.
+서버는 하나입니다.
 
-두 사이트는 동일한 **Postgres DB**와 **Cloudinary 이미지 저장소**를 공유합니다(둘 다 무료 플랜, 신용카드 불필요).
+| 주소 | 화면 |
+| --- | --- |
+| `/admin/show.html` | 진행 화면 (강당 전자칠판) |
+| `/admin` | 문제 등록·수정·삭제 |
+| `/` | 진행 화면으로 보냄 |
+
+**진행 화면에도 로그인이 필요합니다.** 화면이 "정답은 42"를 띄우려면 브라우저가
+서버에서 정답을 받아와야 하는데(`/admin/api/show/problems`), 그 통로가 열려 있으면
+주소만 아는 학생이 폰으로 열어 모든 문제의 정답을 미리 볼 수 있습니다.
+대신 세션을 60일로 잡아 뒀습니다. 전자칠판에서 한 번 로그인하면 학기 내내 유지되므로,
+점심시간에 학생들 앞에서 로그인부터 하고 있을 일은 없습니다.
+
+**Postgres DB**와 **Cloudinary 이미지 저장소**를 씁니다(둘 다 무료 플랜, 신용카드 불필요).
 서버는 로컬 디스크에 아무 상태도 저장하지 않으므로(stateless), 재시작/슬립 후에도 데이터가 사라지지 않습니다.
-
-로컬 개발에서는 두 개의 독립된 Express 서버(포트 분리)로 실행하고,
-배포 시에는 `server.js`가 두 사이트를 하나의 서비스(`/`, `/admin`)로 묶어 실행합니다.
 
 ## 준비물 (둘 다 무료, 신용카드 불필요)
 
@@ -68,14 +76,13 @@
 npm install
 cp .env.example .env
 # .env에 DATABASE_URL, CLOUDINARY_URL을 위에서 복사한 값으로 채워넣기
-npm run dev             # main-server(3000) + admin-server(4000) 동시 실행
+npm run dev             # http://localhost:3000/admin/show.html
 ```
 
-개별 실행:
+관리자 서버만 따로 띄우고 싶다면:
 
 ```bash
-npm run dev:main    # http://localhost:3000
-npm run dev:admin   # http://localhost:4000
+npm run start:admin # http://localhost:4000
 ```
 
 로컬에서 두 서버를 별도 포트로 운영 실행: `npm run start:main`, `npm run start:admin`
@@ -150,11 +157,9 @@ admin-server/public/show.html         # 강당 전자칠판 진행 화면
 admin-server/public/js/show.js        #   └ 진행 상태 전환(대기→문제→정답→상품)
 admin-server/public/js/show-draw.js   #   └ 필기 엔진(벡터 저장 + 손바닥 걸러내기)
 admin-server/public/js/show-anim.js   #   └ 연출(카운트다운/색종이/효과음)
-admin-server/public/js/show-queue.js  #   └ 기록 저장 큐(네트워크가 끊겨도 안 잃게)
 admin-server/admin-dashboard-app/     # 통계 대시보드(React+Vite+Tailwind, /stats로 서빙)
-main-server/                          # 공개 결과 페이지 (로그인 없음, 정답 노출 없음)
-main-server/public/vendor/            # Anime.js / Motion 브라우저 빌드 자체 호스팅(CDN 의존 없음)
-server.js                             # 배포용 통합 진입점 (main + admin을 한 포트에서 서빙)
+admin-server/public/vendor/           # 글꼴·Anime.js 자체 호스팅(행사 당일 외부 의존 없음)
+server.js                             # 진입점
 render.yaml                           # Render 배포 블루프린트
 tests/                                # 통합 테스트 (node:test + supertest + Playwright)
 .github/workflows/ci.yml              # push/PR마다 테스트 + 대시보드 빌드를 실행하는 CI
