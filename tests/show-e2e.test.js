@@ -146,7 +146,7 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     await startRound(page);
 
     // 덮개가 남아 있으면 이 클릭이 타임아웃난다
-    await page.click('#addTimeBtn', { timeout: 3000 });
+    await page.click('#answerBtn', { timeout: 3000 });
 
     assert.equal(errors.length, 0, `자바스크립트 에러: ${errors.join(', ')}`);
     await context.close();
@@ -154,11 +154,15 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
 
   test('정답을 바로 까지 않고 뜸을 들인다', async () => {
     // 누르자마자 답이 뜨면 강당이 조용해질 틈이 없다.
-    // "정답은 ..." 하고 기다렸다가 나와야 한다.
+    // 기다렸다가 나와야 한다.
     const { page, context, errors } = await openShow();
     await startRound(page);
 
-    await page.click('#revealBtn');
+    // 반환하지 않는다. evaluate가 프라미스를 기다려버리면 뜸 들이기가 끝난 뒤에
+    // 돌아와서 "바로 안 뜬다"를 확인할 수가 없다.
+    await page.evaluate(() => {
+      showAnswerPlate('시간 종료');
+    });
     await page.waitForSelector('#stageReveal:not([hidden])');
 
     const 뜸 = await page.evaluate(() => ({
@@ -416,21 +420,18 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     await context.close();
   });
 
-  test('정답 공개 -> 맞혔다 -> 다음 문제로 이어진다', async () => {
+  test('정답을 넣으면 진행자가 아무것도 안 눌러도 축하 화면으로 간다', async () => {
     const { page, context, errors } = await openShow();
     await startRound(page);
 
-    // 어떤 문제가 뽑힐지는 무작위라, 뽑힌 문제의 정답과 비교한다
+    // 어떤 문제가 뽑힐지는 무작위라, 뽑힌 문제의 정답을 그대로 넣는다
     const expected = await page.evaluate(() => String(state.problem.answer));
-    await page.click('#revealBtn');
-    await page.waitForSelector('#stageReveal:not([hidden])');
-    // "정답은..." 하고 뜸을 들인 뒤에야 정답이 나온다
-    await page.waitForSelector('#revealAnswer:not([hidden])', { timeout: 5000 });
-    assert.equal(await page.locator('#revealAnswer').textContent(), expected);
-    await page.waitForSelector('#revealJudge:not([hidden])', { timeout: 5000 });
+    await page.click('#answerBtn');
+    await page.waitForSelector('#stageAnswer:not([hidden])');
 
-    await page.click('#correctBtn');
-    await page.waitForSelector('#stageCelebrate:not([hidden])');
+    // 진행자가 맞았다고 눌러주지 않는다. 답을 넣으면 앱이 판정한다.
+    await page.evaluate((v) => submitAnswer(v), expected);
+    await page.waitForSelector('#stageCelebrate:not([hidden])', { timeout: 6000 });
 
     // 같은 난이도에 문제가 남아 있으면 난이도 화면을 건너뛴다
     await page.evaluate(() => {
@@ -444,21 +445,89 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     await context.close();
   });
 
-  test('틀렸다를 눌러도 흐름이 끊기지 않는다', async () => {
-    const { page, context } = await openShow();
+  test('틀리면 같은 문제로 다음 사람에게 넘어간다', async () => {
+    // 정답을 까지 않는다. 칠판을 지우고 시간을 처음부터 줘야 다음 사람이
+    // 앞사람 풀이 위에 쓰거나 남은 몇 초만 받는 일이 없다.
+    const { page, context, errors } = await openShow();
     await startRound(page);
 
-    await page.click('#revealBtn');
-    await page.waitForSelector('#stageReveal:not([hidden])');
-    await page.waitForSelector('#revealJudge:not([hidden])', { timeout: 5000 });
+    const before = await page.evaluate(() => {
+      // 앞사람이 칠판에 뭔가 써 둔 상태를 만든다
+      SMFDraw.setColor('#111111');
+      return { id: state.problem.id, 제한: state.secondsLeft };
+    });
+    const box = await page.locator('#board').boundingBox();
+    await page.mouse.move(box.x + 200, box.y + 200);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 400, box.y + 300);
+    await page.mouse.up();
+    assert.equal(await page.evaluate(() => SMFDraw.isEmpty()), false, '필기가 안 됨');
+
     await page.evaluate(() => {
-      state.used.clear();
+      state.secondsLeft = 12; // 시간이 얼마 안 남은 상태
+      submitAnswer('__틀린답__');
+    });
+
+    // 풀이 화면은 이미 떠 있으므로 화면 전환을 기다리면 안 된다.
+    // 다음 사람을 받을 준비가 됐는지(다시 판정 가능해졌는지)를 기다린다.
+    await page.waitForFunction(() => state.judged === false, null, { timeout: 8000 });
+    await page.waitForTimeout(200);
+
+    const after = await page.evaluate(() => ({
+      id: state.problem.id,
+      칠판빔: SMFDraw.isEmpty(),
+      남은시간: state.secondsLeft,
+      다시판정가능: state.judged === false,
+    }));
+    assert.equal(after.id, before.id, '같은 문제로 이어져야 함');
+    assert.equal(after.칠판빔, true, '앞사람 풀이가 남아 있음');
+    assert.ok(after.남은시간 > 12, `시간이 처음부터가 아님(${after.남은시간}초)`);
+    assert.equal(after.다시판정가능, true, '다음 사람이 답을 못 냄');
+
+    assert.equal(errors.length, 0, `자바스크립트 에러: ${errors.join(', ')}`);
+    await context.close();
+  });
+
+  test('시간이 끝나면 저절로 정답이 공개된다', async () => {
+    // 진행자가 누를 버튼이 이제 없다. 아무도 못 맞혔으면 화면이 알아서 넘어가야 한다.
+    const { page, context, errors } = await openShow();
+    await startRound(page);
+
+    const 정답 = await page.evaluate(() => String(state.problem.answer));
+    await page.evaluate(() => {
+      state.secondsLeft = 1;
+    });
+
+    await page.waitForSelector('#stageReveal:not([hidden])', { timeout: 10000 });
+    await page.waitForSelector('#revealAnswer:not([hidden])', { timeout: 6000 });
+    assert.equal(await page.locator('#revealAnswer').textContent(), 정답);
+
+    assert.equal(errors.length, 0, `자바스크립트 에러: ${errors.join(', ')}`);
+    await context.close();
+  });
+
+  test('문제를 다 내도 막히지 않고 한 바퀴 더 돈다', async () => {
+    // 점심시간에 문제가 떨어졌다고 화면이 멈추면 그 자리에서 할 게 없다.
+    const { page, context } = await openShow();
+    await page.click('#startBtn');
+    await page.waitForSelector('#stagePick:not([hidden])');
+
+    // 등록된 문제를 전부 "이미 냈음"으로 만든다
+    await page.evaluate(() => {
+      state.problems.forEach((p) => state.used.add(p.id));
       updatePickCounts();
     });
-    await page.click('#wrongBtn');
 
-    // 붉은 연출이 지나간 뒤 다음 문제 예고로
-    await page.waitForSelector('#stageReady:not([hidden])', { timeout: 4000 });
+    assert.equal(
+      await page.locator('.pick-card:not([disabled])').count(),
+      3,
+      '다 냈다고 카드가 막히면 안 된다'
+    );
+
+    await page.locator('.pick-card').first().click();
+    await page.waitForSelector('#stageReady:not([hidden])', { timeout: 5000 });
+    assert.ok(await page.evaluate(() => state.problem !== null), '문제가 다시 뽑혀야 함');
+
     await context.close();
   });
 
@@ -474,24 +543,21 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     });
 
     await startRound(page);
-    await page.click('#revealBtn');
-    await page.waitForSelector('#stageReveal:not([hidden])');
-    await page.waitForSelector('#revealJudge:not([hidden])', { timeout: 5000 });
-    await page.click('#correctBtn');
-    await page.waitForSelector('#stageCelebrate:not([hidden])');
+    await page.evaluate(() => submitAnswer(String(state.problem.answer)));
+    await page.waitForSelector('#stageCelebrate:not([hidden])', { timeout: 6000 });
 
     assert.deepEqual(writes, [], `서버에 쓴 요청이 있음: ${writes.join(', ')}`);
     await context.close();
   });
 
-  test('정답이 길어도 화면을 넘기지 않고 판정 버튼이 가려지지 않는다', async () => {
+  test('정답이 길어도 화면을 넘기지 않고 다음 버튼이 가려지지 않는다', async () => {
     // 정답은 "7"일 수도 있고 "a_n = 2·3^(n-1) (단, n은 자연수)"일 수도 있다.
     const { page, context } = await openShow();
 
     for (const answer of ['7', 'x = 3 또는 x = -5', 'a_n = 2·3^(n-1) (단, n은 자연수)']) {
       await page.evaluate((value) => {
         state.problem = { answer: value };
-        goReveal();
+        showAnswerPlate('시간 종료');
       }, answer);
       // 뜸 들이기가 끝나고 등장 연출(3.2배에서 줄어듦)까지 지난 뒤의 크기를 잰다
       await page.waitForSelector('#revealAnswer:not([hidden])', { timeout: 5000 });
@@ -605,45 +671,6 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     await page.click('#zoomOutBtn');
     assert.equal(await page.locator('#zoomLabel').textContent(), '100%');
     assert.ok(Math.abs((await widthOf()) - base) < 2, '되돌리면 원래 크기');
-
-    await context.close();
-  });
-
-  test('낸 문제 초기화를 누르면 다시 뽑힌다', async () => {
-    const { page, context } = await openShow();
-
-    await page.evaluate(() => {
-      state.problems.forEach((p) => state.used.add(p.id));
-      updatePickCounts();
-    });
-    await page.click('#startBtn');
-    await page.waitForSelector('#stagePick:not([hidden])');
-    assert.equal(await page.locator('.pick-card:not([disabled])').count(), 0, '전부 소진 상태');
-
-    await page.click('#pickBackBtn');
-    await page.waitForSelector('#stageIdle:not([hidden])');
-    await page.click('#resetBtn');
-    await page.waitForSelector('#stagePick:not([hidden])');
-
-    assert.equal(await page.evaluate(() => state.used.size), 0);
-    assert.ok((await page.locator('.pick-card:not([disabled])').count()) > 0);
-
-    await context.close();
-  });
-
-  test('타이머를 멈추면 실제로 멈춰 있는다', async () => {
-    const { page, context } = await openShow();
-    await startRound(page);
-
-    await page.click('#pauseBtn');
-    const before = await page.locator('#playTimer').textContent();
-    await page.waitForTimeout(2500);
-    const after = await page.locator('#playTimer').textContent();
-    assert.equal(before, after, '일시정지 중에는 시간이 흐르면 안 됨');
-
-    await page.click('#pauseBtn');
-    await page.waitForTimeout(1500);
-    assert.notEqual(await page.locator('#playTimer').textContent(), after, '다시 눌렀으면 흘러야 함');
 
     await context.close();
   });

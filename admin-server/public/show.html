@@ -46,7 +46,6 @@
 
       <div class="idle-actions">
         <button type="button" class="btn btn-primary btn-huge" id="startBtn">시작</button>
-        <button type="button" class="btn btn-ghost" id="resetBtn">처음부터</button>
       </div>
     </div>
 
@@ -119,10 +118,6 @@
       <span class="play-badge" id="playBadge">중</span>
     </div>
     <div class="play-timer" id="playTimer">3:00</div>
-    <div class="play-bar-actions">
-      <button type="button" class="btn btn-ghost btn-tight" id="pauseBtn">일시정지</button>
-      <button type="button" class="btn btn-ghost btn-tight" id="addTimeBtn">+30초</button>
-    </div>
   </header>
 
   <div class="board" id="board">
@@ -148,11 +143,64 @@
       <button type="button" class="btn btn-tool" id="undoBtn">되돌리기</button>
       <button type="button" class="btn btn-tool" id="clearBtn">전체 지우기</button>
     </div>
-    <button type="button" class="btn btn-primary btn-big" id="revealBtn">정답 공개</button>
+    <button type="button" class="btn btn-primary btn-big" id="answerBtn">답 입력</button>
   </footer>
 </section>
 
-<!-- 5. 정답 공개 -->
+<!-- 5. 답 입력.
+     객관식이면 번호만 누르면 되고, 주관식이면 숫자판으로 친다.
+     전자칠판에서 운영체제 키보드가 올라오면 화면을 반쯤 가리기 때문에
+     숫자판을 화면 안에 둔다(물리 키보드로 쳐도 그대로 들어간다). -->
+<section class="stage" id="stageAnswer" hidden>
+  <div class="center-block">
+    <p class="answer-ask" id="answerAsk">답은?</p>
+
+    <!-- 객관식 -->
+    <div class="choice-row" id="choiceRow" hidden>
+      <button type="button" class="choice" data-choice="1">1</button>
+      <button type="button" class="choice" data-choice="2">2</button>
+      <button type="button" class="choice" data-choice="3">3</button>
+      <button type="button" class="choice" data-choice="4">4</button>
+      <button type="button" class="choice" data-choice="5">5</button>
+    </div>
+
+    <!-- 주관식 -->
+    <div class="typed" id="typedBox" hidden>
+      <!-- readonly + inputmode=none: 전자칠판에서 운영체제 키보드가 올라오면
+           화면 절반을 가린다. 값은 아래 숫자판으로만 채운다. -->
+      <input
+        class="typed-field"
+        id="typedField"
+        type="text"
+        inputmode="none"
+        autocomplete="off"
+        readonly
+        aria-label="답"
+      />
+      <div class="keypad" id="keypad">
+        <button type="button" class="key" data-key="1">1</button>
+        <button type="button" class="key" data-key="2">2</button>
+        <button type="button" class="key" data-key="3">3</button>
+        <button type="button" class="key" data-key="4">4</button>
+        <button type="button" class="key" data-key="5">5</button>
+        <button type="button" class="key" data-key="6">6</button>
+        <button type="button" class="key" data-key="7">7</button>
+        <button type="button" class="key" data-key="8">8</button>
+        <button type="button" class="key" data-key="9">9</button>
+        <button type="button" class="key" data-key="-">−</button>
+        <button type="button" class="key" data-key="0">0</button>
+        <button type="button" class="key" data-key=".">.</button>
+        <button type="button" class="key" data-key="/">/</button>
+        <button type="button" class="key key-wide" data-key="back">지우기</button>
+      </div>
+      <button type="button" class="btn btn-primary btn-big" id="submitBtn">확인</button>
+    </div>
+
+    <button type="button" class="btn btn-ghost" id="answerBackBtn">칠판으로</button>
+  </div>
+</section>
+
+<!-- 6. 결과: 틀렸거나 시간이 끝났을 때. 정답을 보여주고 넘어간다. -->
 <section class="stage" id="stageReveal" hidden>
   <div class="center-block">
     <p class="reveal-label" id="revealLabel">정답은</p>
@@ -160,8 +208,7 @@
       <div class="reveal-answer" id="revealAnswer">42</div>
     </div>
     <div class="judge-actions" id="revealJudge">
-      <button type="button" class="btn btn-correct btn-huge" id="correctBtn">맞혔다!</button>
-      <button type="button" class="btn btn-wrong btn-huge" id="wrongBtn">틀렸다</button>
+      <button type="button" class="btn btn-primary btn-huge" id="revealNextBtn">다음 문제</button>
     </div>
     <button type="button" class="btn btn-ghost" id="backToBoardBtn">칠판 다시 보기</button>
   </div>
@@ -170,8 +217,7 @@
 <!-- 6. 정답 (상품은 여기서 손으로 준다) -->
 <section class="stage stage-celebrate" id="stageCelebrate" hidden>
   <div class="center-block">
-    <div class="celebrate-mark">🏆</div>
-    <div class="celebrate-name">정답!</div>
+    <div class="celebrate-name">정답</div>
     <button type="button" class="btn btn-primary btn-huge" id="celebrateNextBtn">다음 문제</button>
     <button type="button" class="btn btn-ghost" id="celebrateChangeBtn">난이도 바꾸기</button>
   </div>

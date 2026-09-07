@@ -12,10 +12,13 @@
  * 남는다(연출이 빠져도 행사 진행은 계속돼야 한다).
  */
 window.SMFShowAnim = (function () {
+  // 운영체제의 "동작 줄이기" 설정은 일부러 보지 않는다.
+  // 이건 개인이 쓰는 앱이 아니라 강당 무대 화면이고, 연출이 곧 기능이다.
+  // 전자칠판에 그 설정이 켜져 있으면(윈도우/안드로이드에서 흔하다) 연출이
+  // 통째로 꺼져서 "애니메이션이 하나도 없는" 화면이 된다. 실제로 그랬다.
+  // 소리는 화면의 음소거 버튼으로 끌 수 있다.
   const hasAnime = typeof window.anime !== 'undefined';
-  const prefersReduced =
-    window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const enabled = hasAnime && !prefersReduced;
+  const enabled = hasAnime;
 
   const animate = hasAnime ? window.anime.animate : null;
   const stagger = hasAnime ? window.anime.stagger : null;

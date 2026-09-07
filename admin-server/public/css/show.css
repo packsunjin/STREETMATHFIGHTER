@@ -137,12 +137,8 @@ body {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .mote {
-    animation: none;
-    opacity: 0.14;
-  }
-}
+/* 운영체제의 "동작 줄이기"는 여기서 따르지 않는다. 강당 무대 화면이라
+   연출이 곧 기능이고, 그 설정이 켜진 전자칠판에서 화면이 통째로 멈춰 버린다. */
 
 /* ---- 무대(화면 상태) ---- */
 .stage {
@@ -432,11 +428,6 @@ body {
   text-shadow: 0 0 4vmin rgba(255, 255, 255, 0.4);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .emblem-ring {
-    animation: none;
-  }
-}
 
 /* ---- 2. 난이도 고르기 ----
    카드를 평평하게 늘어놓지 않고 원호 위에 세운다. 바깥 카드가 안쪽을 향해
@@ -960,6 +951,120 @@ body {
   font-size: 2.2vmin;
   color: var(--fg-soft);
   font-variant-numeric: tabular-nums;
+}
+
+/* ---- 5. 답 입력 ----
+   진행자가 맞았다/틀렸다를 누르지 않는다. 답을 넣으면 앱이 판정한다. */
+.answer-ask {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 5.4vmin;
+  font-weight: 700;
+  color: var(--fg);
+}
+
+/* 객관식: 번호 하나만 누르면 끝난다. 강당 뒤에서 읽히게 크게. */
+.choice-row {
+  display: flex;
+  gap: 2.4vmin;
+}
+
+/* 클래스 선택자가 브라우저 기본 [hidden] 규칙을 이기기 때문에 숨김을 명시해야
+   한다. 안 그러면 주관식 문제인데 객관식 번호가 같이 떠 있다. */
+.choice-row[hidden],
+.typed[hidden] {
+  display: none;
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 17vmin;
+  height: 21vmin;
+  border: 0.18vmin solid var(--glass-line);
+  border-radius: 3.5vmin;
+  background: linear-gradient(
+    176deg,
+    rgba(255, 255, 255, 0.13) 0%,
+    rgba(255, 255, 255, 0.05) 48%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
+  backdrop-filter: blur(1.6vmin);
+  -webkit-backdrop-filter: blur(1.6vmin);
+  color: var(--fg);
+  font-family: var(--serif);
+  font-size: 11vmin;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow:
+    inset 0 0.25vmin 0 rgba(255, 255, 255, 0.3),
+    inset 0 -0.35vmin 0.9vmin rgba(0, 0, 0, 0.45),
+    0 2vmin 4.5vmin rgba(0, 0, 0, 0.6);
+}
+
+/* 주관식 */
+.typed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.4vmin;
+}
+
+/* 누른 값이 보이는 칸. 직접 타이핑은 막아둔다(숫자판으로만 채운다). */
+.typed-field {
+  width: 64vmin;
+  padding: 1.2vmin 3vmin;
+  border: 0.25vmin solid rgba(255, 255, 255, 0.5);
+  border-radius: 2.5vmin;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 7vmin;
+  font-weight: 900;
+  line-height: 1.25;
+  text-align: center;
+  caret-color: transparent;
+  box-shadow:
+    inset 0 0.4vmin 1.4vmin rgba(0, 0, 0, 0.55),
+    0 0 5vmin rgba(255, 255, 255, 0.1);
+}
+
+.typed-field:focus {
+  outline: none;
+  border-color: #fff;
+}
+
+/* 숫자판. 손가락으로 누르므로 키를 크게 잡되, 세로로 넘치면 안 되니
+   4열 4줄이 아니라 5열 3줄로 짠다(키 14개 + 넓은 지우기). */
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1.2vmin;
+  width: 64vmin;
+}
+
+.key {
+  min-height: 9vmin;
+  border: 0.18vmin solid rgba(255, 255, 255, 0.12);
+  border-radius: 2vmin;
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 4vmin;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow:
+    inset 0 0.2vmin 0 rgba(255, 255, 255, 0.2),
+    0 1vmin 2.4vmin rgba(0, 0, 0, 0.5);
+}
+
+/* "지우기"는 글자가 기니까 두 칸을 쓴다 */
+.key-wide {
+  grid-column: span 2;
+  font-size: 3vmin;
+  color: var(--fg-soft);
 }
 
 /* ---- 정답 공개 전 뜸 들이기 ---- */

@@ -25,6 +25,7 @@ const stages = {
   pick: $('stagePick'),
   ready: $('stageReady'),
   play: $('stagePlay'),
+  answer: $('stageAnswer'),
   reveal: $('stageReveal'),
   celebrate: $('stageCelebrate'),
 };
@@ -36,12 +37,12 @@ const state = {
   problem: null,
   secondsLeft: 0,
   timerId: null,
-  paused: false,
   startedAt: 0,
   lastTickSecond: null,
   photoZoom: 1, // 사진 확대 배율(강당 뒤에서 안 보이면 키운다)
   lastLevel: null, // 방금 고른 난이도. 다음 라운드를 한 번에 시작하려고 기억한다
-  ignoreServerUsed: false, // "새 회차 시작"을 누르면 서버가 준 사용 기록을 무시
+  ignoreServerUsed: false, // 한 바퀴 다 돌면 서버가 준 사용 기록을 무시
+  judged: false, // 이번 사람의 답을 이미 판정했는지(두 번 눌려도 한 번만)
 };
 
 /* ---------- 화면 전환 ---------- */
@@ -150,14 +151,34 @@ function updatePickCounts() {
   document.querySelectorAll('.pick-card').forEach((card) => {
     const level = card.dataset.level;
     const left = remaining(level).length;
-    card.querySelector('.pick-count').textContent = `남은 문제 ${left}개`;
-    card.disabled = left === 0;
+    const total = state.problems.filter((p) => p.difficulty === level).length;
+
+    // 다 냈으면 한 바퀴 더 돈다. 그래서 "0개"가 아니라 "한 바퀴 돌았음"으로 쓴다.
+    card.querySelector('.pick-count').textContent =
+      total === 0 ? '없음' : left === 0 ? '한 바퀴 돌았음' : `${left}개 남음`;
+    // 등록된 문제가 아예 없을 때만 막는다.
+    card.disabled = total === 0;
   });
 }
 
+/**
+ * 그 난이도에서 아직 안 낸 문제 중 하나를 무작위로 뽑는다.
+ * 다 냈으면 그 난이도만 조용히 비우고 다시 돈다. 진행자가 "처음부터"를
+ * 눌러줄 일이 없어야 한다. 점심시간에 문제가 떨어졌다고 화면이 멈추면
+ * 그 자리에서 할 게 없다.
+ */
 function pickProblem(level) {
-  const pool = remaining(level);
-  if (!pool.length) return null;
+  let pool = remaining(level);
+  if (!pool.length) {
+    state.problems.forEach((p) => {
+      if (!level || p.difficulty === level) state.used.delete(p.id);
+    });
+    // 서버가 알려준 "최근에 쓴 문제"도 이 시점부터는 무시한다.
+    // 안 그러면 새로고침할 때마다 방금 비운 게 되살아난다.
+    state.ignoreServerUsed = true;
+    pool = remaining(level);
+  }
+  if (!pool.length) return null; // 그 난이도에 등록된 문제가 아예 없는 경우
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
@@ -211,11 +232,8 @@ function stopTimer() {
 
 function startTimer() {
   stopTimer();
-  state.paused = false;
-  $('pauseBtn').textContent = '일시정지';
 
   state.timerId = setInterval(() => {
-    if (state.paused) return;
     state.secondsLeft -= 1;
     renderTimer();
 
@@ -237,7 +255,9 @@ function startTimer() {
       // 진행 바의 작은 글자만으로는 강당 뒤에서 끝난 걸 모른다.
       // 한가운데에 크게 띄웠다가 지운다(학생이 쓴 걸 계속 덮으면 안 되므로).
       SMFShowAnim.titleCard('시간 종료!', '#ff5f56');
-      // 시간이 끝나도 화면을 강제로 넘기지 않는다. 진행자가 상황 보고 넘기게.
+      // 아무도 못 맞혔으니 정답을 보여준다. 진행자가 누를 버튼은 이제 없다.
+      // 안내가 지나간 뒤에 넘어간다.
+      setTimeout(() => showAnswerPlate('시간 종료'), 1500);
     }
   }, 1000);
 }
@@ -319,9 +339,10 @@ function goReady(level) {
 }
 
 // 행사는 속도가 생명이라, 매 라운드 난이도를 다시 고르게 하지 않는다.
-// 방금 낸 난이도에 문제가 남아 있으면 바로 다음 문제로 넘어간다.
+// 방금 낸 난이도로 바로 다음 문제를 낸다. 다 냈으면 뽑기 쪽에서 알아서
+// 한 바퀴 더 돌리므로 여기서 남은 개수를 따질 필요가 없다.
 function goNextRound() {
-  if (state.lastLevel !== null && remaining(state.lastLevel).length > 0) {
+  if (state.lastLevel !== null) {
     goReady(state.lastLevel);
     return;
   }
@@ -347,6 +368,15 @@ function startWithProblem(problem) {
   preloadImage(problem.imageUrl).catch(() => {});
 }
 
+/** 칠판으로 돌아간다. 화면이 다시 보이게 된 다음에야 크기를 잴 수 있다. */
+function backToBoard() {
+  show('play');
+  requestAnimationFrame(() => {
+    SMFDraw.resize();
+    layoutPhoto();
+  });
+}
+
 async function goPlay() {
   const problem = state.problem;
   const limit = TIME_LIMITS[problem.difficulty] ?? DEFAULT_LIMIT;
@@ -355,6 +385,7 @@ async function goPlay() {
   $('playBadge').textContent = problem.difficulty;
   state.secondsLeft = limit;
   state.lastTickSecond = null;
+  state.judged = false;
   renderTimer();
 
   const photo = $('boardPhoto');
@@ -402,11 +433,101 @@ function fitAnswerText(el, answer) {
   el.style.fontSize = `${size.vmin}vmin`;
 }
 
-async function goReveal() {
-  stopTimer();
-  fitAnswerText($('revealAnswer'), String(state.problem.answer ?? ''));
+/* ---------- 답 입력과 채점 ----------
+ * 진행자가 맞았다/틀렸다를 손으로 누르지 않는다. 답을 넣으면 앱이 판정한다. */
 
-  // 정답을 바로 까면 김이 샌다. "정답은..." 하고 두구두구 뜸을 들인 뒤 쾅.
+function goAnswer() {
+  const objective = state.problem.questionType === 'objective';
+  $('choiceRow').hidden = !objective;
+  $('typedBox').hidden = objective;
+  $('typedField').value = '';
+  show('answer');
+}
+
+/** 숫자판으로 한 글자 넣거나 지운다. 값은 여기서만 바뀐다. */
+function typeKey(key) {
+  const field = $('typedField');
+  if (key === 'back') field.value = field.value.slice(0, -1);
+  else if (field.value.length < 24) field.value += key;
+}
+
+/**
+ * 사람이 넣은 것과 등록된 정답을 견준다.
+ * 앞뒤 공백이나 사이 공백 차이로 맞은 답이 틀렸다고 나오면 그 자리에서 항의가 나온다.
+ */
+function sameAnswer(typed, correct) {
+  const tidy = (v) =>
+    String(v ?? '')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toLowerCase();
+  return tidy(typed) === tidy(correct);
+}
+
+function submitAnswer(value) {
+  const typed = String(value ?? '').trim();
+  if (!typed) return;
+  if (state.judged) return; // 두 번 눌려도 한 번만 판정한다
+  state.judged = true;
+  stopTimer();
+  judge(sameAnswer(typed, state.problem.answer), typed);
+}
+
+/**
+ * 맞으면 축하 화면, 틀리면 같은 문제로 다음 사람.
+ * 남기는 기록은 없다. 상품은 진행자가 그 자리에서 손으로 준다.
+ */
+function judge(correct, typed) {
+  if (correct) {
+    state.used.add(state.problem.id); // 맞힌 문제만 "낸 문제"로 친다
+    SMFShowAnim.sounds.fanfare();
+    show('celebrate');
+    SMFShowAnim.celebrate();
+    SMFShowAnim.trophyIn(null, document.querySelector('.celebrate-name'));
+    return;
+  }
+
+  SMFShowAnim.sounds.wrong();
+  SMFShowAnim.reject();
+  nextPerson(typed);
+}
+
+/**
+ * 틀렸다. 같은 문제로 다음 사람이 나온다.
+ * 새 사람이 앞사람 풀이 위에 쓰거나 남은 10초만 받으면 안 되므로,
+ * 칠판을 지우고 시간을 처음부터 준다. 사진은 이미 떠 있으니 다시 받지 않는다.
+ */
+function nextPerson(typed) {
+  SMFShowAnim.titleCard(typed ? `${typed} 아니야` : '아니야', '#ff5f56', 1400);
+
+  setTimeout(() => {
+    SMFDraw.clear();
+    updateDrawButtons();
+    state.judged = false;
+    state.secondsLeft = TIME_LIMITS[state.problem.difficulty] ?? DEFAULT_LIMIT;
+    state.lastTickSecond = null;
+    renderTimer();
+
+    show('play');
+    requestAnimationFrame(() => {
+      SMFDraw.resize();
+      layoutPhoto();
+    });
+    startTimer();
+  }, 1500);
+}
+
+/**
+ * 정답판. 아무도 못 맞히고 시간이 끝났을 때 쓴다.
+ * 바로 까면 김이 샌다. 뜸을 들인 뒤 정답이 돌아 들어온다.
+ */
+async function showAnswerPlate(label) {
+  stopTimer();
+  state.used.add(state.problem.id);
+  fitAnswerText($('revealAnswer'), String(state.problem.answer ?? ''));
+  SMFShowAnim.unsplit($('revealLabel'));
+  $('revealLabel').textContent = label;
+
   $('revealAnswer').hidden = true;
   $('revealJudge').hidden = true;
   show('reveal');
@@ -417,32 +538,11 @@ async function goReveal() {
   SMFShowAnim.sounds.reveal();
   SMFShowAnim.slam($('revealAnswer'));
 
-  // 판정 버튼은 정답이 자리잡은 뒤에 올라온다(성급하게 누르는 것도 막는다)
+  // 다음으로 가는 버튼은 정답이 자리잡은 뒤에 올라온다
   setTimeout(() => {
     $('revealJudge').hidden = false;
     SMFShowAnim.listIn($('revealJudge').querySelectorAll('.btn'), 80);
   }, 700);
-}
-
-// 맞히면 축하 화면, 틀리면 바로 다음 문제. 남기는 기록은 없다.
-// 상품은 진행자가 그 자리에서 손으로 준다.
-function judge(correct) {
-  state.used.add(state.problem.id);
-
-  if (correct) {
-    SMFShowAnim.sounds.fanfare();
-    show('celebrate');
-    SMFShowAnim.celebrate();
-    SMFShowAnim.trophyIn(
-      document.querySelector('.celebrate-mark'),
-      document.querySelector('.celebrate-name')
-    );
-  } else {
-    SMFShowAnim.sounds.wrong();
-    SMFShowAnim.reject();
-    // 붉은 번쩍임이 지나간 뒤에 다음 문제로
-    setTimeout(goNextRound, 700);
-  }
 }
 
 function goIdle() {
@@ -497,15 +597,6 @@ function wireUp() {
     $('muteBtn').textContent = muted ? '🔇' : '🔊';
     $('muteBtn').classList.toggle('off', muted);
   });
-  $('resetBtn').addEventListener('click', () => {
-    // 하루에 두 번 진행하거나, 문제를 다 쓴 뒤 다시 돌리고 싶을 때.
-    // 기록은 그대로 두고 "이번 회차에 쓴 문제" 표시만 지운다.
-    state.used.clear();
-    state.ignoreServerUsed = true;
-    state.roundNo = 0;
-    updatePickCounts();
-    goPick();
-  });
   $('pickBackBtn').addEventListener('click', goIdle);
 
   document.querySelectorAll('.pick-card').forEach((card) => {
@@ -515,25 +606,19 @@ function wireUp() {
   $('goBtn').addEventListener('click', goPlay);
   $('readyBackBtn').addEventListener('click', goPick);
 
-  $('pauseBtn').addEventListener('click', () => {
-    state.paused = !state.paused;
-    $('pauseBtn').textContent = state.paused ? '계속하기' : '일시정지';
+  // 답 입력과 채점
+  $('answerBtn').addEventListener('click', goAnswer);
+  $('answerBackBtn').addEventListener('click', backToBoard);
+  document.querySelectorAll('#choiceRow .choice').forEach((btn) => {
+    btn.addEventListener('click', () => submitAnswer(btn.dataset.choice));
   });
-  $('addTimeBtn').addEventListener('click', () => {
-    state.secondsLeft += 30;
-    renderTimer();
+  document.querySelectorAll('#keypad .key').forEach((btn) => {
+    btn.addEventListener('click', () => typeKey(btn.dataset.key));
   });
+  $('submitBtn').addEventListener('click', () => submitAnswer($('typedField').value));
+  $('revealNextBtn').addEventListener('click', goNextRound);
 
-  $('revealBtn').addEventListener('click', goReveal);
-  $('correctBtn').addEventListener('click', () => judge(true));
-  $('wrongBtn').addEventListener('click', () => judge(false));
-  $('backToBoardBtn').addEventListener('click', () => {
-    show('play');
-    requestAnimationFrame(() => {
-      SMFDraw.resize();
-      layoutPhoto();
-    });
-  });
+  $('backToBoardBtn').addEventListener('click', backToBoard);
 
   $('celebrateNextBtn').addEventListener('click', goNextRound);
   $('celebrateChangeBtn').addEventListener('click', goPick);
