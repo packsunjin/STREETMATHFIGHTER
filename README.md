@@ -52,9 +52,9 @@
 
 | 주소 | 화면 |
 | --- | --- |
-| `/admin/show.html` | 진행 화면 (강당 전자칠판) |
+| `/` | 진행 화면 (강당 전자칠판에서 여는 주소) |
 | `/admin` | 문제 등록·수정·삭제 |
-| `/` | 진행 화면으로 보냄 |
+| `/admin/show.html` | 진행 화면. 예전 주소라 그대로 살려둠 |
 
 **진행 화면에도 로그인이 필요합니다.** 화면이 "정답은 42"를 띄우려면 브라우저가
 서버에서 정답을 받아와야 하는데(`/admin/api/show/problems`), 그 통로가 열려 있으면
@@ -76,7 +76,7 @@
 npm install
 cp .env.example .env
 # .env에 DATABASE_URL, CLOUDINARY_URL을 위에서 복사한 값으로 채워넣기
-npm run dev             # http://localhost:3000/admin/show.html
+npm run dev             # http://localhost:3000
 ```
 
 관리자 서버만 따로 띄우고 싶다면:

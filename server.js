@@ -5,16 +5,17 @@
 // 상품은 그 자리에서 손으로 준다) 앞쪽은 진행 화면으로 보내주는 껍데기만
 // 남아 있었다. 그래서 합쳤다.
 //
-// 주소는 그대로다:
-//   /admin/show.html  진행 화면(강당 전자칠판)
+// 주소:
+//   /                 진행 화면(강당 전자칠판에서 실제로 여는 주소)
 //   /admin            문제 등록
-//   /                 진행 화면으로 보냄
+//   /admin/show.html  진행 화면. 예전 주소라 그대로 살려둔다
 //
 // DB(Postgres)와 이미지(Cloudinary)가 모두 외부 서비스에 있어서 이 서버
 // 자체는 상태를 갖지 않는(stateless) 배포가 가능하다.
 
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 
+const path = require('path');
 const express = require('express');
 
 const adminApp = require('./admin-server/server');
@@ -41,13 +42,21 @@ app.set('trust proxy', 1);
 // 배포 플랫폼이 살아 있는지 확인하는 주소. 로그인 뒤에 두면 안 된다.
 app.get('/healthz', (req, res) => res.json({ ok: true }));
 
-// 전자칠판 주소창에 그냥 도메인만 쳐도 진행 화면이 뜨게 한다.
-app.get('/', (req, res) => res.redirect('/admin/show.html'));
+// 강당 전자칠판이 여는 주소는 도메인 루트다. 리다이렉트로 넘기면 주소창이
+// /admin/show.html로 바뀌어 버리므로, 루트에서 진행 화면을 바로 내준다.
+// (express.static보다 먼저 잡아야 로그인 페이지가 아니라 진행 화면이 나온다.)
+app.get('/', (req, res) =>
+  res.sendFile(path.join(__dirname, 'admin-server', 'public', 'show.html'))
+);
 
+// 같은 앱을 두 자리에 건다.
+// 루트: 진행 화면이 상대경로로 부르는 css/js/vendor/api가 여기서 잡힌다.
+// /admin: 문제 등록 화면과, 예전부터 쓰던 /admin/show.html 주소.
 app.use('/admin', adminApp);
+app.use('/', adminApp);
 
 const server = app.listen(PORT, () => {
-  console.log(`[server] 스트릿매쓰파이터 실행 중: http://localhost:${PORT}/admin/show.html`);
+  console.log(`[server] 스트릿매쓰파이터 실행 중: http://localhost:${PORT} (문제 등록: /admin)`);
 });
 
 // Render 등에서 배포/재시작 시 새 인스턴스를 띄우기 전에 기존 인스턴스로 SIGTERM을
