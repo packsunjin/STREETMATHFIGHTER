@@ -23,7 +23,7 @@ window.SMFDraw = (function () {
   let drawing = false;
   let activePointerId = null;
 
-  let color = '#111111';
+  let color = '#201e1d';
   let eraser = false;
   let dpr = 1;
   let boardWidth = 1;

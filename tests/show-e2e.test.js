@@ -108,7 +108,7 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     await page.waitForSelector('#stageReady:not([hidden])');
     await page.click('#goBtn');
     await page.waitForSelector('#stagePlay:not([hidden])');
-    await page.waitForTimeout(4200);
+    await page.waitForTimeout(3400);
   }
 
   test('진행자가 목록을 뒤지는 화면은 없다', async () => {
@@ -152,64 +152,63 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     await context.close();
   });
 
-  test('정답을 바로 까지 않고 뜸을 들인다', async () => {
-    // 누르자마자 답이 뜨면 강당이 조용해질 틈이 없다.
-    // 기다렸다가 나와야 한다.
+  test('정답을 바로 까지 않고 채점 화면을 거친다', async () => {
+    // 누르자마자 결과가 뜨면 강당이 조용해질 틈이 없다.
+    // 막대가 차오르는 동안 기다렸다가 나와야 한다.
     const { page, context, errors } = await openShow();
     await startRound(page);
 
-    // 반환하지 않는다. evaluate가 프라미스를 기다려버리면 뜸 들이기가 끝난 뒤에
+    // 반환하지 않는다. evaluate가 프라미스를 기다려버리면 채점이 끝난 뒤에
     // 돌아와서 "바로 안 뜬다"를 확인할 수가 없다.
     await page.evaluate(() => {
-      showAnswerPlate('시간 종료');
+      goGrading('timeup', '');
     });
-    await page.waitForSelector('#stageReveal:not([hidden])');
+    await page.waitForSelector('#stageGrading:not([hidden])');
 
-    const 뜸 = await page.evaluate(() => ({
-      정답숨김: document.getElementById('revealAnswer').hidden,
-      판정버튼숨김: document.getElementById('revealJudge').hidden,
-      점: document.querySelectorAll('.suspense-dot').length,
+    const 채점중 = await page.evaluate(() => ({
+      결과숨김: document.getElementById('stageResult').hidden,
+      막대: document.getElementById('gradingBar').style.width,
+      단계: document.getElementById('gradingStep').textContent,
     }));
-    assert.equal(뜸.정답숨김, true, '정답이 바로 떠버림');
-    assert.equal(뜸.판정버튼숨김, true, '판정 버튼이 정답보다 먼저 뜸');
-    assert.equal(뜸.점, 3, '기다리는 표시(점 세 개)가 안 나옴');
+    assert.equal(채점중.결과숨김, true, '결과가 바로 떠버림');
+    assert.notEqual(채점중.막대, '100%', '막대가 차오르지도 않고 끝나 있음');
+    assert.ok(채점중.단계.length > 0, '어디까지 왔는지 안 알려줌');
 
     // 그리고 반드시 나와야 한다. 안 나오면 행사가 여기서 멈춘다.
-    await page.waitForSelector('#revealAnswer:not([hidden])', { timeout: 5000 });
-    await page.waitForSelector('#revealJudge:not([hidden])', { timeout: 5000 });
+    await page.waitForSelector('#stageResult:not([hidden])', { timeout: 6000 });
     assert.equal(
-      await page.evaluate(() => document.querySelectorAll('.suspense-dot').length),
-      0,
-      '뜸 들이던 점이 안 치워짐'
+      await page.evaluate(() => document.getElementById('stageGrading').hidden),
+      true,
+      '채점 화면이 안 치워짐'
     );
 
     assert.equal(errors.length, 0, `자바스크립트 에러: ${errors.join(', ')}`);
     await context.close();
   });
 
-  test('화면이 3D로 교대하고, 물러난 판은 닫히고 기울기도 남지 않는다', async () => {
-    // 화면끼리 돌아가며 교대한다. 물러난 판이 안 닫히면 두 화면이 겹치고,
-    // 들어온 판에 기울기가 남으면 다음 연출이 기울어진 채로 시작한다.
+  test('화면이 밀려서 교대하고, 물러난 판은 닫히고 변형도 안 남는다', async () => {
+    // 화면끼리 옆으로 교대한다. 물러난 판이 안 닫히면 두 화면이 겹치고,
+    // 들어온 판에 이동이 남으면 다음 화면이 옆으로 밀린 채로 시작한다.
     const { page, context } = await openShow();
 
     await page.click('#startBtn');
     await page.waitForSelector('#stagePick:not([hidden])');
 
-    // 교대 중에는 물러나는 판이 아직 보이고, 기울어져 있다
+    // 교대 중에는 물러나는 판이 아직 보이고, 옆으로 밀리고 있다
     const 교대중 = await page.evaluate(() => {
       const idle = document.getElementById('stageIdle');
-      return { 대기아직보임: !idle.hidden, 기울었나: idle.style.transform !== '' };
+      return { 대기아직보임: !idle.hidden, 움직였나: idle.style.transform !== '' };
     });
     assert.equal(교대중.대기아직보임, true, '물러나는 판이 바로 사라져 교대가 안 보임');
-    assert.equal(교대중.기울었나, true, '물러나는 판이 3D로 돌지 않음');
+    assert.equal(교대중.움직였나, true, '물러나는 판이 밀려나지 않음');
 
     await page.waitForTimeout(1400);
 
     const 정리후 = await page.evaluate(() => {
       const stages = Array.from(document.querySelectorAll('.stage'));
-      // 인라인 문자열이 아니라 실제로 그려지는 값을 본다. 끝값이 기울기 0이면
-      // 문자열이 남아 있어도 화면은 똑바르다. 중요한 건 "똑바로 서 있는가"다.
-      const 기울었나 = (el) => {
+      // 인라인 문자열이 아니라 실제로 그려지는 값을 본다. 끝값이 제자리면
+      // 문자열이 남아 있어도 화면은 똑바르다. 중요한 건 "제자리인가"다.
+      const 변형됐나 = (el) => {
         const m = getComputedStyle(el).transform;
         if (m === 'none') return false;
         // 함수 이름("matrix3d")에도 숫자가 들어 있어서 통째로 숫자만 뽑으면
@@ -223,15 +222,52 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
       };
       return {
         보이는판: stages.filter((s) => !s.hidden).map((s) => s.id),
-        기울어진판: stages.filter((s) => !s.hidden && 기울었나(s)).map((s) => s.id),
+        변형된판: stages.filter((s) => !s.hidden && 변형됐나(s)).map((s) => s.id),
       };
     });
     assert.deepEqual(정리후.보이는판, ['stagePick'], '한 화면만 남아 있어야 함');
-    assert.deepEqual(정리후.기울어진판, [], '기울어진 채로 멈춘 판이 있음');
+    assert.deepEqual(정리후.변형된판, [], '변형이 남은 채로 멈춘 판이 있음');
 
     // 덮개나 겹침이 남아 있으면 이 클릭이 타임아웃난다
     await page.click('.pick-card:not([disabled])', { timeout: 3000 });
     await page.waitForSelector('#stageReady:not([hidden])');
+
+    await context.close();
+  });
+
+  test('3D는 화면 어디에도 없다', async () => {
+    // 시안(Modernist)은 완전한 평면이다. 원근이나 회전이 하나라도 남아 있으면
+    // 나머지가 아무리 평면이어도 그 부분만 떠 보인다.
+    const { page, context } = await openShow();
+    await startRound(page);
+
+    const 입체 = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('*'))
+        .filter((el) => {
+          const cs = getComputedStyle(el);
+          return (
+            cs.perspective !== 'none' ||
+            cs.transformStyle === 'preserve-3d' ||
+            /rotate[XY]|matrix3d/.test(cs.transform)
+          );
+        })
+        .map((el) => el.tagName + '.' + el.className)
+    );
+    assert.deepEqual(입체, [], `3D가 남아 있음: ${입체.join(', ')}`);
+
+    // 둥근 모서리와 그림자도 시안에서는 금지다
+    const 장식 = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('*'))
+        .filter((el) => {
+          const cs = getComputedStyle(el);
+          return (
+            (cs.borderTopLeftRadius !== '0px' && cs.borderTopLeftRadius !== '0%') ||
+            cs.boxShadow !== 'none'
+          );
+        })
+        .map((el) => el.tagName + '.' + el.className)
+    );
+    assert.deepEqual(장식, [], `둥근 모서리/그림자가 남아 있음: ${장식.join(', ')}`);
 
     await context.close();
   });
@@ -291,14 +327,14 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     await startRound(page);
 
     await page.evaluate(() => {
-      SMFShowAnim.flash('#16a34a');
-      SMFShowAnim.ring('#16a34a');
-      SMFShowAnim.confetti(30);
+      SMFShowAnim.flash('var(--accent)');
+      SMFShowAnim.titleCard('시간 종료');
+      SMFShowAnim.urgentOn();
+      SMFShowAnim.urgentOff();
     });
     assert.ok(await page.evaluate(() => document.querySelectorAll('.fx').length > 0));
 
-    // 색종이는 솟았다 떨어지느라 2.9초를 쓴다. 그보다 넉넉히 기다린 뒤 본다.
-    await page.waitForTimeout(4500);
+    await page.waitForTimeout(2500);
     const left = await page.$$eval('.fx', (els) => els.map((e) => e.className));
     assert.deepEqual(left, [], `안 치워진 레이어: ${left.join(', ')}`);
 
@@ -420,25 +456,27 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
     await context.close();
   });
 
-  test('정답을 넣으면 진행자가 아무것도 안 눌러도 축하 화면으로 간다', async () => {
+  test('정답을 넣으면 진행자가 아무것도 안 눌러도 결과가 나온다', async () => {
     const { page, context, errors } = await openShow();
     await startRound(page);
 
     // 어떤 문제가 뽑힐지는 무작위라, 뽑힌 문제의 정답을 그대로 넣는다
     const expected = await page.evaluate(() => String(state.problem.answer));
     await page.click('#answerBtn');
-    await page.waitForSelector('#stageAnswer:not([hidden])');
+    await page.waitForSelector('#answerPanel:not([hidden])');
 
     // 진행자가 맞았다고 눌러주지 않는다. 답을 넣으면 앱이 판정한다.
     await page.evaluate((v) => submitAnswer(v), expected);
-    await page.waitForSelector('#stageCelebrate:not([hidden])', { timeout: 6000 });
+    await page.waitForSelector('#stageResult:not([hidden])', { timeout: 8000 });
+    assert.equal(await page.locator('#verdict').textContent(), '정답');
+    assert.equal(await page.locator('#resultAnswer').textContent(), expected);
 
     // 같은 난이도에 문제가 남아 있으면 난이도 화면을 건너뛴다
     await page.evaluate(() => {
       state.used.clear();
       updatePickCounts();
     });
-    await page.click('#celebrateNextBtn');
+    await page.click('#resultNextBtn');
     await page.waitForSelector('#stageReady:not([hidden])', { timeout: 3000 });
 
     assert.equal(errors.length, 0, `자바스크립트 에러: ${errors.join(', ')}`);
@@ -468,9 +506,18 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
       submitAnswer('__틀린답__');
     });
 
-    // 풀이 화면은 이미 떠 있으므로 화면 전환을 기다리면 안 된다.
-    // 다음 사람을 받을 준비가 됐는지(다시 판정 가능해졌는지)를 기다린다.
-    await page.waitForFunction(() => state.judged === false, null, { timeout: 8000 });
+    await page.waitForSelector('#stageResult:not([hidden])', { timeout: 8000 });
+    // 틀렸다고 정답을 까면 안 된다. 같은 문제를 다음 사람이 푼다.
+    assert.equal(await page.locator('#verdict').textContent(), '오답');
+    assert.equal(await page.locator('#resultAnswer').textContent(), '—', '틀렸는데 정답을 까버림');
+    assert.equal(await page.locator('#resultNextBtn').textContent(), '다음 사람');
+    assert.ok(
+      await page.locator('#resultChangeBtn').isHidden(),
+      '같은 문제를 이어 푸는 중에 난이도 바꾸기가 떠 있음'
+    );
+
+    await page.click('#resultNextBtn');
+    await page.waitForSelector('#stagePlay:not([hidden])');
     await page.waitForTimeout(200);
 
     const after = await page.evaluate(() => ({
@@ -498,9 +545,9 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
       state.secondsLeft = 1;
     });
 
-    await page.waitForSelector('#stageReveal:not([hidden])', { timeout: 10000 });
-    await page.waitForSelector('#revealAnswer:not([hidden])', { timeout: 6000 });
-    assert.equal(await page.locator('#revealAnswer').textContent(), 정답);
+    await page.waitForSelector('#stageResult:not([hidden])', { timeout: 12000 });
+    assert.equal(await page.locator('#verdict').textContent(), '시간 종료');
+    assert.equal(await page.locator('#resultAnswer').textContent(), 정답);
 
     assert.equal(errors.length, 0, `자바스크립트 에러: ${errors.join(', ')}`);
     await context.close();
@@ -544,7 +591,7 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
 
     await startRound(page);
     await page.evaluate(() => submitAnswer(String(state.problem.answer)));
-    await page.waitForSelector('#stageCelebrate:not([hidden])', { timeout: 6000 });
+    await page.waitForSelector('#stageResult:not([hidden])', { timeout: 8000 });
 
     assert.deepEqual(writes, [], `서버에 쓴 요청이 있음: ${writes.join(', ')}`);
     await context.close();
@@ -553,34 +600,77 @@ describe('진행 화면 (브라우저)', { skip: chromium ? false : 'playwright 
   test('정답이 길어도 화면을 넘기지 않고 다음 버튼이 가려지지 않는다', async () => {
     // 정답은 "7"일 수도 있고 "a_n = 2·3^(n-1) (단, n은 자연수)"일 수도 있다.
     const { page, context } = await openShow();
+    await startRound(page);
 
     for (const answer of ['7', 'x = 3 또는 x = -5', 'a_n = 2·3^(n-1) (단, n은 자연수)']) {
       await page.evaluate((value) => {
-        state.problem = { answer: value };
-        showAnswerPlate('시간 종료');
+        state.problem = { ...state.problem, answer: value };
+        state.resultKind = 'timeup';
+        state.lastTyped = '';
+        state.lastElapsed = 0;
+        goResult();
       }, answer);
-      // 뜸 들이기가 끝나고 등장 연출(3.2배에서 줄어듦)까지 지난 뒤의 크기를 잰다
-      await page.waitForSelector('#revealAnswer:not([hidden])', { timeout: 5000 });
-      await page.waitForSelector('#revealJudge:not([hidden])', { timeout: 5000 });
-      await page.waitForTimeout(900);
+      await page.waitForSelector('#stageResult:not([hidden])');
+      await page.waitForTimeout(700);
 
       const fit = await page.evaluate(() => {
-        const el = document.getElementById('revealAnswer');
-        const box = el.getBoundingClientRect();
-        const judge = document.querySelector('#stageReveal .judge-actions').getBoundingClientRect();
-        const back = document.getElementById('backToBoardBtn').getBoundingClientRect();
+        const cells = document.querySelector('#stageResult .cells').getBoundingClientRect();
+        const next = document.getElementById('resultNextBtn').getBoundingClientRect();
+        const verdict = document.getElementById('verdict').getBoundingClientRect();
         return {
-          overflow: box.width > window.innerWidth + 1 || box.height > window.innerHeight + 1,
-          buttonsVisible: judge.bottom <= window.innerHeight && back.bottom <= window.innerHeight,
-          labelVisible: document.querySelector('.reveal-label').getBoundingClientRect().top >= 0,
+          overflow:
+            cells.right > window.innerWidth + 1 || cells.bottom > window.innerHeight + 1,
+          buttonVisible: next.bottom <= window.innerHeight && next.width > 0,
+          verdictVisible: verdict.top >= 0,
+          가로스크롤: document.documentElement.scrollWidth > window.innerWidth,
         };
       });
 
       assert.equal(fit.overflow, false, `"${answer}"가 화면을 넘침`);
-      assert.equal(fit.buttonsVisible, true, `"${answer}"일 때 판정 버튼이 가려짐`);
-      assert.equal(fit.labelVisible, true, `"${answer}"일 때 "정답은" 라벨이 잘림`);
+      assert.equal(fit.buttonVisible, true, `"${answer}"일 때 다음 버튼이 가려짐`);
+      assert.equal(fit.verdictVisible, true, `"${answer}"일 때 판정 띠가 잘림`);
+      assert.equal(fit.가로스크롤, false, `"${answer}"일 때 화면이 옆으로 넘침`);
     }
 
+    await context.close();
+  });
+
+  test('답 패널을 열어도 판 크기가 안 변한다', async () => {
+    // 획 좌표를 판 너비 비율로 들고 있어서, 패널이 판을 좁히면 이미 쓴 글씨가
+    // 통째로 어긋난다. 패널은 판 위에 겹쳐 떠야 한다.
+    const { page, context, errors } = await openShow();
+    await startRound(page);
+
+    const box = await page.locator('#board').boundingBox();
+    await page.mouse.move(box.x + 900, box.y + 300);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 1100, box.y + 420);
+    await page.mouse.up();
+
+    const size = () =>
+      page.evaluate(() => {
+        const board = document.getElementById('board');
+        const canvas = document.getElementById('boardCanvas').getBoundingClientRect();
+        return { w: board.offsetWidth, h: board.offsetHeight, cw: canvas.width, ch: canvas.height };
+      });
+
+    const before = await size();
+    await page.click('#answerBtn');
+    await page.waitForSelector('#answerPanel:not([hidden])');
+    await page.waitForTimeout(500);
+    const open = await size();
+
+    assert.equal(open.w, before.w, '패널이 판을 좁혔다');
+    assert.equal(open.h, before.h, '패널이 판 높이를 바꿨다');
+    assert.ok(Math.abs(open.cw - open.w) < 2, '캔버스가 판을 못 따라감');
+    assert.ok(Math.abs(open.ch - open.h) < 2, '캔버스가 판을 못 따라감');
+
+    await page.click('#answerBackBtn');
+    await page.waitForTimeout(300);
+    const closed = await size();
+    assert.equal(closed.w, before.w, '패널을 닫고 나서 판이 달라졌다');
+
+    assert.equal(errors.length, 0, `자바스크립트 에러: ${errors.join(', ')}`);
     await context.close();
   });
 

@@ -3,11 +3,18 @@
  * 전자칠판 한 대로 전부 돌아간다. 화면 하나가 상태를 갈아끼우는 방식이라
  * 페이지 이동이 없고(=사진 다시 받느라 끊기지 않음), 진행 중 새로고침도 안 일어난다.
  *
- * 흐름: 대기 → 난이도 → 예고 → 풀이 → 정답공개 → 판정 → (정답이면) 상품 등록 → 축하 → 대기
+ * 흐름:
+ *   대기 → 난이도 → 예고 → 풀이 → [답 입력] → 채점 중 → 결과
+ *                                                 ├ 정답      → 다음 문제
+ *                                                 ├ 오답      → 다음 사람 (같은 문제)
+ *                                                 └ 시간 종료 → 정답 공개 → 다음 문제
+ *
+ * 진행자가 맞았다/틀렸다를 누르지 않는다. 답을 넣으면 앱이 판정한다.
+ * 기록은 아무것도 남기지 않는다. 상품은 그 자리에서 손으로 준다.
  */
 
-// 이 페이지는 /admin/ 아래에서 열리므로 API는 상대 경로로 부른다.
-// (단독 실행이든 통합 서버의 /admin 마운트든 똑같이 동작한다)
+// 이 페이지는 /admin/ 아래에서도 열리므로 API는 상대 경로로 부른다.
+// (루트에서 열든 통합 서버의 /admin 마운트든 똑같이 동작한다)
 const API = {
   me: 'api/me',
   problems: 'api/show/problems',
@@ -25,9 +32,19 @@ const stages = {
   pick: $('stagePick'),
   ready: $('stageReady'),
   play: $('stagePlay'),
-  answer: $('stageAnswer'),
-  reveal: $('stageReveal'),
-  celebrate: $('stageCelebrate'),
+  grading: $('stageGrading'),
+  result: $('stageResult'),
+};
+
+// 위쪽 띠에 지금 어느 화면인지 쓴다. 진행자가 화면을 안 보고도 말할 수 있게.
+const SCREEN_LABELS = {
+  auth: '로그인 필요',
+  idle: '대기',
+  pick: '난이도 선택',
+  ready: '제한시간 확인',
+  play: '문제 풀이',
+  grading: '채점',
+  result: '결과',
 };
 
 const state = {
@@ -37,12 +54,12 @@ const state = {
   problem: null,
   secondsLeft: 0,
   timerId: null,
-  startedAt: 0,
   lastTickSecond: null,
   photoZoom: 1, // 사진 확대 배율(강당 뒤에서 안 보이면 키운다)
   lastLevel: null, // 방금 고른 난이도. 다음 라운드를 한 번에 시작하려고 기억한다
   ignoreServerUsed: false, // 한 바퀴 다 돌면 서버가 준 사용 기록을 무시
   judged: false, // 이번 사람의 답을 이미 판정했는지(두 번 눌려도 한 번만)
+  resultKind: 'correct', // 'correct' | 'wrong' | 'timeup'
 };
 
 /* ---------- 화면 전환 ---------- */
@@ -50,7 +67,7 @@ const state = {
 // 등장 연출이 끝날 때까지 화면을 잠가둔다.
 // 연출은 transform으로만 움직이기 때문에, 버튼이 눈에 보이는 위치와 실제로
 // 눌리는 위치가 그 사이 다르다. 급하게 두 번 누르면 엉뚱한 버튼이 눌린다
-// (브라우저 테스트에서 "시작!" 대신 옆 버튼이 눌려 화면이 안 넘어갔다).
+// (브라우저 테스트에서 "시작" 대신 옆 버튼이 눌려 화면이 안 넘어갔다).
 // 시간은 연출 쪽이 알고 있으므로 거기서 가져온다. 두 숫자를 따로 두면
 // 한쪽만 고쳤을 때 다시 같은 사고가 난다.
 const STAGE_SETTLE_MS = SMFShowAnim.settleMs || 0;
@@ -90,23 +107,21 @@ function show(name) {
   });
   el.hidden = false;
   currentStage = el;
-  // 들어가기 전에 이 판을 비운다. 지난번 물러날 때의 기울기가 남아 있으면
-  // 기울어진 채로 시작한다. 연출이 끝난 뒤에 지우는 방식은 안 통한다
-  // (같은 판에 걸린 카메라 연출이 지운 값을 다시 써넣는다).
+  // 들어가기 전에 이 판을 비운다. 지난번 물러날 때의 이동이 남아 있으면
+  // 옆으로 밀린 채로 시작한다.
   SMFShowAnim.clearStage(el);
 
-  if (!already) SMFShowAnim.transition3d(prev, el);
+  if (!already) SMFShowAnim.transition(prev, el);
   SMFShowAnim.stageIn(el);
   lockWhileEntering(el);
 
-  // 대기 화면에서만 로고가 글자 단위로 서고, 그 뒤로 천천히 숨쉰다.
+  $('screenLabel').textContent = SCREEN_LABELS[name] || '';
+
+  // 대기 화면에서만 제목이 글자 단위로 선다.
   if (name === 'idle') {
     const logo = document.querySelector('.show-logo');
     // 줄 단위로 넘긴다. 제목 전체를 넘기면 줄바꿈이 사라진다.
     SMFShowAnim.splitIn(logo.querySelectorAll('.logo-line'), 0.05);
-    SMFShowAnim.breathe(logo);
-  } else {
-    SMFShowAnim.stopBreathe();
   }
 }
 
@@ -114,17 +129,6 @@ function show(name) {
 
 async function getJSON(url) {
   const res = await fetch(url, { credentials: 'include' });
-  if (!res.ok) throw new Error(`${url} 실패`);
-  return res.json();
-}
-
-async function postJSON(url, body) {
-  const res = await fetch(url, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
   if (!res.ok) throw new Error(`${url} 실패`);
   return res.json();
 }
@@ -148,16 +152,20 @@ function remaining(level) {
 }
 
 function updatePickCounts() {
-  document.querySelectorAll('.pick-card').forEach((card) => {
-    const level = card.dataset.level;
+  // 같은 숫자를 난이도 카드와 대기 화면 옆칸 두 군데에 쓴다.
+  document.querySelectorAll('.pick-count').forEach((slot) => {
+    const level = slot.dataset.count;
     const left = remaining(level).length;
     const total = state.problems.filter((p) => p.difficulty === level).length;
 
     // 다 냈으면 한 바퀴 더 돈다. 그래서 "0개"가 아니라 "한 바퀴 돌았음"으로 쓴다.
-    card.querySelector('.pick-count').textContent =
-      total === 0 ? '없음' : left === 0 ? '한 바퀴 돌았음' : `${left}개 남음`;
-    // 등록된 문제가 아예 없을 때만 막는다.
-    card.disabled = total === 0;
+    slot.textContent = total === 0 ? '없음' : left === 0 ? '한 바퀴' : `${left}개`;
+  });
+
+  // 등록된 문제가 아예 없는 난이도만 막는다.
+  document.querySelectorAll('.pick-card').forEach((card) => {
+    const level = card.dataset.level;
+    card.disabled = state.problems.filter((p) => p.difficulty === level).length === 0;
   });
 }
 
@@ -185,7 +193,7 @@ function pickProblem(level) {
 /* ---------- 사진 미리 받기 ---------- */
 
 // 문제를 띄운 뒤에 사진을 받기 시작하면 몇 초간 빈 화면이 보인다.
-// 예고 화면("제 N문제")이 떠 있는 동안 미리 받아두면 시작하자마자 바로 보인다.
+// 예고 화면이 떠 있는 동안 미리 받아두면 시작하자마자 바로 보인다.
 const preloaded = new Map(); // url -> Promise<HTMLImageElement>
 
 function preloadImage(url) {
@@ -215,13 +223,23 @@ function formatTime(seconds) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+function currentLimit() {
+  return TIME_LIMITS[state.problem?.difficulty] ?? DEFAULT_LIMIT;
+}
+
+/** 이번 사람이 문제에 쓴 시간. 화면에만 쓰고 어디에도 안 보낸다. */
+function elapsedSeconds() {
+  return Math.max(0, currentLimit() - Math.max(0, state.secondsLeft));
+}
+
 function renderTimer() {
   const el = $('playTimer');
   const out = state.secondsLeft <= 0;
   // 0:00으로만 두면 멈춘 건지 끝난 건지 헷갈린다. 끝났으면 그렇게 쓴다.
   el.textContent = out ? '시간 종료' : formatTime(state.secondsLeft);
-  el.classList.toggle('urgent', state.secondsLeft <= 10);
   el.classList.toggle('timeup', out);
+  // 게이지가 줄어드는 게 강당 뒤에서는 숫자보다 잘 보인다.
+  SMFShowAnim.gauge($('playGauge'), state.secondsLeft / currentLimit(), state.secondsLeft <= 10);
 }
 
 function stopTimer() {
@@ -241,23 +259,22 @@ function startTimer() {
     if (state.secondsLeft <= 10 && state.secondsLeft > 0 && state.lastTickSecond !== state.secondsLeft) {
       state.lastTickSecond = state.secondsLeft;
       SMFShowAnim.sounds.tick();
-      SMFShowAnim.timerBeat($('playTimer'), true); // 마지막 10초는 더 크게 뛴다
-      SMFShowAnim.urgentOn(); // 화면 가장자리가 붉게 맥동 -> 뒤에서도 보인다
+      SMFShowAnim.timerBeat($('playTimer'), true);
+      SMFShowAnim.urgentOn(); // 화면 가장자리에 빨간 테 -> 뒤에서도 보인다
     }
 
     if (state.secondsLeft <= 0) {
       stopTimer();
       SMFShowAnim.urgentOff();
       SMFShowAnim.sounds.timesUp();
-      SMFShowAnim.shakeScreen(30);
-      SMFShowAnim.flash('#ff5f56', 0.4);
+      SMFShowAnim.shakeScreen(24);
       SMFShowAnim.shake($('playTimer'));
       // 진행 바의 작은 글자만으로는 강당 뒤에서 끝난 걸 모른다.
       // 한가운데에 크게 띄웠다가 지운다(학생이 쓴 걸 계속 덮으면 안 되므로).
-      SMFShowAnim.titleCard('시간 종료!', '#ff5f56');
+      SMFShowAnim.titleCard('시간 종료', '#201e1d');
       // 아무도 못 맞혔으니 정답을 보여준다. 진행자가 누를 버튼은 이제 없다.
       // 안내가 지나간 뒤에 넘어간다.
-      setTimeout(() => showAnswerPlate('시간 종료'), 1500);
+      setTimeout(() => goGrading('timeup', ''), 1500);
     }
   }, 1000);
 }
@@ -349,19 +366,25 @@ function goNextRound() {
   goPick();
 }
 
+function questionTypeLabel(problem) {
+  return problem?.questionType === 'objective' ? '객관식' : '주관식';
+}
+
 function startWithProblem(problem) {
   state.problem = problem;
   state.roundNo += 1;
 
   $('readyRound').textContent = `제 ${state.roundNo} 문제`;
   $('readyBadgeFace').textContent = problem.difficulty;
+  $('readyType').textContent = questionTypeLabel(problem);
   // 단원을 미리 알려주면 학생들이 무슨 내용인지 감을 잡고 손을 든다
-  $('readyUnit').textContent = problem.unit || '';
-  $('readyUnit').hidden = !problem.unit;
-  const limit = TIME_LIMITS[problem.difficulty] ?? DEFAULT_LIMIT;
-  $('readyTime').textContent = `제한시간 ${formatTime(limit)}`;
+  $('readyUnit').textContent = problem.unit || '—';
+  $('unitName').textContent = problem.unit || '';
+
+  SMFShowAnim.unsplit($('readyTime'));
+  $('readyTime').textContent = formatTime(currentLimit());
   show('ready');
-  SMFShowAnim.titleIn($('readyRound'));
+  SMFShowAnim.titleIn($('readyTime'));
   SMFShowAnim.badgeSlam($('readyBadge'));
 
   // 이 화면이 떠 있는 동안 사진을 미리 받아둔다(시작하자마자 보이도록)
@@ -379,14 +402,14 @@ function backToBoard() {
 
 async function goPlay() {
   const problem = state.problem;
-  const limit = TIME_LIMITS[problem.difficulty] ?? DEFAULT_LIMIT;
 
   $('playRound').textContent = `제 ${state.roundNo} 문제`;
   $('playBadge').textContent = problem.difficulty;
-  state.secondsLeft = limit;
+  state.secondsLeft = currentLimit();
   state.lastTickSecond = null;
   state.judged = false;
   renderTimer();
+  closeAnswer();
 
   const photo = $('boardPhoto');
   photo.src = problem.imageUrl;
@@ -412,42 +435,36 @@ async function goPlay() {
   await SMFShowAnim.countdown(3);
   SMFShowAnim.photoIn($('boardPhoto'));
   SMFShowAnim.timerIn($('playTimer'));
-  state.startedAt = Date.now();
   startTimer();
 }
 
-// 정답이 "7"일 수도 있고 "a_n = 2·3^(n-1) (단, n은 자연수)"일 수도 있다.
-// 크기를 하나로 고정하면 짧은 답은 초라하고 긴 답은 화면을 넘겨서 버튼을 가린다.
-// 길이에 따라 단계적으로 줄인다.
-const ANSWER_SIZES = [
-  { upTo: 3, vmin: 22 },
-  { upTo: 6, vmin: 15 },
-  { upTo: 12, vmin: 9 },
-  { upTo: 24, vmin: 6 },
-  { upTo: Infinity, vmin: 4.2 },
-];
+/* ---------- 답 입력 ----------
+ * 화면을 갈아끼우지 않고 판 위에 패널을 띄운다. 학생이 쓴 풀이가 계속 보여야
+ * 진행자가 "이거 맞아?" 하고 같이 볼 수 있다.
+ *
+ * 판 자체는 절대 좁히지 않는다. 획 좌표를 판 너비 비율로 들고 있어서
+ * 판 너비가 바뀌면 이미 쓴 글씨가 통째로 어긋난다. */
 
-function fitAnswerText(el, answer) {
-  el.textContent = answer;
-  const size = ANSWER_SIZES.find((s) => answer.length <= s.upTo);
-  el.style.fontSize = `${size.vmin}vmin`;
-}
-
-/* ---------- 답 입력과 채점 ----------
- * 진행자가 맞았다/틀렸다를 손으로 누르지 않는다. 답을 넣으면 앱이 판정한다. */
-
-function goAnswer() {
+function openAnswer() {
   const objective = state.problem.questionType === 'objective';
+  $('answerAsk').textContent = objective ? '객관식 · 번호를 누르세요' : '주관식 · 숫자판으로 입력';
   $('choiceRow').hidden = !objective;
   $('typedBox').hidden = objective;
+  $('submitBtn').hidden = objective; // 객관식은 번호를 누르는 순간 제출이다
   $('typedField').value = '';
-  show('answer');
+  $('answerPanel').hidden = false;
+  SMFShowAnim.listIn($('answerPanel').querySelectorAll('.choice, .key, .btn'), 12);
+}
+
+function closeAnswer() {
+  $('answerPanel').hidden = true;
 }
 
 /** 숫자판으로 한 글자 넣거나 지운다. 값은 여기서만 바뀐다. */
 function typeKey(key) {
   const field = $('typedField');
   if (key === 'back') field.value = field.value.slice(0, -1);
+  else if (key === 'clear') field.value = '';
   else if (field.value.length < 24) field.value += key;
 }
 
@@ -470,26 +487,86 @@ function submitAnswer(value) {
   if (state.judged) return; // 두 번 눌려도 한 번만 판정한다
   state.judged = true;
   stopTimer();
-  judge(sameAnswer(typed, state.problem.answer), typed);
+  closeAnswer();
+  goGrading(sameAnswer(typed, state.problem.answer) ? 'correct' : 'wrong', typed);
+}
+
+/* ---------- 채점과 결과 ---------- */
+
+/**
+ * 채점 중. 답을 바로 까지 않고 여기서 한 박자 쉰다.
+ * 막대가 차오르는 동안 강당이 조용해진다.
+ */
+async function goGrading(kind, typed) {
+  stopTimer();
+  state.resultKind = kind;
+  state.lastTyped = typed;
+  state.lastElapsed = elapsedSeconds();
+
+  $('gradingMode').textContent = questionTypeLabel(state.problem);
+  $('gradingAnswer').textContent = typed || '—';
+  $('gradingElapsed').textContent = formatTime(state.lastElapsed);
+  $('gradingBar').style.width = '0%';
+  $('gradingStep').textContent = '답안 확인';
+  show('grading');
+
+  await SMFShowAnim.gradeBar($('gradingBar'), 1400, (step) => {
+    $('gradingStep').textContent = step;
+  });
+
+  goResult();
 }
 
 /**
- * 맞으면 축하 화면, 틀리면 같은 문제로 다음 사람.
- * 남기는 기록은 없다. 상품은 진행자가 그 자리에서 손으로 준다.
+ * 결과. 세 갈래가 한 화면이다.
+ *
+ *   정답      맞힌 사람이 상품을 받는다. 이 문제는 다 쓴 걸로 친다.
+ *   오답      정답을 가린다. 같은 문제를 다음 사람이 푼다.
+ *   시간 종료  아무도 못 맞혔으니 정답을 공개하고 다음 문제로 넘어간다.
  */
-function judge(correct, typed) {
-  if (correct) {
-    state.used.add(state.problem.id); // 맞힌 문제만 "낸 문제"로 친다
-    SMFShowAnim.sounds.fanfare();
-    show('celebrate');
-    SMFShowAnim.celebrate();
-    SMFShowAnim.trophyIn(null, document.querySelector('.celebrate-name'));
-    return;
-  }
+function goResult() {
+  const kind = state.resultKind;
+  const correct = kind === 'correct';
+  const reveal = kind !== 'wrong'; // 틀렸을 때는 절대 정답을 까지 않는다
 
-  SMFShowAnim.sounds.wrong();
-  SMFShowAnim.reject();
-  nextPerson(typed);
+  if (kind !== 'wrong') state.used.add(state.problem.id);
+
+  const verdict = $('verdict');
+  verdict.textContent = correct ? '정답' : kind === 'timeup' ? '시간 종료' : '오답';
+  verdict.classList.toggle('is-correct', correct);
+
+  $('resultTyped').textContent = state.lastTyped || '—';
+  $('resultAnswer').textContent = reveal ? String(state.problem.answer ?? '—') : '—';
+  $('resultElapsed').textContent = formatTime(state.lastElapsed);
+
+  $('resultPrize').textContent = correct ? '상품 지급' : '상품 없음';
+  $('resultNote').textContent = correct
+    ? '정답 — 상품을 받아가세요'
+    : kind === 'timeup'
+      ? '아무도 못 맞혔습니다 — 다음 문제로 갑니다'
+      : '오답 — 같은 문제를 다음 사람이 풉니다';
+
+  $('resultNextBtn').textContent = kind === 'wrong' ? '다음 사람' : '다음 문제';
+  // "난이도 바꾸기"는 문제가 끝났을 때만. 같은 문제를 이어서 풀 때는 뜨면 안 된다.
+  $('resultChangeBtn').hidden = kind === 'wrong';
+
+  show('result');
+  SMFShowAnim.verdictIn(verdict);
+
+  if (correct) {
+    SMFShowAnim.celebrate();
+  } else if (kind === 'wrong') {
+    SMFShowAnim.sounds.wrong();
+    SMFShowAnim.reject();
+  } else {
+    SMFShowAnim.sounds.reveal();
+  }
+}
+
+/** 결과 화면의 다음 버튼. 틀렸으면 같은 문제로, 아니면 새 문제로. */
+function goAfterResult() {
+  if (state.resultKind === 'wrong') nextPerson();
+  else goNextRound();
 }
 
 /**
@@ -497,55 +574,26 @@ function judge(correct, typed) {
  * 새 사람이 앞사람 풀이 위에 쓰거나 남은 10초만 받으면 안 되므로,
  * 칠판을 지우고 시간을 처음부터 준다. 사진은 이미 떠 있으니 다시 받지 않는다.
  */
-function nextPerson(typed) {
-  SMFShowAnim.titleCard(typed ? `${typed} 아니야` : '아니야', '#ff5f56', 1400);
+function nextPerson() {
+  SMFDraw.clear();
+  updateDrawButtons();
+  state.judged = false;
+  state.secondsLeft = currentLimit();
+  state.lastTickSecond = null;
+  renderTimer();
+  closeAnswer();
 
-  setTimeout(() => {
-    SMFDraw.clear();
-    updateDrawButtons();
-    state.judged = false;
-    state.secondsLeft = TIME_LIMITS[state.problem.difficulty] ?? DEFAULT_LIMIT;
-    state.lastTickSecond = null;
-    renderTimer();
-
-    show('play');
-    requestAnimationFrame(() => {
-      SMFDraw.resize();
-      layoutPhoto();
-    });
-    startTimer();
-  }, 1500);
-}
-
-/**
- * 정답판. 아무도 못 맞히고 시간이 끝났을 때 쓴다.
- * 바로 까면 김이 샌다. 뜸을 들인 뒤 정답이 돌아 들어온다.
- */
-async function showAnswerPlate(label) {
-  stopTimer();
-  state.used.add(state.problem.id);
-  fitAnswerText($('revealAnswer'), String(state.problem.answer ?? ''));
-  SMFShowAnim.unsplit($('revealLabel'));
-  $('revealLabel').textContent = label;
-
-  $('revealAnswer').hidden = true;
-  $('revealJudge').hidden = true;
-  show('reveal');
-
-  await SMFShowAnim.suspense($('revealLabel'));
-
-  $('revealAnswer').hidden = false;
-  SMFShowAnim.sounds.reveal();
-  SMFShowAnim.slam($('revealAnswer'));
-
-  // 다음으로 가는 버튼은 정답이 자리잡은 뒤에 올라온다
-  setTimeout(() => {
-    $('revealJudge').hidden = false;
-    SMFShowAnim.listIn($('revealJudge').querySelectorAll('.btn'), 80);
-  }, 700);
+  show('play');
+  requestAnimationFrame(() => {
+    SMFDraw.resize();
+    layoutPhoto();
+  });
+  startTimer();
 }
 
 function goIdle() {
+  updatePickCounts();
+  $('unitName').textContent = '';
   show('idle');
 }
 
@@ -594,8 +642,7 @@ function wireUp() {
   $('fullscreenBtn').addEventListener('click', toggleFullscreen);
   $('muteBtn').addEventListener('click', () => {
     const muted = SMFShowAnim.toggleMute();
-    $('muteBtn').textContent = muted ? '🔇' : '🔊';
-    $('muteBtn').classList.toggle('off', muted);
+    $('muteBtn').textContent = muted ? '소리 꺼짐' : '소리 켜짐';
   });
   $('pickBackBtn').addEventListener('click', goIdle);
 
@@ -607,8 +654,8 @@ function wireUp() {
   $('readyBackBtn').addEventListener('click', goPick);
 
   // 답 입력과 채점
-  $('answerBtn').addEventListener('click', goAnswer);
-  $('answerBackBtn').addEventListener('click', backToBoard);
+  $('answerBtn').addEventListener('click', openAnswer);
+  $('answerBackBtn').addEventListener('click', closeAnswer);
   document.querySelectorAll('#choiceRow .choice').forEach((btn) => {
     btn.addEventListener('click', () => submitAnswer(btn.dataset.choice));
   });
@@ -616,12 +663,9 @@ function wireUp() {
     btn.addEventListener('click', () => typeKey(btn.dataset.key));
   });
   $('submitBtn').addEventListener('click', () => submitAnswer($('typedField').value));
-  $('revealNextBtn').addEventListener('click', goNextRound);
 
-  $('backToBoardBtn').addEventListener('click', backToBoard);
-
-  $('celebrateNextBtn').addEventListener('click', goNextRound);
-  $('celebrateChangeBtn').addEventListener('click', goPick);
+  $('resultNextBtn').addEventListener('click', goAfterResult);
+  $('resultChangeBtn').addEventListener('click', goPick);
 
   // 필기 도구
   document.querySelectorAll('#colorGroup .swatch').forEach((swatch) => {
@@ -645,7 +689,7 @@ function wireUp() {
   $('boardPhoto').addEventListener('load', layoutPhoto);
   window.addEventListener('resize', layoutPhoto);
 
-  // 판 크기는 창 크기 말고도 바뀐다(전체화면 전환, 진행 바 안의 글자 변화 등).
+  // 판 크기는 창 크기 말고도 바뀐다(전체화면 전환 등).
   // 그때 캔버스를 다시 맞추지 않으면 학생이 쓴 글씨가 보이는 위치와 어긋난다.
   // 획은 좌표로 들고 있어서 다시 그리면 그대로 살아난다.
   if (window.ResizeObserver) {
@@ -656,7 +700,7 @@ function wireUp() {
   }
 
   // 전자칠판에 키보드를 붙여 쓰는 경우를 위한 단축키.
-  // 이름/상품을 입력하는 중에는 글자가 단축키로 먹히면 안 되므로 제외한다.
+  // 화면에는 안내하지 않는다 — 손으로 누르는 화면이라 안내가 자리만 차지한다.
   document.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT') return;
     if (e.key === 'f' || e.key === 'F') toggleFullscreen();
@@ -669,7 +713,7 @@ function wireUp() {
   // 첫 터치에 소리를 깨운다(브라우저 자동재생 정책)
   document.addEventListener('pointerdown', SMFShowAnim.unlockAudio, { once: true });
 
-  SMFShowAnim.pressable(document.querySelectorAll('.btn, .pick-face'));
+  SMFShowAnim.pressable(document.querySelectorAll('.btn, .chip, .choice, .key, .pick-face'));
 }
 
 /* ---------- 시작 ---------- */
@@ -687,9 +731,6 @@ async function boot() {
     show('auth');
     return;
   }
-
-  // 배경에 거품을 띄운다. 완전히 멈춘 화면은 고장 난 것처럼 보인다.
-  SMFShowAnim.ambient($('ambient'));
 
   SMFDraw.init({
     board: $('board'),

@@ -5,226 +5,243 @@
 <!-- 전자칠판 전용 화면: 확대/축소 제스처가 진행을 방해하지 않게 막는다 -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>스트릿 매쓰 파이터 - 진행 화면</title>
-<!-- 제목용 명조. 직접 들고 있는다. 행사 당일 학교 네트워크가 구글 폰트를
-     막아두거나 느리면 제목만 다른 글꼴로 튀는데, 그건 무대에서 바로 보인다.
-     글자 범위별로 쪼개져 있어서 브라우저는 실제로 쓰는 조각만 받아 간다. -->
-<link rel="stylesheet" href="vendor/gowun-batang.css" />
+<!-- 글꼴은 직접 들고 있다. 행사 당일 학교 네트워크가 구글 폰트를 막아두거나
+     느리면 무대 화면에서 글자가 통째로 튄다. -->
+<link rel="stylesheet" href="vendor/fonts.css" />
 <link rel="stylesheet" href="css/show.css" />
 </head>
 <body class="show-body">
 
-<!-- 배경에 떠다니는 거품. 내용이 없는 장식이라 화면 낭독기에서는 숨긴다. -->
-<div class="ambient" id="ambient" aria-hidden="true"></div>
+<!-- 어느 화면에서나 떠 있는 위쪽 띠. 지금 어디쯤인지, 어느 단원인지. -->
+<header class="topbar">
+  <span class="topbar-brand">Street Math Fighter</span>
+  <span class="topbar-screen" id="screenLabel">대기</span>
+  <span class="topbar-unit" id="unitName"></span>
+  <span class="topbar-right">
+    <span class="badge badge-warn" id="sessionWarning" hidden>로그인이 풀렸어요. 새로고침 후 다시 로그인해주세요</span>
+    <button type="button" class="chip" id="muteBtn">소리 켜짐</button>
+    <button type="button" class="chip" id="fullscreenBtn">전체화면</button>
+  </span>
+</header>
 
-<!-- 어느 화면에서든 떠 있는 표시들 -->
-<div class="utility">
-  <span class="badge badge-warn" id="sessionWarning" hidden>로그인이 풀렸어요. 새로고침 후 다시 로그인해주세요</span>
-  <button type="button" class="utility-btn" id="muteBtn" title="소리 끄기/켜기">🔊</button>
-  <button type="button" class="utility-btn" id="fullscreenBtn" title="전체화면 (F)">⛶</button>
-</div>
+<main class="screen">
 
 <!-- 로그인 안 된 상태에서 잠깐 보이는 화면 -->
-<div class="stage" id="authGate">
+<section class="stage stage-center" id="authGate">
   <div class="center-block">
-    <p class="big-note">진행자 로그인이 필요해요</p>
-    <a class="btn btn-primary btn-huge" href="index.html">로그인하러 가기</a>
-  </div>
-</div>
-
-<!-- 1. 대기.
-     가운데 정렬로 쌓아두면 어느 화면이나 똑같아 보인다. 제목은 왼쪽에 크게 두고
-     오른쪽에 무게추(엠블럼)를 놔서 시선이 한 번 흐르게 짰다. -->
-<section class="stage stage-idle" id="stageIdle" hidden>
-  <div class="idle-inner">
-    <div class="idle-copy">
-      <p class="show-tagline"><span class="eyebrow-rule"></span>점심시간 강당 수학 대결</p>
-      <!-- 줄마다 따로 두는 이유: 글자 단위 등장 연출이 줄바꿈을 지우지 않게 -->
-      <h1 class="show-logo" data-solo>
-        <span class="logo-line">스트릿</span>
-        <span class="logo-line logo-accent">매쓰 파이터</span>
-      </h1>
-
-      <div class="idle-actions">
-        <button type="button" class="btn btn-primary btn-huge" id="startBtn">시작</button>
-      </div>
-    </div>
-
-    <!-- 장식. 오른쪽이 비면 제목이 허공에 뜬 것처럼 보인다. -->
-    <div class="idle-emblem" aria-hidden="true">
-      <span class="emblem-ring emblem-ring-1"></span>
-      <span class="emblem-ring emblem-ring-2"></span>
-      <span class="emblem-core"></span>
-      <span class="emblem-glyph">&#8721;</span>
-    </div>
+    <p class="eyebrow">진행 화면</p>
+    <h1 class="display">로그인이 필요합니다</h1>
+    <a class="btn btn-primary btn-big" href="index.html">로그인하러 가기</a>
   </div>
 </section>
 
-<!-- 2. 난이도 고르기 -->
-<section class="stage" id="stagePick" hidden>
-  <!-- 세 겹인 이유:
-       .pick-card  버튼. 절대 안 기울인다. 3D로 돌린 <button>은 크롬이 그 자리를
-                   못 짚어서 눌리지 않는다(가운데 카드만 눌리는 증상으로 확인).
-       .pick-tilt  원호 위 각도만 담당. 여기는 JS가 건드리지 않는다.
-       .pick-face  실제로 보이는 판. 등장/눌림 연출은 여기에만 건다. -->
+<!-- 1. 대기.
+     왼쪽은 제목과 시작 버튼, 오른쪽 칸은 남은 문제 수.
+     시안은 이 자리에 키보드 단축키 안내를 뒀는데, 이 화면은 손으로 누르니까
+     대신 진행자가 실제로 궁금해하는 걸 넣었다. -->
+<section class="stage stage-idle" id="stageIdle" hidden>
+  <div class="idle-main">
+    <p class="eyebrow">점심시간 강당 수학 대결</p>
+    <!-- 줄마다 따로 두는 이유: 글자 단위 등장 연출이 줄바꿈을 지우지 않게 -->
+    <h1 class="show-logo display" data-solo>
+      <span class="logo-line">스트릿</span>
+      <span class="logo-line logo-accent">매쓰 파이터</span>
+    </h1>
+    <button type="button" class="btn btn-primary btn-big" id="startBtn">시작</button>
+  </div>
+  <aside class="idle-side">
+    <p class="side-head">남은 문제</p>
+    <div class="side-row"><span>하</span><span class="pick-count" data-count="하">-</span></div>
+    <div class="side-row"><span>중</span><span class="pick-count" data-count="중">-</span></div>
+    <div class="side-row"><span>상</span><span class="pick-count" data-count="상">-</span></div>
+    <p class="side-note">다 나가면 저절로 처음부터 다시 돕니다</p>
+  </aside>
+</section>
+
+<!-- 2. 난이도 고르기.
+     세 겹인 이유: .pick-card는 버튼, .pick-tilt는 껍데기, .pick-face가 보이는 판.
+     예전에 3D로 돌린 <button>을 크롬이 못 짚어서 가운데 카드만 눌리던 적이 있어
+     구조는 그대로 둔다(지금은 기울이지 않는다). -->
+<section class="stage stage-pad" id="stagePick" hidden>
+  <p class="eyebrow">단계 1 / 2 · 난이도</p>
+  <h2 class="headline">난이도 선택</h2>
+  <div class="rule"></div>
   <div class="pick-grid" id="pickGrid">
     <button type="button" class="pick-card" data-level="하">
       <span class="pick-tilt"><span class="pick-face">
+        <span class="pick-label">Level 1</span>
         <span class="pick-level">하</span>
-        <span class="pick-time">1분 30초</span>
-        <span class="pick-count" data-count="하">-</span>
+        <span class="pick-time"><b>1:30</b> 제한시간</span>
+        <span class="pick-note">기본 계산 중심</span>
+        <span class="pick-note">남은 문제 <b class="pick-count" data-count="하">-</b></span>
       </span></span>
     </button>
     <button type="button" class="pick-card" data-level="중">
       <span class="pick-tilt"><span class="pick-face">
+        <span class="pick-label">Level 2</span>
         <span class="pick-level">중</span>
-        <span class="pick-time">3분</span>
-        <span class="pick-count" data-count="중">-</span>
+        <span class="pick-time"><b>3:00</b> 제한시간</span>
+        <span class="pick-note">응용 한 단계 포함</span>
+        <span class="pick-note">남은 문제 <b class="pick-count" data-count="중">-</b></span>
       </span></span>
     </button>
     <button type="button" class="pick-card" data-level="상">
       <span class="pick-tilt"><span class="pick-face">
+        <span class="pick-label">Level 3</span>
         <span class="pick-level">상</span>
-        <span class="pick-time">5분</span>
-        <span class="pick-count" data-count="상">-</span>
+        <span class="pick-time"><b>5:00</b> 제한시간</span>
+        <span class="pick-note">여러 단계 추론</span>
+        <span class="pick-note">남은 문제 <b class="pick-count" data-count="상">-</b></span>
       </span></span>
     </button>
   </div>
-  <button type="button" class="btn btn-ghost btn-big stage-back" id="pickBackBtn">뒤로</button>
+  <div class="stage-foot">
+    <button type="button" class="btn btn-secondary" id="pickBackBtn">뒤로</button>
+  </div>
 </section>
 
 <!-- 3. 문제 예고 -->
-<section class="stage" id="stageReady" hidden>
-  <div class="center-block">
-    <p class="ready-round" id="readyRound" data-solo>제 1 문제</p>
-    <!-- 앞/뒤 면을 따로 둔 동전. 뒤집으면 두께 있는 원판처럼 보인다. -->
-    <div class="coin" id="readyBadge" data-solo>
-      <div class="coin-body" id="readyBadgeBody">
-        <div class="coin-face coin-front" id="readyBadgeFace">중</div>
-        <div class="coin-face coin-back">STREET<br />MATH</div>
-      </div>
-    </div>
-    <p class="ready-unit" id="readyUnit" hidden></p>
-    <p class="ready-time" id="readyTime">제한시간 3분</p>
-    <button type="button" class="btn btn-primary btn-huge" id="goBtn">시작!</button>
-    <button type="button" class="btn btn-ghost" id="readyBackBtn">다른 문제로</button>
+<section class="stage stage-pad stage-center" id="stageReady" hidden>
+  <p class="eyebrow">단계 2 / 2 · 제한시간 확인</p>
+  <div class="ready-head">
+    <span class="ready-time" id="readyTime" data-solo>3:00</span>
+    <span class="ready-badge" id="readyBadge"><span id="readyBadgeFace">중</span></span>
+  </div>
+  <div class="rule"></div>
+  <div class="cells cells-3">
+    <div class="cell"><span class="cell-key">회차</span><span class="cell-val" id="readyRound">제 1 문제</span></div>
+    <div class="cell"><span class="cell-key">유형</span><span class="cell-val" id="readyType">주관식</span></div>
+    <div class="cell"><span class="cell-key">단원</span><span class="cell-val" id="readyUnit">—</span></div>
+  </div>
+  <div class="stage-foot">
+    <button type="button" class="btn btn-primary btn-big" id="goBtn">시작</button>
+    <button type="button" class="btn btn-secondary" id="readyBackBtn">다른 문제로</button>
   </div>
 </section>
 
 <!-- 4. 문제 풀이 -->
 <section class="stage stage-play" id="stagePlay" hidden>
-  <header class="play-bar">
-    <div class="play-meta">
-      <span class="play-round" id="playRound">제 1 문제</span>
-      <span class="play-badge" id="playBadge">중</span>
-    </div>
-    <div class="play-timer" id="playTimer">3:00</div>
-  </header>
-
-  <div class="board" id="board">
-    <img class="board-photo" id="boardPhoto" alt="문제" />
-    <p class="board-photo-error" id="photoError" hidden>사진을 불러오지 못했어요.<br />인터넷 연결을 확인해주세요.</p>
-    <canvas class="board-canvas" id="boardCanvas"></canvas>
+  <div class="play-bar">
+    <span class="play-clock" id="playTimer">3:00</span>
+    <span class="gauge"><span class="gauge-fill" id="playGauge"></span></span>
+    <span class="play-meta"><span id="playRound">제 1 문제</span> · 난이도 <span id="playBadge">중</span></span>
   </div>
 
-  <footer class="play-tools">
+  <div class="play-tools">
     <div class="tool-group" id="colorGroup">
-      <button type="button" class="swatch active" data-color="#111111" style="--c:#111111"></button>
-      <button type="button" class="swatch" data-color="#e0393e" style="--c:#e0393e"></button>
+      <button type="button" class="swatch active" data-color="#201e1d" style="--c:#201e1d"></button>
+      <button type="button" class="swatch" data-color="#ec3013" style="--c:#ec3013"></button>
       <button type="button" class="swatch" data-color="#1d4ed8" style="--c:#1d4ed8"></button>
-      <button type="button" class="swatch" data-color="#16a34a" style="--c:#16a34a"></button>
+      <button type="button" class="swatch" data-color="#15803d" style="--c:#15803d"></button>
     </div>
-    <div class="tool-group">
-      <button type="button" class="btn btn-tool" id="zoomOutBtn" title="사진 작게">−</button>
+    <button type="button" class="btn btn-tool" id="eraserBtn">지우개</button>
+    <button type="button" class="btn btn-tool" id="undoBtn">되돌리기</button>
+    <button type="button" class="btn btn-tool" id="clearBtn">전체 지우기</button>
+    <div class="tool-group tool-right">
+      <button type="button" class="btn btn-tool" id="zoomOutBtn">−</button>
       <span class="zoom-label" id="zoomLabel">100%</span>
-      <button type="button" class="btn btn-tool" id="zoomInBtn" title="사진 크게">+</button>
+      <button type="button" class="btn btn-tool" id="zoomInBtn">+</button>
     </div>
-    <div class="tool-group">
-      <button type="button" class="btn btn-tool" id="eraserBtn">지우개</button>
-      <button type="button" class="btn btn-tool" id="undoBtn">되돌리기</button>
-      <button type="button" class="btn btn-tool" id="clearBtn">전체 지우기</button>
-    </div>
-    <button type="button" class="btn btn-primary btn-big" id="answerBtn">답 입력</button>
-  </footer>
-</section>
+  </div>
 
-<!-- 5. 답 입력.
-     객관식이면 번호만 누르면 되고, 주관식이면 숫자판으로 친다.
-     전자칠판에서 운영체제 키보드가 올라오면 화면을 반쯤 가리기 때문에
-     숫자판을 화면 안에 둔다(물리 키보드로 쳐도 그대로 들어간다). -->
-<section class="stage" id="stageAnswer" hidden>
-  <div class="center-block">
-    <p class="answer-ask" id="answerAsk">답은?</p>
-
-    <!-- 객관식 -->
-    <div class="choice-row" id="choiceRow" hidden>
-      <button type="button" class="choice" data-choice="1">1</button>
-      <button type="button" class="choice" data-choice="2">2</button>
-      <button type="button" class="choice" data-choice="3">3</button>
-      <button type="button" class="choice" data-choice="4">4</button>
-      <button type="button" class="choice" data-choice="5">5</button>
+  <div class="play-body">
+    <div class="board" id="board">
+      <img class="board-photo" id="boardPhoto" alt="문제" />
+      <p class="board-photo-error" id="photoError" hidden>사진을 불러오지 못했어요.<br />인터넷 연결을 확인해주세요.</p>
+      <canvas class="board-canvas" id="boardCanvas"></canvas>
     </div>
 
-    <!-- 주관식 -->
-    <div class="typed" id="typedBox" hidden>
-      <!-- readonly + inputmode=none: 전자칠판에서 운영체제 키보드가 올라오면
-           화면 절반을 가린다. 값은 아래 숫자판으로만 채운다. -->
-      <input
-        class="typed-field"
-        id="typedField"
-        type="text"
-        inputmode="none"
-        autocomplete="off"
-        readonly
-        aria-label="답"
-      />
-      <div class="keypad" id="keypad">
-        <button type="button" class="key" data-key="1">1</button>
-        <button type="button" class="key" data-key="2">2</button>
-        <button type="button" class="key" data-key="3">3</button>
-        <button type="button" class="key" data-key="4">4</button>
-        <button type="button" class="key" data-key="5">5</button>
-        <button type="button" class="key" data-key="6">6</button>
-        <button type="button" class="key" data-key="7">7</button>
-        <button type="button" class="key" data-key="8">8</button>
-        <button type="button" class="key" data-key="9">9</button>
-        <button type="button" class="key" data-key="-">−</button>
-        <button type="button" class="key" data-key="0">0</button>
-        <button type="button" class="key" data-key=".">.</button>
-        <button type="button" class="key" data-key="/">/</button>
-        <button type="button" class="key key-wide" data-key="back">지우기</button>
+    <button type="button" class="btn btn-primary btn-big answer-open" id="answerBtn">답 입력하기</button>
+
+    <!-- 답 입력 패널.
+         판을 좁히지 않고 그 위에 겹쳐 띄운다. 획 좌표를 판 너비 비율로
+         저장하고 있어서 판 너비가 바뀌면 쓴 글씨가 통째로 어긋난다. -->
+    <aside class="answer-panel" id="answerPanel" hidden>
+      <p class="panel-head" id="answerAsk">주관식</p>
+
+      <!-- 객관식 -->
+      <div class="choice-row" id="choiceRow" hidden>
+        <button type="button" class="choice" data-choice="1">1</button>
+        <button type="button" class="choice" data-choice="2">2</button>
+        <button type="button" class="choice" data-choice="3">3</button>
+        <button type="button" class="choice" data-choice="4">4</button>
+        <button type="button" class="choice" data-choice="5">5</button>
       </div>
-      <button type="button" class="btn btn-primary btn-big" id="submitBtn">확인</button>
-    </div>
 
-    <button type="button" class="btn btn-ghost" id="answerBackBtn">칠판으로</button>
+      <!-- 주관식 -->
+      <div class="typed" id="typedBox" hidden>
+        <!-- readonly + inputmode=none: 전자칠판에서 운영체제 키보드가 올라오면
+             화면 절반을 가린다. 값은 아래 숫자판으로만 채운다. -->
+        <input
+          class="typed-field"
+          id="typedField"
+          type="text"
+          inputmode="none"
+          autocomplete="off"
+          readonly
+          aria-label="답"
+        />
+        <div class="keypad" id="keypad">
+          <button type="button" class="key" data-key="7">7</button>
+          <button type="button" class="key" data-key="8">8</button>
+          <button type="button" class="key" data-key="9">9</button>
+          <button type="button" class="key" data-key="4">4</button>
+          <button type="button" class="key" data-key="5">5</button>
+          <button type="button" class="key" data-key="6">6</button>
+          <button type="button" class="key" data-key="1">1</button>
+          <button type="button" class="key" data-key="2">2</button>
+          <button type="button" class="key" data-key="3">3</button>
+          <button type="button" class="key" data-key="0">0</button>
+          <button type="button" class="key" data-key=".">.</button>
+          <button type="button" class="key" data-key="/">/</button>
+          <button type="button" class="key" data-key="-">−</button>
+          <button type="button" class="key" data-key="back">⌫</button>
+          <button type="button" class="key" data-key="clear">C</button>
+        </div>
+      </div>
+
+      <div class="panel-foot">
+        <button type="button" class="btn btn-primary btn-block" id="submitBtn">제출</button>
+        <button type="button" class="btn btn-secondary btn-block" id="answerBackBtn">닫기</button>
+      </div>
+    </aside>
   </div>
 </section>
 
-<!-- 6. 결과: 틀렸거나 시간이 끝났을 때. 정답을 보여주고 넘어간다. -->
-<section class="stage" id="stageReveal" hidden>
-  <div class="center-block">
-    <p class="reveal-label" id="revealLabel">정답은</p>
-    <div class="reveal-plate" id="revealPlate">
-      <div class="reveal-answer" id="revealAnswer">42</div>
+<!-- 5. 채점 중. 답을 바로 까지 않고 여기서 한 박자 쉰다. -->
+<section class="stage stage-pad stage-center" id="stageGrading" hidden>
+  <p class="eyebrow" id="gradingMode">주관식</p>
+  <h2 class="display">채점 중</h2>
+  <div class="cells cells-2">
+    <div class="cell"><span class="cell-key">제출 답</span><span class="cell-val" id="gradingAnswer">—</span></div>
+    <div class="cell"><span class="cell-key">걸린 시간</span><span class="cell-val" id="gradingElapsed">0:00</span></div>
+  </div>
+  <span class="gauge gauge-wide"><span class="gauge-fill" id="gradingBar"></span></span>
+  <p class="grading-step" id="gradingStep">답안 확인</p>
+</section>
+
+<!-- 6. 결과. 맞았을 때 / 틀렸을 때 / 시간이 끝났을 때가 한 화면이다.
+     틀렸을 때는 정답을 가린다 — 같은 문제를 다음 사람이 푼다. -->
+<section class="stage stage-result" id="stageResult" hidden>
+  <div class="verdict" id="verdict">정답</div>
+  <div class="result-body">
+    <div class="cells cells-3">
+      <div class="cell"><span class="cell-key">제출 답</span><span class="cell-val" id="resultTyped">—</span></div>
+      <div class="cell"><span class="cell-key">정답</span><span class="cell-val cell-accent" id="resultAnswer">—</span></div>
+      <div class="cell"><span class="cell-key">걸린 시간</span><span class="cell-val" id="resultElapsed">0:00</span></div>
     </div>
-    <div class="judge-actions" id="revealJudge">
-      <button type="button" class="btn btn-primary btn-huge" id="revealNextBtn">다음 문제</button>
+    <p class="prize" id="resultPrize">상품 지급</p>
+    <p class="prize-note" id="resultNote">정답 — 상품을 받아가세요</p>
+    <div class="stage-foot">
+      <button type="button" class="btn btn-primary btn-big" id="resultNextBtn">다음 문제</button>
+      <button type="button" class="btn btn-secondary" id="resultChangeBtn">난이도 바꾸기</button>
     </div>
-    <button type="button" class="btn btn-ghost" id="backToBoardBtn">칠판 다시 보기</button>
   </div>
 </section>
 
-<!-- 6. 정답 (상품은 여기서 손으로 준다) -->
-<section class="stage stage-celebrate" id="stageCelebrate" hidden>
-  <div class="center-block">
-    <div class="celebrate-name">정답</div>
-    <button type="button" class="btn btn-primary btn-huge" id="celebrateNextBtn">다음 문제</button>
-    <button type="button" class="btn btn-ghost" id="celebrateChangeBtn">난이도 바꾸기</button>
-  </div>
-</section>
+</main>
 
 <script src="vendor/anime.umd.min.js"></script>
-<script src="vendor/motion.min.js"></script>
 <script src="js/show-anim.js"></script>
 <script src="js/show-draw.js"></script>
 <script src="js/show.js"></script>

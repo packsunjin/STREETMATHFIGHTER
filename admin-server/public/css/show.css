@@ -1,736 +1,647 @@
-/* 전자칠판(65~86인치 터치 화면) 전용 스타일.
-   - 강당 뒤쪽에서도 읽혀야 하므로 글자를 화면 크기 비례(vmin)로 아주 크게 잡는다.
-   - 손가락으로 누르므로 버튼 최소 높이를 크게 잡고, hover에 의존하는 UI를 쓰지 않는다.
-   - 화면 크기가 1920x1080이든 3840x2160이든 같은 비율로 보이도록 px를 거의 안 쓴다.
-
-   색은 쓰지 않는다. 거의 검은 무대에 흰 글자, 그리고 맞았다/틀렸다에만 초록·빨강.
-   색기가 없으면 남는 건 대비와 형태뿐이라 강당 뒤에서 제일 확실하게 읽히고,
-   입체감(그림자, 두께, 빛)이 색에 묻히지 않는다.
-
-   단, "필기하는 판"만은 밝은 종이로 남긴다. 어두운 판에 검은 펜으로 쓰면
-   강당 뒤에서 학생 풀이가 아예 안 보인다. */
+/* 진행 화면 (강당 전자칠판 전용).
+ *
+ * 생김새는 클로드 디자인 시안(Modernist) 그대로다. 규칙은 다섯 줄이면 끝난다.
+ *
+ *   1. 밝은 바탕 위에 먹색 글자, 강조는 빨강 딱 한 색
+ *   2. 둥근 모서리 없음, 그림자 없음, 흐림 없음. 아무것도 떠 있지 않는다
+ *   3. 선은 전부 2px. 1px 실선은 강당 뒤에서 안 보인다
+ *   4. 칸은 격자로 나눈다. 나누는 선이 곧 장식이다
+ *   5. 버튼 글자도 왼쪽 정렬. 가운데 정렬은 제목과 판정에만
+ *
+ * 3D는 한 군데도 없다. perspective, preserve-3d, rotate 전부 안 쓴다.
+ * 움직임은 js/show-anim.js가 이동/투명도/막대 너비로만 만든다.
+ */
 
 :root {
-  /* 무대(무채색) */
-  --void: #08080a;
-  --stage-1: #17181c;
-  --stage-2: #0d0e11;
+  /* 시안 토큰 그대로 */
+  --bg: #f3f2f2;
+  --surface: #eae9e9;
+  --text: #201e1d;
+  --accent: #ec3013;
+  --accent-700: #ae1800;
+  --divider: color-mix(in srgb, #201e1d 40%, transparent);
+  --muted: color-mix(in srgb, #201e1d 55%, transparent);
+  --paper: #ffffff;
 
-  /* 어두운 바탕 위의 글자 */
-  --fg: #f4f4f2;
-  --fg-soft: rgba(244, 244, 242, 0.6);
-  --fg-faint: rgba(244, 244, 242, 0.28);
+  /* 두께 있는 선. 이 값이 화면 전체의 인상을 정한다. */
+  --line: 2px solid var(--divider);
+  --line-strong: 2px solid var(--text);
 
-  /* 필기하는 판(밝은 종이) */
-  --paper: #fbfaf7;
-  --ink: #16171a;
-  --muted: #77797f;
-
-  /* 뜻이 있는 색만 남긴다 */
-  --correct: #4ade80;
-  --wrong: #ff5f56;
-
-  /* 유리/금속 */
-  --glass: rgba(255, 255, 255, 0.06);
-  --glass-line: rgba(255, 255, 255, 0.14);
-  --edge: rgba(255, 255, 255, 0.85);
-
-  /* 입체의 기준. 값을 한 곳에 둬야 화면마다 원근이 따로 놀지 않는다. */
-  --depth: 1500px;
-
-  --serif: 'Gowun Batang', 'Nanum Myeongjo', 'Apple SD Gothic Neo', serif;
-  --sans: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo',
-    'Malgun Gothic', sans-serif;
+  --font: 'Archivo', 'Noto Sans KR', system-ui, sans-serif;
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent;
 }
 
 html,
 body {
   height: 100%;
   margin: 0;
+  overflow: hidden;
 }
 
 .show-body {
-  height: 100%;
-  overflow: hidden; /* 진행 중에 화면이 스크롤되면 안 된다 */
-  color: var(--fg);
-  font-family: var(--sans);
-  font-weight: 700;
-  /* 필기 중에 브라우저가 스크롤/확대로 가로채지 않게 */
-  touch-action: manipulation;
-  user-select: none;
-
-  /* 무대 자체가 돌아설 수 있게 원근을 여기서 잡는다.
-     .stage에 걸린 원근은 그 "자식"에게 적용되므로, 무대 판 자체를 돌리려면
-     한 단계 위에 있어야 한다. */
-  perspective: 2200px;
-  transform-style: preserve-3d;
-
-  /* 위에서 빛이 떨어지는 무대. 단색으로 깔면 65인치에서 아주 밋밋하다. */
-  background-color: var(--void);
-  background-image:
-    radial-gradient(110vmin 78vmin at 50% 8%, rgba(255, 255, 255, 0.11), transparent 68%),
-    radial-gradient(140vmin 100vmin at 50% 120%, rgba(255, 255, 255, 0.05), transparent 62%),
-    linear-gradient(178deg, var(--stage-1) 0%, var(--stage-2) 52%, var(--void) 100%);
-}
-
-/* 가장자리를 눌러 가운데로 시선을 모은다(비네팅). */
-.show-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background: radial-gradient(
-    118vmin 96vmin at 50% 44%,
-    transparent 38%,
-    rgba(0, 0, 0, 0.78) 100%
-  );
-}
-
-/* ---- 배경 먼지 ----
-   화면이 완전히 멈춰 있으면 죽은 화면처럼 보인다. 점심시간 내내 켜두니 더 그렇다.
-   각 알갱이는 서로 다른 깊이(z)에 놓인다. 원근이 걸려 있어서 멀리 있는 건
-   저절로 작고 흐리게 보이고, 카메라(perspective-origin)가 움직이면 시차가 생긴다. */
-.ambient {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-  pointer-events: none;
-  perspective: 900px;
-  perspective-origin: 50% 50%;
-  transform-style: preserve-3d;
-}
-
-.mote {
-  position: absolute;
-  bottom: -12vh;
-  left: var(--x, 50%);
-  width: var(--size, 3px);
-  height: var(--size, 3px);
-  border-radius: 50%;
-  background: #fff;
-  filter: blur(var(--soft, 0.4px));
-  animation: mote-drift var(--dur, 26s) linear var(--delay, 0s) infinite;
-  will-change: transform, opacity;
-}
-
-@keyframes mote-drift {
-  0% {
-    transform: translate3d(0, 0, var(--z, 0px));
-    opacity: 0;
-  }
-  16% {
-    opacity: var(--peak, 0.4);
-  }
-  84% {
-    opacity: var(--peak, 0.4);
-  }
-  100% {
-    transform: translate3d(var(--drift, 3vw), -124vh, var(--z, 0px));
-    opacity: 0;
-  }
-}
-
-/* 운영체제의 "동작 줄이기"는 여기서 따르지 않는다. 강당 무대 화면이라
-   연출이 곧 기능이고, 그 설정이 켜진 전자칠판에서 화면이 통째로 멈춰 버린다. */
-
-/* ---- 무대(화면 상태) ---- */
-.stage {
-  position: fixed;
-  inset: 0;
-  z-index: 2;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2.5vmin;
-  padding: 4vmin;
-  /* 자식들이 3D로 눕거나 돌 때 원근이 잡힌다.
-     JS가 perspective-origin을 움직여 카메라가 도는 것처럼 만든다. */
-  perspective: var(--depth);
-  /* 소실점을 변수로 둔다. JS가 이 두 값을 움직여 카메라가 도는 것처럼 만든다. */
-  perspective-origin: var(--cam-x, 50%) var(--cam-y, 45%);
-  transform-style: preserve-3d;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
+  /* 무대 화면이라 글자를 끌어 선택할 일이 없다. 필기 중 오작동만 만든다. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
+button {
+  font: inherit;
+  color: inherit;
+  border-radius: 0;
+}
+
+/* display를 지정한 규칙은 [hidden]보다 세다. 그래서 숨겼는데도 계속 보인다.
+   .board-photo, .choice-row, 결과 화면 버튼에서 차례로 같은 사고가 났다.
+   개별 선택자마다 예외를 다는 대신 여기서 한 번에 못박는다. */
+[hidden] {
+  display: none !important;
+}
+
+/* 시안대로 강조색 윤곽선. 진행자가 물리 키보드를 꽂아도 어디 있는지 보인다. */
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ================= 위쪽 띠 ================= */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 1.4vw;
+  flex: none;
+  padding: 0.9vh 1.4vw;
+  border-bottom: var(--line);
+}
+
+.topbar-brand {
+  font-weight: 800;
+  font-size: 1.7vh;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+.topbar-screen {
+  font-size: 1.3vh;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.topbar-unit {
+  font-size: 1.3vh;
+  color: var(--muted);
+}
+
+.topbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.6vw;
+}
+
+.chip {
+  border: var(--line);
+  background: transparent;
+  padding: 0.6vh 0.9vw;
+  font-size: 1.3vh;
+  cursor: pointer;
+}
+.chip:active {
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+.badge-warn {
+  border: 2px solid var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+  padding: 0.5vh 0.8vw;
+  font-size: 1.3vh;
+  font-weight: 600;
+}
+.badge-warn[hidden] {
+  display: none;
+}
+
+/* ================= 화면(무대) ================= */
+
+.screen {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* [hidden]보다 display 규칙이 세면 숨겨도 계속 보인다. 실제로 겪은 사고라
+     무대와 그 안 요소 모두에 명시적으로 못박아 둔다. */
+}
 .stage[hidden] {
   display: none;
+}
+
+.stage-pad {
+  padding: clamp(16px, 3.4vh, 36px) clamp(20px, 3vw, 44px);
+  gap: clamp(10px, 2vh, 20px);
+}
+
+.stage-center {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
 .center-block {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2.5vmin;
-  text-align: center;
-  transform-style: preserve-3d;
+  gap: clamp(12px, 2.4vh, 22px);
 }
 
-.stage-back {
-  position: absolute;
-  left: 4vmin;
-  bottom: 4vmin;
+.stage-foot {
+  display: flex;
+  gap: 0.8vw;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
-/* ---- 버튼 ----
-   두께가 있는 판처럼 보이게 한다. 아래로 떨어지는 그림자와 위쪽 모서리에
-   걸리는 빛이 있어야 화면에 붙어 있지 않고 떠 있는 것으로 읽힌다. */
+/* ================= 글자 ================= */
+
+.eyebrow {
+  margin: 0;
+  font-size: clamp(11px, 1.5vh, 15px);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.headline {
+  margin: 0;
+  font-weight: 800;
+  font-size: clamp(24px, 5vh, 44px);
+  line-height: 0.98;
+  letter-spacing: -0.02em;
+}
+
+.display {
+  margin: 0;
+  font-weight: 800;
+  font-size: clamp(38px, 9vh, 92px);
+  line-height: 0.9;
+  letter-spacing: -0.035em;
+}
+
+/* 굵은 선 하나. 시안에서 칸을 가르는 유일한 장식. */
+.rule {
+  height: 2px;
+  background: var(--divider);
+  width: 100%;
+  flex: none;
+}
+/* 가운데 정렬 화면에서는 아래 칸과 폭을 맞춘다 */
+.stage-center .rule {
+  max-width: 900px;
+}
+
+/* 글자 단위 등장(js/show-anim.js splitIn)이 쓰는 조각 */
+.ch {
+  display: inline-block;
+  white-space: pre;
+}
+
+/* ================= 버튼 =================
+   시안 규칙: 버튼 안 글자도 왼쪽 정렬. 가운데 정렬은 하지 않는다. */
+
 .btn {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  min-height: 9vmin;
-  padding: 0 4.5vmin;
-  border: 0.18vmin solid var(--glass-line);
-  border-radius: 999px;
-  background: linear-gradient(
-    176deg,
-    rgba(255, 255, 255, 0.13) 0%,
-    rgba(255, 255, 255, 0.05) 48%,
-    rgba(255, 255, 255, 0.02) 100%
-  );
-  backdrop-filter: blur(1.4vmin);
-  -webkit-backdrop-filter: blur(1.4vmin);
-  color: var(--fg);
-  font-family: inherit;
-  font-size: 2.6vmin;
-  font-weight: 800;
+  justify-content: flex-start;
+  text-align: left;
+  font-weight: 700;
+  font-size: clamp(13px, 1.9vh, 18px);
+  line-height: 1.2;
+  padding: clamp(10px, 1.6vh, 16px) clamp(14px, 1.4vw, 22px);
+  border: var(--line);
+  background: transparent;
   cursor: pointer;
   text-decoration: none;
-  white-space: nowrap;
-  transform-style: preserve-3d;
-  box-shadow:
-    inset 0 0.2vmin 0 rgba(255, 255, 255, 0.3),
-    inset 0 -0.3vmin 0.6vmin rgba(0, 0, 0, 0.4),
-    0 1.4vmin 3vmin rgba(0, 0, 0, 0.55);
+  color: var(--text);
+}
+
+.btn-primary {
+  border: var(--line-strong);
+  background: var(--accent);
+  color: #fff;
+}
+.btn-primary:active {
+  background: var(--accent-700);
+}
+
+.btn-secondary {
+  border: var(--line);
+  background: transparent;
+}
+.btn-secondary:active {
+  background: color-mix(in srgb, var(--text) 12%, transparent);
 }
 
 .btn-big {
-  min-height: 11vmin;
-  padding: 0 6.5vmin;
-  font-size: 3.2vmin;
+  font-size: clamp(16px, 2.8vh, 26px);
+  padding: clamp(12px, 2.2vh, 20px) clamp(18px, 1.8vw, 30px);
 }
 
-.btn-huge {
-  min-height: 14vmin;
-  padding: 0 9vmin;
-  font-size: 4.6vmin;
-  font-weight: 900;
-}
-
-.btn-tight {
-  min-height: 7.5vmin;
-  padding: 0 3vmin;
-  font-size: 2.2vmin;
-}
-
-/* 주 동작. 흰 판. 무채색이라 "제일 밝은 것"이 곧 "제일 중요한 것"이 된다. */
-.btn-primary {
-  border-color: rgba(255, 255, 255, 0.5);
-  background: linear-gradient(176deg, #ffffff 0%, #e7e7e4 55%, #c9c9c5 100%);
-  color: #101114;
-  box-shadow:
-    inset 0 0.25vmin 0 rgba(255, 255, 255, 0.9),
-    inset 0 -0.5vmin 1vmin rgba(0, 0, 0, 0.18),
-    0 1.8vmin 3.6vmin rgba(0, 0, 0, 0.6),
-    0 0 6vmin rgba(255, 255, 255, 0.14);
-}
-
-.btn-ghost {
-  border-color: rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.035);
-  color: var(--fg-soft);
-  box-shadow: none;
-}
-
-.btn-correct {
-  border-color: rgba(74, 222, 128, 0.5);
-  background: linear-gradient(176deg, #86efac 0%, #34c76a 100%);
-  color: #05230f;
-  box-shadow:
-    inset 0 0.25vmin 0 rgba(255, 255, 255, 0.55),
-    0 1.8vmin 3.6vmin rgba(0, 0, 0, 0.55),
-    0 0 6vmin rgba(74, 222, 128, 0.22);
-}
-
-.btn-wrong {
-  border-color: rgba(255, 95, 86, 0.5);
-  background: linear-gradient(176deg, #ff8b84 0%, #e0463d 100%);
-  color: #2a0705;
-  box-shadow:
-    inset 0 0.25vmin 0 rgba(255, 255, 255, 0.5),
-    0 1.8vmin 3.6vmin rgba(0, 0, 0, 0.55),
-    0 0 6vmin rgba(255, 95, 86, 0.2);
-}
-
-.btn[disabled] {
-  opacity: 0.26;
-  pointer-events: none;
-}
-
-/* ---- 1. 대기 ----
-   왼쪽에 글, 오른쪽에 엠블럼. 가운데 정렬을 깨야 화면에 방향이 생긴다. */
-.stage-idle {
-  justify-content: center;
-}
-
-.idle-inner {
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-  align-items: center;
-  gap: 6vmin;
+.btn-block {
   width: 100%;
-  max-width: 150vmin;
-  transform-style: preserve-3d;
 }
 
-.idle-copy {
+.btn-tool {
+  font-weight: 600;
+  font-size: clamp(11px, 1.5vh, 15px);
+  padding: 0.7vh 0.8vw;
+}
+.btn-tool.active {
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
+}
+
+/* ================= 대기 ================= */
+
+.stage-idle {
+  flex-direction: row;
+}
+
+.idle-main {
+  flex: 1;
+  min-width: 0;
+  border-right: var(--line);
+  padding: clamp(20px, 4vh, 46px) clamp(24px, 3.4vw, 52px);
   display: flex;
   flex-direction: column;
+  justify-content: center;
+  gap: clamp(12px, 2.4vh, 22px);
   align-items: flex-start;
-  gap: 3vmin;
-  text-align: left;
-  transform-style: preserve-3d;
 }
 
 .show-logo {
   display: flex;
   flex-direction: column;
-  margin: 0;
-  font-family: var(--serif);
-  font-size: 12.5vmin;
-  font-weight: 700;
-  line-height: 1.02;
-  letter-spacing: -0.01em;
-  color: var(--fg);
-  transform-style: preserve-3d;
+  font-size: clamp(44px, 12vh, 130px);
+  /* 라틴 기준 0.9로 두면 한글 받침이 아랫줄에 닿는다 */
+  line-height: 0.98;
 }
-
-/* 둘째 줄은 속을 비우고 윤곽만 남긴다. 색을 안 쓰니 "무게 차이"로 층을 나눈다.
-   그라데이션(background-clip:text)은 쓰지 않는다. 글자 단위 등장 연출이
-   글자를 자식 span으로 쪼개는 순간 부모에는 글자가 없어져 아무것도 안 칠해진다. */
+.logo-line {
+  display: block;
+}
 .logo-accent {
-  margin-left: 1.2vmin;
-  color: transparent;
-  -webkit-text-stroke: 0.22vmin rgba(244, 244, 242, 0.85);
+  color: var(--accent);
 }
 
-.show-tagline {
-  display: flex;
-  align-items: center;
-  gap: 1.6vmin;
-  margin: 0;
-  font-size: 2.1vmin;
-  font-weight: 700;
-  letter-spacing: 0.36em;
-  color: var(--fg-soft);
-}
-
-.eyebrow-rule {
-  display: block;
-  width: 8vmin;
-  height: 0.18vmin;
-  background: linear-gradient(90deg, transparent, var(--fg-soft));
-}
-
-.idle-actions {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 2vmin;
-  margin-top: 1vmin;
-  transform-style: preserve-3d;
-}
-
-/* ---- 대기 화면 엠블럼 ----
-   오른쪽 무게추. 고리 두 개가 서로 다른 축으로 기울어 돌아서,
-   평면 원이 아니라 실제로 공중에 떠 있는 테처럼 보인다. */
-.idle-emblem {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  aspect-ratio: 1;
-  max-height: 60vmin;
-  perspective: 90vmin;
-  transform-style: preserve-3d;
-}
-
-.emblem-ring {
-  position: absolute;
-  border-radius: 50%;
-  border: 0.22vmin solid rgba(244, 244, 242, 0.5);
-  box-shadow: 0 0 3vmin rgba(255, 255, 255, 0.12);
-}
-
-/* 두 고리를 서로 다른 축으로 눕혀 놓는다(자이로스코프처럼) */
-.emblem-ring-1 {
-  width: 92%;
-  height: 92%;
-  animation: ring-tumble-a 26s linear infinite;
-}
-
-.emblem-ring-2 {
-  width: 68%;
-  height: 68%;
-  border-width: 0.4vmin;
-  border-color: rgba(244, 244, 242, 0.75);
-  animation: ring-tumble-b 18s linear infinite;
-}
-
-@keyframes ring-tumble-a {
-  from {
-    transform: rotateX(72deg) rotateZ(0deg);
-  }
-  to {
-    transform: rotateX(72deg) rotateZ(360deg);
-  }
-}
-
-@keyframes ring-tumble-b {
-  from {
-    transform: rotateY(68deg) rotateZ(0deg);
-  }
-  to {
-    transform: rotateY(68deg) rotateZ(-360deg);
-  }
-}
-
-.emblem-core {
-  position: absolute;
-  width: 44%;
-  height: 44%;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 34% 26%, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.04) 60%),
-    rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(2vmin);
-  -webkit-backdrop-filter: blur(2vmin);
-  box-shadow:
-    inset 0 0.6vmin 2vmin rgba(255, 255, 255, 0.26),
-    inset 0 -0.6vmin 2vmin rgba(0, 0, 0, 0.5),
-    0 0 12vmin rgba(255, 255, 255, 0.12);
-}
-
-.emblem-glyph {
-  position: relative;
-  font-family: var(--serif);
-  font-size: 16vmin;
-  line-height: 1;
-  color: var(--fg);
-  text-shadow: 0 0 4vmin rgba(255, 255, 255, 0.4);
-}
-
-
-/* ---- 2. 난이도 고르기 ----
-   카드를 평평하게 늘어놓지 않고 원호 위에 세운다. 바깥 카드가 안쪽을 향해
-   돌아 있어서, 가운데에서 보면 셋이 나를 둘러싼 것처럼 보인다.
-   기울기는 이 격자와 각 카드의 CSS에만 둔다. anime는 카드 안쪽(.pick-face)을
-   건드리므로 서로 부딪히지 않는다. */
-.pick-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 4vmin;
-  width: 100%;
-  max-width: 136vmin;
-  transform-style: preserve-3d;
-  transform: rotateX(6deg);
-}
-
-/* 버튼 자체는 절대 안 기울인다.
-   3D로 돌린 <button>은 크롬이 그 자리를 못 짚어서 눌리지 않는다.
-   (가운데 카드만 눌리고 양옆은 안 눌리는 증상으로 확인했다.)
-   그래서 버튼은 평평한 네모로 두고, 기울기는 안쪽 층이 맡는다. */
-.pick-card {
-  display: block;
-  position: relative;
-  min-height: 44vmin;
-  padding: 0;
-  border: 0;
-  background: none;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-/* 원호 위 각도만 담당하는 층. JS는 여기를 건드리지 않는다. */
-.pick-tilt {
-  display: block;
-  width: 100%;
-  height: 100%;
-  min-height: inherit;
-  transform-style: preserve-3d;
-}
-
-/* 바깥 두 장을 안쪽으로 돌려세운다 */
-.pick-card:first-child .pick-tilt {
-  transform: rotateY(15deg) translateZ(-2vmin);
-}
-
-.pick-card:last-child .pick-tilt {
-  transform: rotateY(-15deg) translateZ(-2vmin);
-}
-
-/* 실제로 보이는 판. 애니메이션은 이 안쪽 판에만 건다. */
-.pick-face {
+.idle-side {
+  flex: none;
+  width: clamp(200px, 20vw, 320px);
+  padding: clamp(16px, 3vh, 28px) clamp(14px, 1.4vw, 24px);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1.2vmin;
-  width: 100%;
-  height: 100%;
-  min-height: inherit;
-  border: 0.18vmin solid var(--glass-line);
-  border-radius: 4.5vmin;
-  background: linear-gradient(
-    168deg,
-    rgba(255, 255, 255, 0.12) 0%,
-    rgba(255, 255, 255, 0.045) 44%,
-    rgba(255, 255, 255, 0.015) 100%
-  );
-  backdrop-filter: blur(2.2vmin);
-  -webkit-backdrop-filter: blur(2.2vmin);
-  color: var(--fg);
-  overflow: hidden;
-  box-shadow:
-    inset 0 0.25vmin 0 rgba(255, 255, 255, 0.32),
-    inset 0 -0.4vmin 1.2vmin rgba(0, 0, 0, 0.45),
-    0 3vmin 6vmin rgba(0, 0, 0, 0.6);
+  gap: 0.9vh;
 }
 
-/* 판 위쪽을 스치는 빛. 유리에 두께가 있는 것처럼 보이게 한다. */
-.pick-face::before {
-  content: '';
-  position: absolute;
-  top: -55%;
-  left: -20%;
-  width: 140%;
-  height: 90%;
-  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0));
-  transform: rotate(-8deg);
-  pointer-events: none;
+.side-head {
+  margin: 0 0 0.4vh;
+  padding-bottom: 0.6vh;
+  border-bottom: var(--line);
+  font-size: clamp(11px, 1.5vh, 15px);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.pick-card[disabled] {
-  opacity: 0.2;
-  pointer-events: none;
+.side-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: clamp(14px, 2.2vh, 21px);
+  font-weight: 800;
+}
+
+.side-note {
+  margin: auto 0 0;
+  font-size: clamp(11px, 1.4vh, 14px);
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+/* ================= 난이도 고르기 ================= */
+
+.pick-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: var(--line-strong);
+}
+
+/* 세 겹인 이유:
+   .pick-card  버튼. 여기엔 transform을 걸지 않는다. 눌리는 자리가 흔들린다.
+   .pick-tilt  껍데기. 예전에 3D 각도를 담던 자리라 구조만 남겨 뒀다.
+   .pick-face  실제로 보이는 판. 등장 연출은 여기에만 건다. */
+.pick-card {
+  border: 0;
+  border-right: var(--line-strong);
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  min-width: 0;
+  display: flex;
+}
+.pick-card:last-child {
+  border-right: 0;
+}
+.pick-card:active .pick-face,
+.pick-card:hover .pick-face {
+  background: var(--accent);
+  color: #fff;
+}
+
+.pick-tilt {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.pick-face {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: clamp(6px, 1.4vh, 14px);
+  padding: clamp(14px, 3vh, 28px) clamp(12px, 1.4vw, 24px);
+}
+
+.pick-label {
+  font-size: clamp(11px, 1.4vh, 14px);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .pick-level {
-  font-family: var(--serif);
-  font-size: 13vmin;
-  font-weight: 700;
-  line-height: 1;
-  color: var(--fg);
-  text-shadow: 0 0.6vmin 2vmin rgba(0, 0, 0, 0.7);
+  font-weight: 800;
+  font-size: clamp(40px, 14vh, 130px);
+  line-height: 0.92;
+  letter-spacing: -0.03em;
 }
 
 .pick-time {
-  font-size: 2.4vmin;
+  font-size: clamp(11px, 1.4vh, 14px);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.pick-time b {
+  font-size: clamp(18px, 3.2vh, 30px);
   font-weight: 800;
-  letter-spacing: 0.1em;
-  color: var(--fg-soft);
+  letter-spacing: -0.02em;
+  margin-right: 0.4em;
 }
 
-.pick-count {
-  font-size: 2vmin;
-  color: var(--fg-faint);
+.pick-note {
+  font-size: clamp(11px, 1.5vh, 15px);
+  line-height: 1.45;
+}
+.pick-note:last-child {
+  margin-top: auto;
 }
 
-/* ---- 3. 문제 예고 ---- */
-.ready-round {
-  margin: 0;
-  font-family: var(--serif);
-  font-size: 8vmin;
-  font-weight: 700;
-  color: var(--fg);
-  perspective: 60vmin;
-}
+/* ================= 문제 예고 ================= */
 
-/* 난이도 배지 = 두께가 있는 동전.
-   앞면/뒷면/테두리를 따로 두고 통째로 돌리면 진짜 원판처럼 보인다. */
-.coin {
-  width: 30vmin;
-  height: 30vmin;
-  perspective: 90vmin;
-}
-
-.coin-body {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  transform-style: preserve-3d;
-}
-
-.coin-face {
-  position: absolute;
-  inset: 0;
+.ready-head {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
-  border-radius: 50%;
-  border: 0.28vmin solid rgba(255, 255, 255, 0.55);
-  background:
-    radial-gradient(circle at 34% 26%, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.03) 58%),
-    rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(2vmin);
-  -webkit-backdrop-filter: blur(2vmin);
-  font-family: var(--serif);
-  font-size: 15vmin;
-  font-weight: 700;
-  color: var(--fg);
-  backface-visibility: hidden;
-  box-shadow:
-    inset 0 0.5vmin 1.5vmin rgba(255, 255, 255, 0.28),
-    inset 0 -0.6vmin 2vmin rgba(0, 0, 0, 0.55),
-    0 2.5vmin 6vmin rgba(0, 0, 0, 0.6);
-}
-
-/* 뒷면은 반 바퀴 돌려 붙여 둔다. 앞면이 등지면 이쪽이 보인다. */
-.coin-back {
-  transform: rotateY(180deg);
-  font-size: 9vmin;
-  color: var(--fg-faint);
-}
-
-.ready-unit {
-  margin: 0;
-  padding: 1.1vmin 3.2vmin;
-  border: 0.18vmin solid var(--glass-line);
-  border-radius: 999px;
-  background: var(--glass);
-  font-size: 2.6vmin;
-  letter-spacing: 0.06em;
-  color: var(--fg-soft);
+  gap: clamp(12px, 2vw, 30px);
+  flex-wrap: wrap;
 }
 
 .ready-time {
-  margin: 0;
-  font-size: 3vmin;
   font-weight: 800;
-  letter-spacing: 0.14em;
-  color: var(--fg-soft);
+  font-size: clamp(52px, 15vh, 150px);
+  line-height: 0.85;
+  letter-spacing: -0.04em;
 }
 
-/* ---- 4. 문제 풀이 ----
-   여기만은 원근을 끈다. 캔버스 좌표가 걸린 화면이라 무대가 기울면 안 된다. */
+.ready-badge {
+  display: inline-flex;
+  align-items: center;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 800;
+  font-size: clamp(18px, 3.6vh, 34px);
+  padding: 0.5vh 1vw;
+  margin-bottom: 0.8vh;
+}
+
+/* ================= 격자 칸 =================
+   시안이 정보를 담는 유일한 방식. 2px 테두리 안을 세로선으로 나눈다. */
+
+.cells {
+  display: grid;
+  border: var(--line);
+  width: 100%;
+  max-width: 900px;
+  text-align: left;
+}
+.cells-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.cells-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4vh;
+  padding: clamp(10px, 2vh, 18px) clamp(10px, 1vw, 18px);
+  border-right: var(--line);
+  min-width: 0;
+}
+.cell:last-child {
+  border-right: 0;
+}
+
+.cell-key {
+  font-size: clamp(10px, 1.3vh, 13px);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.cell-val {
+  font-weight: 800;
+  font-size: clamp(18px, 3.6vh, 34px);
+  letter-spacing: -0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cell-accent {
+  color: var(--accent-700);
+}
+
+/* ================= 문제 풀이 ================= */
+
 .stage-play {
-  justify-content: flex-start;
-  gap: 0;
-  padding: 0;
-  perspective: none;
-  transform-style: flat;
+  display: flex;
+  flex-direction: column;
 }
 
+/* 높이를 고정한다. 여기가 늘거나 줄면 판 크기가 바뀌고, 그러면 이미 쓴
+   글씨가 통째로 어긋난다(예전에 "시간 종료" 글자 크기 때문에 실제로 났다). */
 .play-bar {
+  flex: none;
+  height: 7.5vh;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 2vmin;
+  gap: 1.2vw;
+  padding: 0 1.2vw;
+  border-bottom: var(--line);
+}
+
+.play-clock {
+  font-weight: 800;
+  font-size: 4.2vh;
+  letter-spacing: -0.03em;
+  min-width: 5.5em;
+  font-variant-numeric: tabular-nums;
+}
+.play-clock.timeup {
+  color: var(--accent);
+}
+
+.gauge {
+  flex: 1;
+  height: 1.6vh;
+  min-height: 12px;
+  border: var(--line);
+  overflow: hidden;
+}
+.gauge-fill {
+  display: block;
+  height: 100%;
   width: 100%;
-  /* 높이를 고정한다. 안에 든 글자 크기가 바뀌면(예: "3:00" -> "시간 종료")
-     바 높이가 따라 변하고, 그만큼 판이 커지면서 이미 쓴 글씨가 어긋난다. */
-  height: 15vmin;
+  background: var(--text);
+  transition: width 0.9s linear;
+}
+.gauge-wide {
   flex: none;
-  padding: 1.6vmin 3vmin;
-  /* 오른쪽 위에 떠 있는 전체화면/소리 버튼과 겹치지 않게 자리를 비운다. */
-  padding-right: 18vmin;
+  width: 100%;
+  max-width: 640px;
 }
 
 .play-meta {
+  flex: none;
+  font-size: 1.5vh;
+  letter-spacing: 0.06em;
+}
+.play-meta span {
+  font-weight: 800;
+}
+
+.play-tools {
+  flex: none;
+  height: 5.4vh;
   display: flex;
   align-items: center;
-  gap: 1.5vmin;
-  min-width: 30vmin;
+  gap: 0.5vw;
+  padding: 0 1.2vw;
+  border-bottom: var(--line);
 }
 
-.play-round {
-  font-family: var(--serif);
-  font-size: 3vmin;
-  color: var(--fg-soft);
-}
-
-.play-badge {
+.tool-group {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 6.4vmin;
-  height: 6.4vmin;
-  border: 0.2vmin solid rgba(255, 255, 255, 0.45);
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.05);
-  font-size: 3vmin;
-  font-weight: 900;
-  color: var(--fg);
+  gap: 0.35vw;
+}
+.tool-right {
+  margin-left: auto;
 }
 
-.play-timer {
-  font-size: 11vmin;
-  font-weight: 900;
-  line-height: 1;
-  color: var(--fg);
+.swatch {
+  width: 3.2vh;
+  height: 3.2vh;
+  border: var(--line);
+  background: var(--c);
+  cursor: pointer;
+  padding: 0;
+}
+.swatch.active {
+  border: 3px solid var(--text);
+  outline: 2px solid var(--bg);
+  outline-offset: -5px;
+}
+
+.zoom-label {
+  font-size: 1.4vh;
+  min-width: 3.4em;
+  text-align: center;
   font-variant-numeric: tabular-nums;
-  text-shadow: 0 0.4vmin 2.4vmin rgba(0, 0, 0, 0.8);
 }
 
-/* 남은 시간이 얼마 없을 때.
-   글자 크기는 절대 안 바꾼다. 진행 바 높이가 바뀌면 판 크기가 바뀌고,
-   그러면 이미 쓴 글씨와 캔버스가 어긋난다. 색과 번짐만 쓴다. */
-.play-timer.urgent {
-  color: var(--wrong);
-  text-shadow: 0 0 3.5vmin rgba(255, 95, 86, 0.7);
-}
-
-/* 시간이 다 됐을 때는 글자가 길어지므로 크기를 줄인다 */
-.play-timer.timeup {
-  font-size: 6vmin;
-}
-
-.play-bar-actions {
-  display: flex;
-  gap: 1.2vmin;
-  min-width: 30vmin;
-  justify-content: flex-end;
-}
-
-/* 사진과 필기 공간. 캔버스가 이 영역 전체를 덮어서, 사진 옆 여백에도 써진다.
-   어두운 무대 위에 떠 있는 밝은 종이 한 장처럼 보이게 한다.
-   테두리(border)는 쓰지 않는다. 캔버스는 inset:0이라 패딩 상자에 맞춰지는데
-   테두리가 생기면 그만큼 어긋난다. 그림자와 바깥선으로만 띄운다. */
-.board {
-  position: relative;
-  flex: 1 1 auto;
-  width: calc(100% - 5vmin);
-  margin: 0 2.5vmin;
+.play-body {
+  flex: 1;
   min-height: 0;
-  border-radius: 2vmin;
+  position: relative;
+}
+
+/* 필기하는 판. 화면에서 유일하게 순백인 곳이라 시선이 여기로 간다. */
+.board {
+  position: absolute;
+  inset: 0;
   background: var(--paper);
   overflow: hidden;
-  box-shadow:
-    0 0 0 0.2vmin rgba(255, 255, 255, 0.35),
-    0 3.5vmin 8vmin rgba(0, 0, 0, 0.75),
-    0 0 14vmin rgba(255, 255, 255, 0.07);
-  /* 필기 중 스크롤/확대 제스처를 브라우저가 가져가지 않게 */
-  touch-action: none;
 }
 
 .board-photo {
   position: absolute;
   display: block;
+  /* 배치는 js/show.js layoutPhoto()가 정한다. 여기서 크기를 정하면 싸운다. */
+  filter: grayscale(1) contrast(1.08);
   pointer-events: none;
-  user-select: none;
+}
+.board-photo[hidden] {
+  display: none;
 }
 
-/* 클래스 선택자가 브라우저 기본 [hidden] 규칙을 이기기 때문에, 숨김을 명시해야
-   사진 로딩에 실패했을 때 깨진 이미지 아이콘이 남지 않는다. */
-.board-photo[hidden] {
+.board-photo-error {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  text-align: center;
+  font-size: clamp(14px, 2.2vh, 20px);
+  line-height: 1.5;
+  color: var(--accent-700);
+}
+.board-photo-error[hidden] {
   display: none;
 }
 
@@ -739,381 +650,202 @@ body {
   inset: 0;
   width: 100%;
   height: 100%;
+  touch-action: none;
   cursor: crosshair;
 }
 
-.play-tools {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 2vmin;
-  width: 100%;
-  flex: none;
-  padding: 1.8vmin 3vmin;
-}
-
-.tool-group {
-  display: flex;
-  align-items: center;
-  gap: 1.2vmin;
-  padding: 0.8vmin 1.4vmin;
-  border: 0.18vmin solid rgba(255, 255, 255, 0.09);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.swatch {
-  width: 6.4vmin;
-  height: 6.4vmin;
-  border: 0.22vmin solid rgba(255, 255, 255, 0.2);
-  border-radius: 50%;
-  background: var(--c);
-  cursor: pointer;
-  box-shadow:
-    inset 0 0.3vmin 0.6vmin rgba(255, 255, 255, 0.45),
-    inset 0 -0.3vmin 0.8vmin rgba(0, 0, 0, 0.5),
-    0 0.6vmin 1.6vmin rgba(0, 0, 0, 0.6);
-}
-
-.swatch.active {
-  border-color: #fff;
-  border-width: 0.42vmin;
-  box-shadow:
-    inset 0 0.3vmin 0.6vmin rgba(255, 255, 255, 0.5),
-    0 0 3vmin rgba(255, 255, 255, 0.6);
-}
-
-.btn-tool {
-  min-height: 7.6vmin;
-  padding: 0 2.8vmin;
-  font-size: 2.3vmin;
-  border-color: rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.045);
-  color: var(--fg-soft);
-  box-shadow: none;
-}
-
-.btn-tool[disabled] {
-  opacity: 0.22;
-}
-
-.btn-tool.active {
-  border-color: rgba(255, 255, 255, 0.6);
-  background: rgba(255, 255, 255, 0.16);
-  color: var(--fg);
-}
-
-/* ---- 5. 정답 공개 ---- */
-.reveal-label {
-  margin: 0;
-  font-size: 3.4vmin;
-  font-weight: 800;
-  letter-spacing: 0.5em;
-  text-indent: 0.5em;
-  color: var(--fg-soft);
-}
-
-/* 정답판. 두께가 있는 판이 옆으로 돌아 들어온다(연출은 JS).
-   preserve-3d라야 JS가 붙이는 두께 층이 실제로 뒤로 물러난다. */
-.reveal-plate {
-  perspective: 120vmin;
-  transform-style: preserve-3d;
-}
-
-.reveal-answer {
-  position: relative;
-  max-width: 88vw;
-  /* "2" 한 글자여도 판이 넉넉해야 무대에서 정답처럼 보인다 */
-  min-width: 52vmin;
-  padding: 3vmin 7vmin;
-  border: 0.25vmin solid rgba(255, 255, 255, 0.55);
-  border-radius: 4vmin;
-  background: linear-gradient(168deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.035));
-  backdrop-filter: blur(2.4vmin);
-  -webkit-backdrop-filter: blur(2.4vmin);
-  color: var(--fg);
-  /* 글자 크기는 정답 길이에 따라 JS가 정한다(짧으면 크게, 길면 줄여서) */
-  font-size: 22vmin;
-  font-weight: 900;
-  line-height: 1.15;
-  /* 단어 중간을 자르지 않고 되도록 띄어쓰기에서 줄바꿈 */
-  overflow-wrap: break-word;
-  word-break: keep-all;
-  transform-style: preserve-3d;
-  box-shadow:
-    inset 0 0.4vmin 1.4vmin rgba(255, 255, 255, 0.28),
-    inset 0 -0.5vmin 1.6vmin rgba(0, 0, 0, 0.5),
-    0 3.5vmin 8vmin rgba(0, 0, 0, 0.7),
-    0 0 12vmin rgba(255, 255, 255, 0.12);
-}
-
-.judge-actions {
-  display: flex;
-  gap: 3vmin;
-  margin-top: 2vmin;
-  transform-style: preserve-3d;
-}
-
-/* ---- 6. 정답 ---- */
-.celebrate-mark {
-  font-size: 21vmin;
-  line-height: 1;
-  filter: drop-shadow(0 1vmin 4vmin rgba(0, 0, 0, 0.8));
-}
-
-.celebrate-name {
-  font-family: var(--serif);
-  font-size: 13vmin;
-  font-weight: 700;
-  line-height: 1.1;
-  color: var(--fg);
-  perspective: 60vmin;
-}
-
-.empty-note {
-  font-size: 3vmin;
-  color: var(--fg-faint);
-}
-
-.big-note {
-  font-size: 4vmin;
-  color: var(--fg-soft);
-}
-
-/* 화면이 세로로 길거나 아주 작을 때(개발용 브라우저 등) 최소한 깨지진 않게 */
-@media (max-aspect-ratio: 1/1) {
-  .pick-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-/* ---- 어느 화면에서든 떠 있는 표시들 ---- */
-.utility {
-  position: fixed;
-  top: 1.8vmin;
-  right: 1.8vmin;
-  z-index: 30;
-  display: flex;
-  align-items: center;
-  gap: 1vmin;
-}
-
-.utility-btn.off {
-  opacity: 0.4;
-}
-
-.utility-btn {
-  width: 6vmin;
-  height: 6vmin;
-  border: 0.18vmin solid rgba(255, 255, 255, 0.12);
-  border-radius: 1.8vmin;
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(1.6vmin);
-  -webkit-backdrop-filter: blur(1.6vmin);
-  color: var(--fg-soft);
-  font-size: 2.6vmin;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.badge {
-  padding: 1vmin 2vmin;
-  border-radius: 999px;
-  font-size: 1.9vmin;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.badge-warn {
-  background: var(--wrong);
-  color: #2a0705;
-}
-
-/* ---- 사진 로딩 실패 ---- */
-.board-photo-error {
+.answer-open {
   position: absolute;
-  top: 50%;
-  left: 6%;
-  transform: translateY(-50%);
-  margin: 0;
-  max-width: 50%;
-  font-size: 3vmin;
-  line-height: 1.6;
-  color: var(--muted);
-  text-align: center;
-  pointer-events: none;
+  right: clamp(12px, 1.4vw, 24px);
+  bottom: clamp(12px, 2vh, 24px);
+  z-index: 10;
 }
 
-/* ---- 사진 확대 배율 ---- */
-.zoom-label {
-  min-width: 8vmin;
-  text-align: center;
-  font-size: 2.2vmin;
-  color: var(--fg-soft);
-  font-variant-numeric: tabular-nums;
-}
-
-/* ---- 5. 답 입력 ----
-   진행자가 맞았다/틀렸다를 누르지 않는다. 답을 넣으면 앱이 판정한다. */
-.answer-ask {
-  margin: 0;
-  font-family: var(--serif);
-  font-size: 5.4vmin;
-  font-weight: 700;
-  color: var(--fg);
-}
-
-/* 객관식: 번호 하나만 누르면 끝난다. 강당 뒤에서 읽히게 크게. */
-.choice-row {
+/* 답 입력 패널.
+   판을 좁히지 않고 그 위에 겹쳐 띄운다. 획 좌표를 판 너비 비율로 저장하고
+   있어서 판 너비가 바뀌면 이미 쓴 글씨가 통째로 어긋난다. */
+.answer-panel {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 20;
+  width: min(380px, 40vw);
+  background: var(--bg);
+  border-left: var(--line-strong);
   display: flex;
-  gap: 2.4vmin;
+  flex-direction: column;
+  min-height: 0;
+}
+.answer-panel[hidden] {
+  display: none;
 }
 
-/* 클래스 선택자가 브라우저 기본 [hidden] 규칙을 이기기 때문에 숨김을 명시해야
-   한다. 안 그러면 주관식 문제인데 객관식 번호가 같이 떠 있다. */
-.choice-row[hidden],
-.typed[hidden] {
+.panel-head {
+  flex: none;
+  margin: 0;
+  padding: 1.2vh 1vw;
+  border-bottom: var(--line);
+  font-size: clamp(11px, 1.4vh, 14px);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.panel-foot {
+  flex: none;
+  margin-top: auto;
+  padding: 1vh 1vw;
+  border-top: var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 0.8vh;
+}
+
+/* 객관식: 번호가 세로로 꽉 찬다 */
+.choice-row {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-auto-rows: minmax(0, 1fr);
+  gap: 0.8vh;
+  padding: 1vh 1vw;
+}
+.choice-row[hidden] {
   display: none;
 }
 
 .choice {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 17vmin;
-  height: 21vmin;
-  border: 0.18vmin solid var(--glass-line);
-  border-radius: 3.5vmin;
-  background: linear-gradient(
-    176deg,
-    rgba(255, 255, 255, 0.13) 0%,
-    rgba(255, 255, 255, 0.05) 48%,
-    rgba(255, 255, 255, 0.02) 100%
-  );
-  backdrop-filter: blur(1.6vmin);
-  -webkit-backdrop-filter: blur(1.6vmin);
-  color: var(--fg);
-  font-family: var(--serif);
-  font-size: 11vmin;
-  font-weight: 700;
-  line-height: 1;
+  border: var(--line);
+  background: transparent;
   cursor: pointer;
-  box-shadow:
-    inset 0 0.25vmin 0 rgba(255, 255, 255, 0.3),
-    inset 0 -0.35vmin 0.9vmin rgba(0, 0, 0, 0.45),
-    0 2vmin 4.5vmin rgba(0, 0, 0, 0.6);
+  font-weight: 800;
+  font-size: clamp(18px, 4vh, 40px);
+  text-align: left;
+  padding: 0 0.8vw;
+  min-height: 0;
+}
+.choice:active {
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
 }
 
 /* 주관식 */
 .typed {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 2.4vmin;
+  gap: 0.8vh;
+  padding: 1vh 1vw;
 }
-
-/* 누른 값이 보이는 칸. 직접 타이핑은 막아둔다(숫자판으로만 채운다). */
-.typed-field {
-  width: 64vmin;
-  padding: 1.2vmin 3vmin;
-  border: 0.25vmin solid rgba(255, 255, 255, 0.5);
-  border-radius: 2.5vmin;
-  background: rgba(255, 255, 255, 0.07);
-  color: var(--fg);
-  font-family: inherit;
-  font-size: 7vmin;
-  font-weight: 900;
-  line-height: 1.25;
-  text-align: center;
-  caret-color: transparent;
-  box-shadow:
-    inset 0 0.4vmin 1.4vmin rgba(0, 0, 0, 0.55),
-    0 0 5vmin rgba(255, 255, 255, 0.1);
-}
-
-.typed-field:focus {
-  outline: none;
-  border-color: #fff;
-}
-
-/* 숫자판. 손가락으로 누르므로 키를 크게 잡되, 세로로 넘치면 안 되니
-   4열 4줄이 아니라 5열 3줄로 짠다(키 14개 + 넓은 지우기). */
-.keypad {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 1.2vmin;
-  width: 64vmin;
-}
-
-.key {
-  min-height: 9vmin;
-  border: 0.18vmin solid rgba(255, 255, 255, 0.12);
-  border-radius: 2vmin;
-  background: rgba(255, 255, 255, 0.055);
-  color: var(--fg);
-  font-family: inherit;
-  font-size: 4vmin;
-  font-weight: 800;
-  cursor: pointer;
-  box-shadow:
-    inset 0 0.2vmin 0 rgba(255, 255, 255, 0.2),
-    0 1vmin 2.4vmin rgba(0, 0, 0, 0.5);
-}
-
-/* "지우기"는 글자가 기니까 두 칸을 쓴다 */
-.key-wide {
-  grid-column: span 2;
-  font-size: 3vmin;
-  color: var(--fg-soft);
-}
-
-/* ---- 정답 공개 전 뜸 들이기 ---- */
-.suspense-dots {
-  display: inline-flex;
-  gap: 1.4vmin;
-  margin-left: 1.8vmin;
-  vertical-align: middle;
-}
-
-.suspense-dot {
-  width: 2.2vmin;
-  height: 2.2vmin;
-  border-radius: 50%;
-  background: var(--fg);
-  box-shadow: 0 0 2.4vmin rgba(255, 255, 255, 0.7);
-}
-
-/* 정답이 나오기 전에는 자리를 잡아두되 보이지 않게 (레이아웃이 튀지 않도록) */
-.reveal-answer[hidden],
-.judge-actions[hidden] {
+.typed[hidden] {
   display: none;
 }
 
-/* ---- 3D 조각 ----
-   글자 단위로 등장시킬 때 JS가 만드는 조각. inline-block이라야 transform이 먹는다.
-   preserve-3d라야 그 안에 쌓는 두께 층이 실제로 뒤로 물러난다. */
-.ch {
-  display: inline-block;
-  white-space: pre;
-  transform-style: preserve-3d;
-  will-change: transform, opacity;
+.typed-field {
+  flex: none;
+  min-height: clamp(46px, 7vh, 72px);
+  border: var(--line-strong);
+  background: var(--paper);
+  color: var(--text);
+  font-family: inherit;
+  font-weight: 800;
+  font-size: clamp(22px, 4.4vh, 42px);
+  letter-spacing: -0.02em;
+  text-align: right;
+  padding: 0 0.7vw;
+  border-radius: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
-/* 압출(두께) 층. 같은 글자를 z만 뒤로 밀어 여러 장 겹치면 실제 두께가 생긴다.
-   뒤로 갈수록 어두워져야 깎인 면처럼 보인다. */
-.extrude {
-  position: relative;
-  display: inline-block;
-  transform-style: preserve-3d;
+.keypad {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  gap: 0.6vh;
 }
 
-.extrude-layer {
-  position: absolute;
-  inset: 0;
+.key {
+  border: var(--line);
+  background: transparent;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: clamp(15px, 2.8vh, 26px);
+  padding: 0;
+  min-height: 0;
+}
+.key:active {
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
+}
+
+/* ================= 채점 중 ================= */
+
+.grading-step {
+  margin: 0;
+  font-size: clamp(11px, 1.5vh, 15px);
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+/* ================= 결과 ================= */
+
+.stage-result {
   display: flex;
+  flex-direction: column;
+}
+
+/* 판정 띠. 화면 폭을 다 쓰는 색판 하나가 결과를 말한다. */
+.verdict {
+  flex: none;
+  padding: clamp(20px, 6vh, 60px) clamp(20px, 4vw, 44px);
+  text-align: center;
+  font-weight: 800;
+  font-size: clamp(52px, 14vh, 130px);
+  line-height: 0.88;
+  letter-spacing: -0.045em;
+  border-bottom: var(--line);
+  background: var(--text);
+  color: var(--bg);
+  transform-origin: top center;
+}
+.verdict.is-correct {
+  background: var(--accent);
+  color: #fff;
+}
+
+.result-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  pointer-events: none;
-  user-select: none;
-  white-space: pre;
+  gap: clamp(10px, 2vh, 20px);
+  padding: clamp(14px, 3vh, 30px) clamp(20px, 4vw, 44px);
+  text-align: center;
+}
+
+.prize {
+  margin: 0;
+  font-weight: 800;
+  font-size: clamp(20px, 3.8vh, 34px);
+  letter-spacing: -0.02em;
+}
+
+.prize-note {
+  margin: 0;
+  font-size: clamp(12px, 1.7vh, 16px);
+  color: var(--muted);
+}
+
+/* ================= 연출 레이어 =================
+   js/show-anim.js가 만드는 겹치는 판. 끝나면 스스로 사라진다. */
+.fx {
+  will-change: opacity, transform;
 }
