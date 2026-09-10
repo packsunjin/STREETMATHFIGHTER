@@ -78,8 +78,10 @@
           </div>
         </div>
         <div class="field" id="answerFieldSubjective">
-          <label for="answerText">정답 (선택, 자동 채점용)</label>
-          <input type="text" id="answerText" name="answerText" placeholder="비워두면 채점 없이 풀이만 가능합니다." maxlength="500" />
+          <!-- 진행 화면은 정답으로 그 자리에서 채점한다. 정답이 없으면 그 문제는
+               진행 화면에서 아예 안 뜬다. 그래서 필수다. -->
+          <label for="answerText">정답 (필수)</label>
+          <input type="text" id="answerText" name="answerText" placeholder="정답을 반드시 입력하세요. 없으면 진행 화면에 안 뜹니다." maxlength="500" />
         </div>
         <div class="field">
           <label for="image">문제 이미지</label>

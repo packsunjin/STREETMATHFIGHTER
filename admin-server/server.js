@@ -288,18 +288,27 @@ app.get('/api/show/problems', async (req, res, next) => {
 
     const problems = await listProblems({ difficulty: difficulty || undefined });
 
+    // 정답이 없으면 채점을 못 하니 쇼에서 쓸 수 없다. 다만 조용히 버리면
+    // 진행 화면에는 "등록된 문제 없음"으로만 뜨고 왜 그런지 알 방법이 없다.
+    // 그래서 못 쓰는 문제도 같이 알려준다.
+    const usable = problems.filter((p) => p.answer);
+    const noAnswer = problems.filter((p) => !p.answer);
+
     res.json({
-      problems: problems
-        .filter((p) => p.answer) // 정답이 없으면 쇼에서 쓸 수 없다
-        .map((p) => ({
-          id: p.id,
-          title: p.title,
-          difficulty: p.difficulty,
-          unit: p.unit || null,
-          imageUrl: p.image_path,
-          questionType: p.question_type,
-          answer: p.answer,
-        })),
+      problems: usable.map((p) => ({
+        id: p.id,
+        title: p.title,
+        difficulty: p.difficulty,
+        unit: p.unit || null,
+        imageUrl: p.image_path,
+        questionType: p.question_type,
+        answer: p.answer,
+      })),
+      noAnswer: noAnswer.map((p) => ({
+        id: p.id,
+        title: p.title,
+        difficulty: p.difficulty,
+      })),
     });
   } catch (err) {
     next(err);
@@ -332,6 +341,12 @@ app.post('/api/problems', requireAuth, upload.single('image'), async (req, res, 
     const normalizedAnswer = normalizeAnswer(questionType || 'subjective', answer);
     if (!normalizedAnswer.ok) {
       return res.status(400).json({ error: '객관식 정답은 ①~⑤ 중 하나를 선택해주세요.' });
+    }
+    // 정답이 없으면 진행 화면이 채점을 못 해서 그 문제를 아예 안 쓴다.
+    // 예전에는 그냥 등록됐고, 관리자 목록에만 보이고 진행 화면에서는
+    // 말없이 사라졌다. 여기서 막는다.
+    if (!normalizedAnswer.value) {
+      return res.status(400).json({ error: '정답을 입력해주세요. 정답이 없으면 진행 화면에 문제가 뜨지 않습니다.' });
     }
     const lengthError = validateFieldLengths({ title, description, unit, answer });
     if (lengthError) {
@@ -377,6 +392,11 @@ app.put('/api/problems/:id', requireAuth, parseId, upload.single('image'), async
     const normalizedAnswer = normalizeAnswer(effectiveType, answer);
     if (!normalizedAnswer.ok) {
       return res.status(400).json({ error: '객관식 정답은 ①~⑤ 중 하나를 선택해주세요.' });
+    }
+    // 정답 칸을 비워서 저장하면 그 문제는 진행 화면에서 사라진다. 지우지는 못하게 한다.
+    // (answer를 아예 안 보낸 경우는 value가 undefined라서 기존 정답을 그대로 둔다)
+    if (normalizedAnswer.value === null) {
+      return res.status(400).json({ error: '정답을 입력해주세요. 정답이 없으면 진행 화면에 문제가 뜨지 않습니다.' });
     }
     const lengthError = validateFieldLengths({ title, description, unit, answer });
     if (lengthError) {

@@ -76,6 +76,12 @@ test('정답이 등록 안 된 문제는 진행 목록에서 빠진다', async (
 
   const res = await agent.get('/api/show/problems');
   assert.ok(!res.body.problems.some((p) => p.id === noAnswer.id));
+
+  // 다만 조용히 빠지면 안 된다. 진행 화면이 "왜 문제가 없는지" 말할 수 있어야 한다.
+  const flagged = res.body.noAnswer.find((p) => p.id === noAnswer.id);
+  assert.ok(flagged, '정답 없는 문제는 noAnswer로 알려줘야 함');
+  assert.equal(flagged.difficulty, '중');
+  assert.equal(flagged.title, '[test-show] 정답 없는 문제');
 });
 
 test('난이도로 걸러진다', async () => {

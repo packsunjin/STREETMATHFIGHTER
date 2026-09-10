@@ -91,7 +91,8 @@ test('문제 생성 -- 제목이 너무 길면 400(이미지 첨부 없이도 �
     .post('/api/problems')
     .field('title', 'a'.repeat(201))
     .field('difficulty', '상')
-    .field('questionType', 'subjective');
+    .field('questionType', 'subjective')
+    .field('answer', '10'); // 정답은 필수라, 제목 길이 검사에 닿으려면 채워야 한다
   assert.equal(res.status, 400);
   assert.match(res.body.error, /title/);
 });
@@ -135,6 +136,27 @@ test('보안 헤더(helmet)가 적용됨', async () => {
   assert.equal(res.headers['x-content-type-options'], 'nosniff');
 });
 
+test('정답 없이 등록하면 막힌다(정답 없는 문제는 진행 화면에서 사라진다)', async () => {
+  // 예전에는 정답이 "선택"이라 그냥 등록됐고, 관리자 목록에만 보이고
+  // 진행 화면에서는 아무 말 없이 빠졌다. 실제로 이것 때문에
+  // "문제를 등록했는데 등록된 문제 없음으로 뜬다"가 났다.
+  const agent = request.agent(app);
+  await agent
+    .post('/api/login')
+    .send({ username: process.env.ADMIN_USERNAME, password: process.env.ADMIN_PASSWORD });
+
+  const res = await agent
+    .post('/api/problems')
+    .field('title', '[test] 정답 없음')
+    .field('difficulty', '중')
+    .field('questionType', 'subjective')
+    .field('answer', '')
+    .attach('image', Buffer.from([0x89, 0x50, 0x4e, 0x47]), 'x.png');
+
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /정답/);
+});
+
 test('업로드가 실패해도 내부 오류 메시지가 브라우저로 새지 않는다', async () => {
   // 테스트 환경의 CLOUDINARY_URL은 가짜라 업로드가 반드시 실패한다.
   // 이때 "Server returned unexpected status code - 403" 같은 라이브러리 메시지가
@@ -148,6 +170,7 @@ test('업로드가 실패해도 내부 오류 메시지가 브라우저로 새�
     .post('/api/problems')
     .field('title', '[test] 업로드 실패')
     .field('difficulty', '중')
+    .field('answer', '10') // 정답은 필수라, 업로드 단계까지 가려면 채워야 한다
     .attach('image', Buffer.from([0x89, 0x50, 0x4e, 0x47]), 'x.png');
 
   assert.equal(res.status, 502);
