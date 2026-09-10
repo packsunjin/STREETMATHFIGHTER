@@ -42,10 +42,13 @@ after(async () => {
   await db.pool.end();
 });
 
-test('진행 화면 API는 로그인해야 쓸 수 있다', async () => {
-  // 정답을 그대로 내려주는 API라서 로그인 없이 열리면 안 된다
+test('진행 화면 문제 목록은 로그인 없이도 열린다', async () => {
+  // 시안 진행 화면에는 로그인 자리가 없다. 로그인을 요구하면 강당에서
+  // 세션이 풀렸을 때 문제가 0개인 채로 조용히 돌아간다(실제로 그렇게 됐다).
+  // 정답이 같이 내려가는 건 감수하기로 정했다.
   const res = await request(adminApp).get('/api/show/problems');
-  assert.equal(res.status, 401);
+  assert.equal(res.status, 200);
+  assert.ok(Array.isArray(res.body.problems));
 });
 
 test('진행용 문제 목록에는 정답이 함께 온다(진행자가 그 자리에서 공개해야 하므로)', async () => {

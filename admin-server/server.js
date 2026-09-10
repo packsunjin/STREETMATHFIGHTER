@@ -275,9 +275,11 @@ app.get('/api/stats/problem-counts', requireAuth, async (req, res, next) => {
 // 선생님용: 학생들이 실제로 어떻게 풀고 있는지(등록된 문제 수가 아니라 성취도)
 // ---- 강당 라이브 이벤트(진행 화면) ----
 // 진행 화면은 정답을 미리 알고 있어야 한다(타이머 끝나면 그 자리에서 공개).
-// 그래서 이 API들은 전부 로그인한 진행자만 쓸 수 있다.
+// 문제 목록만은 로그인 없이 연다. 시안 진행 화면에 로그인 자리가 없어서,
+// 로그인이 풀려 있으면 문제가 0개인 채로 조용히 돌아갔다(강당에서 알아챌 방법이 없다).
+// 정답이 같이 내려가는 건 감수하기로 정했다. 나머지 show API는 그대로 로그인이 필요하다.
 
-app.get('/api/show/problems', requireAuth, async (req, res, next) => {
+app.get('/api/show/problems', async (req, res, next) => {
   try {
     const difficulty = req.query.difficulty;
     if (difficulty && !DIFFICULTIES.includes(difficulty)) {
