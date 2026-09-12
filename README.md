@@ -47,6 +47,7 @@
 ### 생김새
 
 클로드 디자인에서 받은 **Modernist** 시안을 그대로 따릅니다.
+진행 화면과 **문제 관리 화면이 같은 시안**을 씁니다.
 
 - 밝은 바탕 `#f3f2f2` · 먹색 글자 `#201e1d` · 강조는 **빨강 `#ec3013` 한 색**
 - **둥근 모서리 없음, 그림자 없음, 3D 없음.** 아무것도 떠 있지 않습니다
@@ -70,6 +71,20 @@
   막아둬도 화면이 그대로 뜹니다.
 - 등장 연출이 끝날 때까지 입력을 잠급니다. 급하게 두 번 눌러도 엉뚱한 버튼이
   눌리지 않습니다.
+
+### 문제 관리 화면이 하는 일
+
+`/admin`은 진행 화면에 띄울 문제를 DB에 쌓아 두는 화면입니다. 생김새는 진행 화면과
+같은 시안을 쓰고, 하는 일은 등록·수정·삭제 하나뿐입니다.
+
+- 화면은 2px 선으로 두 칸으로 나뉩니다. 왼쪽이 **DB에 들어 있는 문제 목록**,
+  오른쪽이 **등록 폼**입니다. 목록에서 문제를 누르면 그 문제가 폼에 실려 수정이 됩니다.
+- 목록 위의 난이도 칸(전체 / 하 / 중 / 상)은 거르개이면서 동시에 **지금 DB에 몇 개
+  있는지**를 보여줍니다. 하나만 몰려 있으면 등록하는 자리에서 바로 보입니다.
+- 줄마다 난이도·유형·단원과 함께 **정답을 같이 보여줍니다.** 정답이 없는 문제는
+  진행 화면에 아예 안 뜨기 때문에, 목록에서 미리 알아채야 합니다.
+- 사진은 파일 선택 말고 **끌어다 놓기와 `Ctrl`+`V` 붙여넣기**로도 넣습니다.
+  문제집을 찍거나 화면을 캡처해서 올리는 흐름이라 파일 탐색기를 거칠 일이 없습니다.
 
 ### 구성
 
@@ -180,6 +195,9 @@ admin-server/public/js/show-draw.js   #   └ 필기 엔진(벡터 저장 + 손�
 admin-server/public/js/show-anim.js   #   └ 연출(화면 교대/카운트다운/채점 막대/효과음)
 admin-server/admin-dashboard-app/     # 통계 대시보드(React+Vite+Tailwind, /stats로 서빙)
 admin-server/public/css/show.css      #   └ Modernist 디자인 토큰과 화면 레이아웃
+admin-server/public/dashboard.html    # 문제 등록·수정·삭제 화면
+admin-server/public/js/dashboard.js   #   └ 문제 CRUD API 호출과 목록/폼 상태
+admin-server/public/css/style.css     #   └ 관리 화면의 Modernist 레이아웃(로그인 포함)
 admin-server/public/vendor/           # 글꼴(Archivo·Noto Sans KR)·Anime.js 자체 호스팅
 server.js                             # 진입점
 render.yaml                           # Render 배포 블루프린트

@@ -1,11 +1,17 @@
+/* 문제 등록·관리 화면이 DB와 주고받는 부분.
+   화면 생김새는 시안(Modernist)대로 바뀌었지만, 부르는 API는 그대로다.
+   GET api/problems · POST api/problems · PUT/DELETE api/problems/:id · GET api/units */
+
 let currentDifficultyFilter = '';
 let selectedProblemId = null;
 let problemsCache = [];
 
 const problemList = document.getElementById('problemList');
 const emptyState = document.getElementById('emptyState');
+const listCount = document.getElementById('listCount');
 const problemForm = document.getElementById('problemForm');
 const formTitle = document.getElementById('formTitle');
+const formHint = document.getElementById('formHint');
 const submitBtn = document.getElementById('submitBtn');
 const problemIdInput = document.getElementById('problemId');
 const titleInput = document.getElementById('title');
@@ -57,7 +63,8 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
     document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
     currentDifficultyFilter = btn.dataset.difficulty;
-    loadProblems();
+    // 목록은 이미 받아 뒀다. 난이도를 누를 때마다 서버에 다시 묻지 않는다.
+    renderList();
   });
 });
 
@@ -72,30 +79,55 @@ async function loadUnits() {
   });
 }
 
+/* 난이도 칸은 거르개이면서 동시에 "지금 DB에 몇 개 있는지"를 보여준다.
+   그래서 목록을 난이도별로 나눠 받지 않고 한 번에 받아서, 숫자를 세고 화면에서 거른다.
+   (서버의 ?difficulty= 거르개는 그대로 살아 있다. 이 화면이 안 쓸 뿐이다.) */
 async function loadProblems() {
-  const qs = currentDifficultyFilter ? `?difficulty=${encodeURIComponent(currentDifficultyFilter)}` : '';
-  const res = await fetch(`api/problems${qs}`, { credentials: 'include' });
+  const res = await fetch('api/problems', { credentials: 'include' });
   const data = await res.json();
   problemsCache = data.problems || [];
+  renderCounts();
   renderList();
 }
 
-function renderList() {
-  problemList.innerHTML = '';
-  emptyState.style.display = problemsCache.length === 0 ? 'block' : 'none';
+function renderCounts() {
+  document.querySelectorAll('.tab-count').forEach((el) => {
+    const level = el.dataset.count;
+    el.textContent = level
+      ? problemsCache.filter((p) => p.difficulty === level).length
+      : problemsCache.length;
+  });
+}
 
-  problemsCache.forEach((problem) => {
+function visibleProblems() {
+  return currentDifficultyFilter
+    ? problemsCache.filter((p) => p.difficulty === currentDifficultyFilter)
+    : problemsCache;
+}
+
+function renderList() {
+  const problems = visibleProblems();
+  problemList.innerHTML = '';
+  emptyState.hidden = problems.length > 0;
+  listCount.textContent = currentDifficultyFilter
+    ? `${currentDifficultyFilter} ${problems.length}문제`
+    : `${problems.length}문제`;
+
+  problems.forEach((problem) => {
     const li = document.createElement('li');
     li.className = 'problem-item' + (problem.id === selectedProblemId ? ' selected' : '');
     li.innerHTML = `
       <img alt="" />
       <div class="meta">
         <div class="title">${escapeHtml(problem.title)}</div>
-        <span class="badge ${problem.difficulty}">${problem.difficulty}</span>
-        <span class="badge type">${problem.questionType === 'objective' ? '객관식' : '주관식'}</span>
-        ${problem.unit ? `<span class="badge type">${escapeHtml(problem.unit)}</span>` : ''}
+        <div class="tags">
+          <span class="badge level">${escapeHtml(problem.difficulty)}</span>
+          <span class="badge type">${problem.questionType === 'objective' ? '객관식' : '주관식'}</span>
+          ${problem.unit ? `<span class="badge type">${escapeHtml(problem.unit)}</span>` : ''}
+          <span class="badge answer">정답 ${escapeHtml(answerLabel(problem))}</span>
+        </div>
       </div>
-      <button class="btn-danger" data-id="${problem.id}">삭제</button>
+      <button class="btn btn-sm btn-danger" data-id="${problem.id}">삭제</button>
     `;
     // src는 문자열로 끼워넣지 않는다(따옴표가 섞이면 속성이 깨질 수 있음)
     li.querySelector('img').src = problem.imageUrl;
@@ -120,6 +152,16 @@ function renderList() {
     });
     problemList.appendChild(li);
   });
+}
+
+// 객관식 정답은 DB에 1~5로 들어 있다. 등록 화면에서 고른 모양(①~⑤) 그대로 보여준다.
+const CHOICE_MARKS = { 1: '①', 2: '②', 3: '③', 4: '④', 5: '⑤' };
+
+function answerLabel(problem) {
+  if (!problem.answer) return '없음';
+  return problem.questionType === 'objective'
+    ? CHOICE_MARKS[problem.answer] || problem.answer
+    : problem.answer;
 }
 
 function escapeHtml(str) {
@@ -156,6 +198,7 @@ function loadIntoForm(problem) {
   dropzoneFile.hidden = false;
   dropzoneFile.textContent = '등록된 사진 · 바꾸려면 새로 넣어주세요';
   formTitle.textContent = '문제 수정';
+  formHint.textContent = `#${problem.id} ${problem.title}`;
   submitBtn.textContent = '수정 저장';
   renderList();
 }
@@ -173,6 +216,7 @@ function resetForm() {
   dropzoneHint.hidden = false;
   dropzoneFile.hidden = true;
   formTitle.textContent = '새 문제 등록';
+  formHint.textContent = '비어 있는 폼';
   submitBtn.textContent = '등록하기';
   updateAnswerFieldVisibility();
   renderList();

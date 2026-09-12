@@ -1,473 +1,581 @@
-/* 문제 등록 화면.
-   진행 화면(css/show.css)과 같은 Modernist 토큰을 쓴다. 두 화면이 색과
-   선 두께가 다르면 같은 앱으로 안 보인다. 구조는 그대로 두고 색/선/글꼴만 맞췄다. */
-:root {
-  --bg: #f3f2f2;
-  --card: #ffffff;
-  --text: #201e1d;
-  --text-secondary: color-mix(in srgb, #201e1d 55%, transparent);
-  --border: color-mix(in srgb, #201e1d 40%, transparent);
+/* 문제 등록·관리 화면 (아무 PC에서 여는 주소, /admin).
+ *
+ * 생김새는 진행 화면(css/show.css)과 같은 클로드 디자인 시안(Modernist)이다.
+ * 두 화면이 같은 앱으로 보이려면 색만 맞춰서는 안 되고 짜임새가 같아야 한다.
+ * 예전에는 카드가 떠 있는 흔한 관리자 페이지 위에 색만 덧칠해 뒀었다.
+ *
+ *   1. 밝은 바탕 위에 먹색 글자, 강조는 빨강 딱 한 색
+ *   2. 둥근 모서리 없음, 그림자 없음. 아무것도 떠 있지 않는다
+ *   3. 선은 전부 2px. 1px 실선은 시안에 없다
+ *   4. 칸은 격자로 나눈다. 나누는 선이 곧 장식이다 (칸 사이 여백 대신 선)
+ *   5. 버튼 글자도 왼쪽 정렬. 가운데 정렬은 제목과 판정에만
+ *
+ * 화면이 하는 일은 그대로다. 문제를 DB에 넣고(POST), 고치고(PUT), 지우고(DELETE),
+ * 목록을 읽어온다(GET). js/dashboard.js가 부르는 API는 하나도 바뀌지 않았다.
+ */
 
-  --red: #ec3013;
-  --red-light: #fff2ef;
+:root {
+  /* 시안 토큰 그대로 */
+  --bg: #f3f2f2;
+  --surface: #eae9e9;
+  --text: #201e1d;
+  --accent: #ec3013;
+  --accent-100: #fff2ef;
+  --accent-700: #ae1800;
+  --divider: color-mix(in srgb, #201e1d 40%, transparent);
+  --muted: color-mix(in srgb, #201e1d 55%, transparent);
+  --paper: #ffffff;
+
+  --line: 2px solid var(--divider);
+  --line-strong: 2px solid var(--text);
+
+  --font: 'Archivo', 'Noto Sans KR', system-ui, sans-serif;
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: 'Archivo', 'Noto Sans KR', system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
 }
 
 a {
   color: inherit;
+  text-decoration: none;
 }
 
-.top-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 24px;
-  background: var(--card);
-  border-bottom: 2px solid var(--border);
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+  border-radius: 0;
 }
 
-.top-bar h1 {
-  font-size: 16px;
-  margin: 0;
-  font-weight: 700;
+[hidden] {
+  display: none !important;
 }
 
-.top-bar button {
-  background: var(--card);
-  border: 2px solid var(--border);
-  color: var(--text);
-  padding: 7px 14px;
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.top-bar button:hover {
-  background: var(--bg);
-}
-
-/* ---- 로그인 화면 ---- */
-
-.login-wrap {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.login-card {
-  background: var(--card);
-  padding: 32px;
-  border: 2px solid var(--border);
-  width: 320px;
-}
-
-.login-card h1 {
-  font-size: 17px;
-  margin-bottom: 4px;
-  font-weight: 700;
-}
-
-.login-card p {
-  color: var(--text-secondary);
-  font-size: 13px;
-  margin-top: 0;
-  margin-bottom: 24px;
-}
-
-.field {
-  margin-bottom: 14px;
-}
-
-.field label {
-  display: block;
-  font-size: 13px;
-  margin-bottom: 6px;
-  color: var(--text);
-}
-
-.field input,
-.field select,
-.field textarea {
-  width: 100%;
-  padding: 9px 10px;
-  border: 2px solid var(--border);
-  background: var(--card);
-  font-size: 14px;
-  color: var(--text);
-  font-family: inherit;
-}
-
-.field input:focus,
-.field select:focus,
-.field textarea:focus {
+/* 시안대로 강조색 윤곽선. 브라우저 기본 파란 링은 쓰지 않는다. */
+:focus {
   outline: none;
-  border-color: var(--text);
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+::selection {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
-.field textarea {
-  resize: vertical;
-  min-height: 70px;
+/* ================= 글자 단위 ================= */
+
+/* 칸마다 붙는 작은 머리말. 시안에서 위치를 알려주는 유일한 장치다. */
+.eyebrow {
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
 }
 
-.btn-primary {
-  width: 100%;
-  padding: 10px;
-  background: var(--red);
-  color: #fff;
-  border: 2px solid var(--text);
-  font-size: 14px;
-  cursor: pointer;
-  margin-top: 6px;
+.headline {
+  font-weight: 800;
+  font-size: clamp(22px, 2.6vw, 30px);
+  line-height: 1;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+  margin: 0;
 }
 
-.btn-primary:hover {
-  background: #ae1800;
+.muted {
+  color: var(--muted);
 }
 
-.error-msg {
-  color: var(--red);
+.rule {
+  height: 2px;
+  border: 0;
+  margin: 0;
+  background: var(--divider);
+}
+
+/* ================= 위쪽 띠 ================= */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: none;
+  flex-wrap: wrap;
+  padding: 10px 18px;
+  border-bottom: var(--line);
+}
+
+.topbar-brand {
+  font-weight: 800;
+  font-size: 17px;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+.topbar-screen {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.topbar-who {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.topbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ================= 버튼 ================= */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  border: var(--line);
+  background: transparent;
+  padding: 9px 14px;
   font-size: 13px;
-  margin-top: 10px;
-  min-height: 16px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:hover {
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+}
+.btn:active {
+  background: color-mix(in srgb, var(--text) 14%, transparent);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
-/* ---- 대시보드 ---- */
+.btn-sm {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+/* 강조는 빨강 한 색뿐이라, 이 버튼은 화면에 하나씩만 둔다. */
+.btn-primary {
+  border: var(--line-strong);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  padding: 14px 16px;
+}
+.btn-primary:hover {
+  background: var(--accent-700);
+}
+.btn-primary:active {
+  background: var(--accent-700);
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.btn-danger:hover {
+  background: var(--accent-100);
+  border-color: var(--accent);
+  color: var(--accent-700);
+}
+
+/* 행사 당일 여는 화면으로 가는 길. 이 화면에서 제일 중요한 링크다. */
+.btn-show {
+  border: var(--line-strong);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+}
+.btn-show:hover {
+  background: var(--accent-700);
+}
+
+/* ================= 작업 화면 ================= */
 
 .admin-page {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
-  overflow: hidden;
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
-.dashboard {
+/* 두 칸을 여백이 아니라 2px 선으로 가른다. 선이 곧 칸막이다. */
+.workspace {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  max-width: 1100px;
-  width: 100%;
-  margin: 24px auto;
-  padding: 0 20px 60px;
   display: grid;
-  grid-template-columns: 360px 1fr;
-  gap: 20px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 460px);
 }
 
-@media (max-width: 800px) {
-  .dashboard {
-    grid-template-columns: 1fr;
-  }
-}
-
-.panel {
-  background: var(--card);
-  border: 2px solid var(--border);
-  padding: 20px;
-}
-
-.panel h2 {
-  margin-top: 0;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.btn-secondary {
-  background: var(--card);
-  border: 2px solid var(--border);
-  padding: 9px 14px;
-  cursor: pointer;
-  font-size: 13px;
-  color: var(--text);
-}
-
-.btn-secondary:hover {
-  background: var(--bg);
-}
-
-.btn-danger {
-  background: var(--card);
-  color: var(--red);
-  border: 2px solid var(--border);
-  padding: 6px 10px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.btn-danger:hover {
-  background: var(--red-light);
-}
-
-.form-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 16px;
-}
-
-.form-actions .btn-primary {
-  width: auto;
-  flex: 1;
-}
-
-.form-actions .btn-secondary {
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.filter-tabs {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 16px;
-}
-
-.filter-tabs button {
-  flex: 1;
-  padding: 8px;
-  border: 2px solid var(--border);
-  background: var(--card);
-  cursor: pointer;
-  font-size: 13px;
-  color: var(--text);
-}
-
-.filter-tabs button.active {
-  background: var(--text);
-  color: #fff;
-  border-color: var(--text);
-}
-
-.segmented {
-  display: flex;
-  gap: 6px;
-}
-
-.segmented-option {
-  flex: 1;
-  position: relative;
-}
-
-.segmented-option input {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.segmented-option span {
-  display: block;
-  text-align: center;
-  padding: 9px 8px;
-  border: 2px solid var(--border);
-  background: var(--card);
-  font-size: 13px;
-  color: var(--text);
-  cursor: pointer;
-}
-
-.segmented-option input:checked + span {
-  background: var(--text);
-  color: #fff;
-  border-color: var(--text);
-}
-
-.segmented-option input:focus-visible + span {
-  outline: 2px solid var(--text);
-  outline-offset: 2px;
-}
-
-.choice-picker {
-  display: flex;
-  gap: 6px;
-}
-
-.choice-option {
-  flex: 1;
-  position: relative;
-}
-
-.choice-option input {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.choice-option span {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 38px;
-  border: 2px solid var(--border);
-  background: var(--card);
-  font-size: 15px;
-  color: var(--text);
-  cursor: pointer;
-}
-
-.choice-option input:checked + span {
-  background: var(--text);
-  color: #fff;
-  border-color: var(--text);
-}
-
-.choice-option input:focus-visible + span {
-  outline: 2px solid var(--text);
-  outline-offset: 2px;
-}
-
-.problem-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.col {
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
 }
 
-.problem-item {
+.col-list {
+  border-right: var(--line);
+}
+
+.col-head {
+  flex: none;
   display: flex;
+  align-items: flex-end;
   gap: 12px;
-  align-items: center;
-  border: 2px solid var(--border);
-  padding: 10px;
-  cursor: pointer;
+  flex-wrap: wrap;
+  padding: 18px 20px 14px;
+  border-bottom: var(--line);
 }
 
-.problem-item:hover {
-  background: var(--bg);
+.col-head .headline {
+  margin-right: auto;
 }
 
-.problem-item.selected {
-  border-color: var(--text);
-  background: var(--bg);
-}
-
-.problem-item img {
-  width: 56px;
-  height: 56px;
-  object-fit: cover;
-  background: var(--bg);
-}
-
-.problem-item .meta {
-  flex: 1;
-  min-width: 0;
-}
-
-.problem-item .meta .title {
-  font-size: 14px;
-  font-weight: 700;
+/* 고치는 중인 문제 제목이 길면 칸을 밀어낸다. 한 줄로 자른다. */
+.col-head .eyebrow {
+  max-width: 45%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.badge {
-  display: inline-block;
+.col-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ================= 난이도 칸(=목록 거르개) ================= */
+
+/* 시안의 난이도 화면과 같은 짜임새. 같은 폭의 칸을 선으로 나누고,
+   그 칸이 곧 거르개 버튼이다. 숫자는 DB에 실제로 들어 있는 문제 수. */
+.cells {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-bottom: var(--line);
+}
+
+.tab-btn {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  border: 0;
+  border-right: var(--line);
+  background: transparent;
+  padding: 10px 14px;
+  cursor: pointer;
+  text-align: left;
+}
+.tab-btn:last-child {
+  border-right: 0;
+}
+.tab-btn:hover {
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+}
+
+.tab-btn .tab-label {
   font-size: 11px;
-  padding: 2px 8px;
-  margin-top: 4px;
-  border: 2px solid var(--text);
-  color: var(--text);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.tab-btn .tab-count {
+  font-weight: 800;
+  font-size: clamp(18px, 2.2vw, 26px);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.tab-btn.active {
+  background: var(--text);
+  color: var(--bg);
+}
+
+/* ================= 문제 목록 ================= */
+
+.problem-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* 줄과 줄 사이도 여백이 아니라 선. 카드가 하나씩 떠 있지 않는다. */
+.problem-item {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 20px;
+  border-bottom: var(--line);
+  border-left: 6px solid transparent;
+  cursor: pointer;
+}
+.problem-item:hover {
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+}
+
+/* 고른 문제는 폼에 실려 있다. 어느 줄을 고쳤는지 왼쪽 빨간 막대로 표시한다. */
+.problem-item.selected {
+  border-left-color: var(--accent);
+  background: var(--surface);
+}
+
+.problem-item img {
+  width: 64px;
+  height: 64px;
+  flex: none;
+  object-fit: cover;
+  border: var(--line);
+  background: var(--paper);
+}
+
+.problem-item .meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.problem-item .meta .title {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border: var(--line);
+  padding: 1px 8px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+/* 난이도는 먹색을 채워서 한눈에 구분되게. 나머지는 윤곽선만. */
+.badge.level {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 700;
 }
 
 .badge.type {
-  border-color: var(--border);
-  color: var(--text-secondary);
-  margin-left: 4px;
+  color: var(--muted);
+}
+
+/* 정답이 없으면 진행 화면에서 그 문제는 안 뜬다. 목록에서 미리 알아채게 한다. */
+.badge.answer {
+  border-color: var(--accent);
+  color: var(--accent-700);
 }
 
 .empty-state {
-  color: var(--text-secondary);
+  padding: 40px 20px;
   font-size: 13px;
-  text-align: center;
-  padding: 24px 0;
+  color: var(--muted);
 }
 
-.image-preview {
-  margin-top: 10px;
-  max-width: 100%;
-  max-height: 220px;
-  border: 2px solid var(--border);
-  display: none;
+/* ================= 폼 ================= */
+
+.problem-form {
+  padding: 18px 20px 40px;
 }
 
-.toast {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--text);
-  color: #fff;
-  padding: 10px 18px;
-  font-size: 13px;
+.field {
+  margin-bottom: 16px;
+}
+
+.field > label,
+.field-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.field input[type='text'],
+.field input[type='password'],
+.field select,
+.field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: var(--line);
+  background: var(--paper);
+  font-size: 15px;
+}
+
+.field input:hover,
+.field select:hover,
+.field textarea:hover {
+  border-color: var(--text);
+}
+
+.field input:focus-visible,
+.field select:focus-visible,
+.field textarea:focus-visible {
+  border-color: var(--accent);
+  outline-offset: 0;
+}
+
+.field textarea {
+  resize: vertical;
+  min-height: 84px;
+}
+
+.field-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* 고르는 칸은 전부 같은 짜임새다: 같은 폭 칸 + 2px 선, 고른 칸은 먹색으로 반전. */
+.segmented,
+.choice-picker {
+  display: grid;
+  border: var(--line);
+}
+
+.segmented {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.choice-picker {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.segmented-option,
+.choice-option {
+  position: relative;
+  border-right: var(--line);
+}
+.segmented-option:last-child,
+.choice-option:last-child {
+  border-right: 0;
+}
+
+.segmented-option input,
+.choice-option input {
+  position: absolute;
   opacity: 0;
+  width: 0;
+  height: 0;
   pointer-events: none;
-  transition: opacity 0.2s ease;
 }
 
-.toast.show {
-  opacity: 1;
+.segmented-option span,
+.choice-option span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 8px;
+  font-size: 14px;
+  cursor: pointer;
 }
 
-/* ---- 이미지 넣기(클릭 / 드래그앤드롭 / 붙여넣기) ---- */
+.segmented-option:hover span,
+.choice-option:hover span {
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+}
+
+.segmented-option input:checked + span,
+.choice-option input:checked + span {
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 700;
+}
+
+.segmented-option input:focus-visible + span,
+.choice-option input:focus-visible + span {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.form-actions .btn-primary {
+  flex: 1;
+}
+
+/* ---- 사진 넣기(클릭 / 드래그앤드롭 / 붙여넣기) ---- */
+
 .dropzone {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-start;
   gap: 10px;
-  min-height: 140px;
-  padding: 16px;
-  border: 2px dashed var(--border);
-  border-radius: 0;
-  background: #fafafa;
+  min-height: 132px;
+  padding: 14px;
+  border: 2px dashed var(--divider);
+  background: var(--paper);
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
 }
 
 .dropzone:hover,
-.dropzone:focus-visible {
-  border-color: #111;
-  outline: none;
+.dropzone.dragging {
+  border-color: var(--text);
 }
 
 .dropzone.dragging {
-  border-color: #111;
   border-style: solid;
-  background: #f0f0f0;
+  background: var(--surface);
 }
 
 .dropzone-hint {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  text-align: center;
+  gap: 5px;
   font-size: 13px;
-  color: #6b7280;
+  color: var(--muted);
 }
 
 .dropzone-hint strong {
+  font-weight: 800;
   font-size: 14px;
-  color: #111;
+  letter-spacing: -0.01em;
+  color: var(--text);
 }
 
 .dropzone-hint kbd {
-  padding: 1px 5px;
-  border: 2px solid var(--border);
-  border-bottom-width: 2px;
-  border-radius: 0;
-  background: #fff;
+  border: var(--line);
+  padding: 0 5px;
   font-family: inherit;
   font-size: 11px;
 }
@@ -475,38 +583,112 @@ a {
 .dropzone-file {
   margin: 0;
   font-size: 12px;
-  color: #6b7280;
+  color: var(--muted);
   word-break: break-all;
-  text-align: center;
 }
 
-/* ---- 상단 바 ---- */
-.top-bar-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.image-preview {
+  display: none;
+  max-width: 100%;
+  max-height: 220px;
+  border: var(--line);
 }
 
-.top-bar-actions #whoami {
-  font-size: 13px;
-  color: #6b7280;
-}
+/* ================= 알림 띠 ================= */
 
-/* 행사 당일 여는 화면으로 가는 버튼. 다른 링크보다 눈에 띄어야 한다. */
-.btn-show {
-  display: inline-flex;
-  align-items: center;
-  padding: 8px 16px;
-  border-radius: 0;
-  background: var(--red);
-  color: #fff;
-  border: 2px solid var(--text);
+/* 떠 있는 말풍선 대신 화면 아래에 붙는 띠. 그림자도 둥근 모서리도 없다. */
+.toast {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  padding: 12px 20px;
+  background: var(--text);
+  color: var(--bg);
   font-size: 14px;
-  font-weight: 800;
-  text-decoration: none;
-  white-space: nowrap;
+  letter-spacing: 0.02em;
+  transform: translateY(100%);
+  transition: transform 0.18s ease;
+  pointer-events: none;
 }
 
-.btn-show:hover {
-  background: #ae1800;
+.toast.show {
+  transform: translateY(0);
+}
+
+/* ================= 로그인 ================= */
+
+.login-wrap {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 420px);
+}
+
+.login-aside {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+  padding: 40px;
+  border-right: var(--line);
+}
+
+.login-aside .headline {
+  font-size: clamp(38px, 8vh, 72px);
+  line-height: 0.92;
+}
+
+.login-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 40px 32px;
+}
+
+.login-card h1 {
+  margin: 0 0 4px;
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+.login-card p {
+  margin: 0 0 24px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.error-msg {
+  margin-top: 12px;
+  min-height: 18px;
+  font-size: 13px;
+  color: var(--accent-700);
+}
+
+/* ================= 좁은 화면 ================= */
+
+/* 관리자 화면은 보통 PC에서 열지만, 폰으로 문제를 올리는 경우도 있다.
+   칸을 위아래로 쌓고 세로 선을 가로 선으로 바꾼다. */
+@media (max-width: 900px) {
+  .workspace,
+  .login-wrap {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .col-list,
+  .login-aside {
+    border-right: 0;
+    border-bottom: var(--line);
+  }
+
+  .login-aside {
+    padding: 28px 20px;
+  }
+
+  .col-body {
+    overflow: visible;
+  }
 }

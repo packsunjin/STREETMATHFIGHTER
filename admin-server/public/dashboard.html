@@ -9,33 +9,62 @@
 </head>
 <body>
   <div class="admin-page">
-  <div class="top-bar">
-    <h1>스트릿매쓰파이터 · 문제 관리</h1>
-    <div class="top-bar-actions">
-      <span id="whoami"></span>
+
+  <!-- 진행 화면과 같은 띠. 두 화면을 오가도 같은 앱으로 보인다. -->
+  <div class="topbar">
+    <div class="topbar-brand">Street Math Fighter</div>
+    <div class="topbar-screen">문제 관리</div>
+    <div class="topbar-who" id="whoami"></div>
+    <div class="topbar-right">
       <!-- 행사 당일 전자칠판에서 여는 화면. 가장 중요한 진입점이라 눈에 띄게 둔다. -->
-      <a href="show.html" class="btn-show">행사 진행</a>
-      <a href="stats/">통계</a>
-      <button id="logoutBtn">로그아웃</button>
+      <a href="show.html" class="btn btn-show">행사 진행</a>
+      <a href="stats/" class="btn">통계</a>
+      <button class="btn" id="logoutBtn">로그아웃</button>
     </div>
   </div>
 
-  <div class="dashboard">
-    <div class="panel">
-      <h2>문제 목록</h2>
-      <div class="filter-tabs">
-        <button class="tab-btn active" data-difficulty="">전체</button>
-        <button class="tab-btn" data-difficulty="하">하</button>
-        <button class="tab-btn" data-difficulty="중">중</button>
-        <button class="tab-btn" data-difficulty="상">상</button>
-      </div>
-      <ul class="problem-list" id="problemList"></ul>
-      <div class="empty-state" id="emptyState" style="display:none;">등록된 문제가 없습니다.</div>
-    </div>
+  <div class="workspace">
 
-    <div class="panel">
-      <h2 id="formTitle">새 문제 등록</h2>
-      <form id="problemForm">
+    <section class="col col-list">
+      <div class="col-head">
+        <h2 class="headline">문제 목록</h2>
+        <div class="eyebrow muted" id="listCount">0 문제</div>
+      </div>
+
+      <!-- 난이도 칸이 곧 거르개다. 숫자는 DB에 실제로 들어 있는 문제 수. -->
+      <div class="cells">
+        <button class="tab-btn active" data-difficulty="">
+          <span class="tab-label">전체</span>
+          <span class="tab-count" data-count="">0</span>
+        </button>
+        <button class="tab-btn" data-difficulty="하">
+          <span class="tab-label">난이도 하</span>
+          <span class="tab-count" data-count="하">0</span>
+        </button>
+        <button class="tab-btn" data-difficulty="중">
+          <span class="tab-label">난이도 중</span>
+          <span class="tab-count" data-count="중">0</span>
+        </button>
+        <button class="tab-btn" data-difficulty="상">
+          <span class="tab-label">난이도 상</span>
+          <span class="tab-count" data-count="상">0</span>
+        </button>
+      </div>
+
+      <div class="col-body">
+        <ul class="problem-list" id="problemList"></ul>
+        <div class="empty-state" id="emptyState" hidden>등록된 문제가 없습니다. 오른쪽에서 첫 문제를 등록하세요.</div>
+      </div>
+    </section>
+
+    <section class="col col-form">
+      <div class="col-head">
+        <h2 class="headline" id="formTitle">새 문제 등록</h2>
+        <div class="eyebrow muted" id="formHint">비어 있는 폼</div>
+      </div>
+
+      <div class="col-body">
+      <form id="problemForm" class="problem-form">
         <input type="hidden" id="problemId" />
         <div class="field">
           <label for="title">문제 제목</label>
@@ -44,9 +73,9 @@
         <div class="field">
           <label for="difficulty">난이도</label>
           <select id="difficulty" name="difficulty" required>
-            <option value="하">하</option>
-            <option value="중">중</option>
-            <option value="상">상</option>
+            <option value="하">하 · 1:30</option>
+            <option value="중">중 · 3:00</option>
+            <option value="상">상 · 5:00</option>
           </select>
         </div>
         <div class="field">
@@ -55,7 +84,7 @@
           <datalist id="unitOptions"></datalist>
         </div>
         <div class="field">
-          <label>문제 유형</label>
+          <span class="field-label">문제 유형</span>
           <div class="segmented" id="questionTypeGroup">
             <label class="segmented-option">
               <input type="radio" name="questionType" value="subjective" checked />
@@ -68,7 +97,7 @@
           </div>
         </div>
         <div class="field" id="answerFieldObjective">
-          <label>정답 (객관식)</label>
+          <span class="field-label">정답 (객관식)</span>
           <div class="choice-picker" id="answerChoiceGroup">
             <label class="choice-option"><input type="radio" name="answerChoice" value="1" /><span>①</span></label>
             <label class="choice-option"><input type="radio" name="answerChoice" value="2" /><span>②</span></label>
@@ -81,7 +110,8 @@
           <!-- 진행 화면은 정답으로 그 자리에서 채점한다. 정답이 없으면 그 문제는
                진행 화면에서 아예 안 뜬다. 그래서 필수다. -->
           <label for="answerText">정답 (필수)</label>
-          <input type="text" id="answerText" name="answerText" placeholder="정답을 반드시 입력하세요. 없으면 진행 화면에 안 뜹니다." maxlength="500" />
+          <input type="text" id="answerText" name="answerText" placeholder="예: 42" maxlength="500" />
+          <p class="field-note">정답이 없으면 진행 화면에 그 문제가 뜨지 않습니다.</p>
         </div>
         <div class="field">
           <label for="image">문제 이미지</label>
@@ -103,11 +133,13 @@
           <textarea id="description" name="description" placeholder="학생에게 보여줄 설명이나 정답 해설을 입력하세요." maxlength="5000"></textarea>
         </div>
         <div class="form-actions">
-          <button type="submit" class="btn-primary" id="submitBtn">등록하기</button>
-          <button type="button" class="btn-secondary" id="resetBtn">새로 작성</button>
+          <button type="submit" class="btn btn-primary" id="submitBtn">등록하기</button>
+          <button type="button" class="btn" id="resetBtn">새로 작성</button>
         </div>
       </form>
-    </div>
+      </div>
+    </section>
+
   </div>
 
   </div>
