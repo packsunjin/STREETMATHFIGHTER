@@ -343,7 +343,7 @@ textarea.input { min-height: 90px; resize: vertical; }
   const LEVELS=[{key:'1',id:'easy',name:'하',time:90,notes:['기본 계산 중심','여유 있는 풀이 시간']},{key:'2',id:'mid',name:'중',time:180,notes:['응용 한 단계 포함','표준 시험 속도']},{key:'3',id:'hard',name:'상',time:300,notes:['다단계 추론 문항','실전 최고 난도']}];
   const LABELS={idle:'대기',difficulty:'난이도 선택',confirm:'제한시간 확인',countdown:'카운트다운',solve:'문제 풀이',grading:'채점',result:'결과'};
   const screens=['idle','difficulty','confirm','countdown','solve','grading','result'];
-  const state={problems:[],level:'mid',index:0,question:null,used:new Set(),answer:'',picked:null,remain:0,elapsed:0,grade:0,muted:false,pen:true,width:6,zoom:100,strokes:[],redo:[],timer:null,cd:null};
+  const state={problems:[],level:'mid',index:0,question:null,used:new Set(),answer:'',picked:null,remain:0,elapsed:0,grade:0,photoSize:null,muted:false,pen:true,width:6,zoom:100,strokes:[],redo:[],timer:null,cd:null};
   const norm=d=>({하:'easy',중:'mid',상:'hard',easy:'easy',mid:'mid',hard:'hard'}[String(d||'').toLowerCase()]||d);
   function show(s){screens.forEach(x=>$(x).classList.toggle('active',x===s)); $('screenLabel').textContent=LABELS[s]; if(s==='solve') requestAnimationFrame(initCanvas);}
   // ---- 소리 (시안 그대로)
@@ -373,10 +373,32 @@ textarea.input { min-height: 90px; resize: vertical; }
   // 아래로만 바닥을 둔다(0%가 되면 사진이 사라져서 되돌릴 방법이 없다).
   const ZOOM_MIN=5;
   const zoomBy=f=>{state.zoom=Math.max(ZOOM_MIN,Math.round(state.zoom*f));applyZoom()};
-  function loadQuestionImage(){const q=state.question;$('questionImg').style.backgroundImage=`url(${JSON.stringify(q.image)})`;applyZoom()}
-  // 100%는 사진 높이가 판 높이에 딱 맞는 크기다(위아래 여백 없음). 폭은 비율대로 따라간다.
-  // 가로로 긴 사진은 이 상태에서 좌우가 판 밖으로 나가므로, 축소해서 맞추면 된다.
-  function applyZoom(){$('questionImg').style.backgroundSize='auto '+state.zoom+'%';$('zoomLabel').textContent=state.zoom+'%'}
+  // 사진 크기를 알아야 "판에 다 들어오는 크기"를 계산할 수 있다. 배경 이미지는
+  // 크기를 알려주지 않으므로 같은 주소로 한 장 더 띄워서 원본 픽셀을 잰다
+  // (브라우저 캐시에서 나오므로 사진을 두 번 받지는 않는다).
+  function loadQuestionImage(){
+    const q=state.question;
+    $('questionImg').style.backgroundImage=`url(${JSON.stringify(q.image)})`;
+    state.photoSize=null;
+    const probe=new Image();
+    probe.onload=()=>{if(state.question===q){state.photoSize={w:probe.naturalWidth,h:probe.naturalHeight};applyZoom()}};
+    probe.src=q.image;
+    applyZoom();
+  }
+  // 100%는 사진이 판에 통째로 들어오는 크기다. 세로로 긴 사진은 이때 위아래가 판에
+  // 딱 맞고, 가로로 긴 사진은 좌우가 딱 맞는다. 어느 쪽이든 처음부터 전부 보인다.
+  // 사진을 왼쪽 위에 붙여서, 남는 자리가 한 덩어리(오른쪽 또는 아래)로 이어지게 한다.
+  function applyZoom(){
+    const el=$('questionImg'),box=$('boardWrap'),p=state.photoSize;
+    if(p&&p.w&&p.h&&box.clientWidth&&box.clientHeight){
+      const fit=Math.min(box.clientWidth/p.w,box.clientHeight/p.h)*state.zoom/100;
+      el.style.backgroundSize=`${p.w*fit}px ${p.h*fit}px`;
+    }else{
+      // 사진 크기를 아직 모르는 짧은 순간. 브라우저가 판에 맞춰 주는 값으로 버틴다.
+      el.style.backgroundSize=state.zoom===100?'contain':'auto '+state.zoom+'%';
+    }
+    $('zoomLabel').textContent=state.zoom+'%';
+  }
   function renderAnswer(){ $('answerDisplay').textContent=state.answer||''; document.querySelectorAll('.choice-btn').forEach(b=>b.style.background=b.dataset.i==state.picked?'var(--color-accent)':'transparent');$('shortPanel').style.display=state.question&&state.question.type==='short'?'flex':'none';$('choicePanel').style.display=state.question&&state.question.type==='choice'?'grid':'none';$('panelMode').textContent=state.question&&state.question.type==='choice'?'객관식':'주관식';}
   function makeKeypad(){const keys=['7','8','9','4','5','6','1','2','3','0','.','/','-','⌫','C'];const box=$('keypad');box.innerHTML='';keys.forEach(k=>{const b=document.createElement('button');b.textContent=k;b.style.cssText='border:2px solid var(--color-divider);background:transparent;padding:0;font-size:clamp(14px,2.2vh,19px);font-weight:700;cursor:pointer;min-height:0';// click은 누른 곳과 뗀 곳이 같아야 발생한다. 전자칠판에서 손가락이 조금만
     // 미끄러져도 입력이 통째로 씹혔다. 계산기처럼 누르는 순간 들어가게 한다.
@@ -422,7 +444,7 @@ textarea.input { min-height: 90px; resize: vertical; }
   $('openAnswer').onclick=()=>{$('answerPanel').style.display='flex';$('answerOpenWrap').style.display='none';renderAnswer()};$('closeAnswer').onclick=()=>{$('answerPanel').style.display='none';$('answerOpenWrap').style.display='block'};$('submitBtn').onclick=()=>submit(false);
   $('startBtn').onclick=()=>{renderLevels();show('difficulty')};$('diffBack').onclick=()=>show('idle');$('confirmGo').onclick=startCountdown;$('confirmBack').onclick=()=>show('difficulty');$('nextBtn').onclick=next;$('idleBtn').onclick=toIdle;$('muteBtn').onclick=()=>{state.muted=!state.muted;$('muteBtn').textContent=state.muted?'소리 꺼짐':'소리 켜짐'};$('fullBtn').onclick=()=>{document.documentElement.requestFullscreen?.()};
   document.addEventListener('keydown',e=>{if(e.key==='f'||e.key==='F')$('fullBtn').click();else if(e.key==='Escape')toIdle();else if(e.key==='Enter'&&['idle','confirm','result'].some(s=>$(s).classList.contains('active'))){if($("idle").classList.contains('active'))$('startBtn').click();else if($("confirm").classList.contains('active'))$('confirmGo').click();else $('nextBtn').click()}else if($("difficulty").classList.contains('active')&&['1','2','3'].includes(e.key))chooseLevel(LEVELS[+e.key-1].id);else if($("solve").classList.contains('active')){if(e.key.toLowerCase()==='a')$('openAnswer').click();if(e.key.toLowerCase()==='e')state.pen=false;if(e.key.toLowerCase()==='u')$('undoBtn').click();if(e.key.toLowerCase()==='r')$('redoBtn').click();if(e.key.toLowerCase()==='c')$('clearBtn').click()}});
-  window.addEventListener('resize',()=>{if($("solve").classList.contains('active'))initCanvas()});
+  window.addEventListener('resize',()=>{if($("solve").classList.contains('active')){initCanvas();applyZoom()}});
   makeKeypad();
   show('idle');
   loadProblems();
