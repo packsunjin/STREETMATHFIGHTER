@@ -37,14 +37,18 @@ document.querySelectorAll('input[name="questionType"]').forEach((radio) => {
   radio.addEventListener('change', updateAnswerFieldVisibility);
 });
 
+let toastTimer;
 function showToast(message) {
   toast.textContent = message;
   toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 2000);
+  // 연달아 뜨면 앞 알림의 타이머가 뒤 알림을 먼저 지웠다. 타이머를 하나만 둔다.
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 2000);
 }
 
 async function checkAuth() {
   const res = await fetch('api/me', { credentials: 'include' });
+  if (goLoginIfExpired(res)) return;
   const data = await res.json();
   if (!data.authenticated) {
     window.location.href = 'index.html';
@@ -68,8 +72,38 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
   });
 });
 
+// 로그인이 풀리면 API가 401을 준다. 예전에는 그걸 그냥 빈 목록으로 그려서
+// "등록한 문제가 다 사라졌다"로 보였다. 로그인 화면으로 돌려보낸다.
+//
+// 단, 로그인 화면은 세션이 살아 있으면 이 화면으로 되돌려 보낸다. 두 응답이
+// 서로 어긋나면(api/me는 통과, 나머지는 401) 두 화면이 서로를 무한히 떠넘긴다.
+// 그래서 한 번만 보내고, 그래도 401이면 그 자리에 서서 이유를 말한다.
+const BOUNCE_KEY = 'smf-login-bounce';
+
+function bounceFlag(value) {
+  try {
+    if (value === null) return sessionStorage.removeItem(BOUNCE_KEY);
+    if (value === undefined) return sessionStorage.getItem(BOUNCE_KEY);
+    sessionStorage.setItem(BOUNCE_KEY, value);
+  } catch (err) {
+    return null; // 사생활 보호 모드 등에서 저장이 막혀도 화면은 돌아가야 한다
+  }
+}
+
+function goLoginIfExpired(res) {
+  if (res.status !== 401) return false;
+  if (bounceFlag()) {
+    showToast('로그인이 풀렸습니다. 다시 로그인해주세요.');
+    return true;
+  }
+  bounceFlag('1');
+  window.location.href = 'index.html';
+  return true;
+}
+
 async function loadUnits() {
   const res = await fetch('api/units', { credentials: 'include' });
+  if (goLoginIfExpired(res)) return;
   const data = await res.json();
   unitOptions.innerHTML = '';
   (data.units || []).forEach((unit) => {
@@ -84,6 +118,8 @@ async function loadUnits() {
    (서버의 ?difficulty= 거르개는 그대로 살아 있다. 이 화면이 안 쓸 뿐이다.) */
 async function loadProblems() {
   const res = await fetch('api/problems', { credentials: 'include' });
+  if (goLoginIfExpired(res)) return;
+  bounceFlag(null); // 제대로 받아왔으면 다음 만료 때 다시 한 번 보낼 수 있게 푼다
   const data = await res.json();
   problemsCache = data.problems || [];
   renderCounts();
@@ -142,6 +178,7 @@ function renderList() {
         method: 'DELETE',
         credentials: 'include',
       });
+      if (goLoginIfExpired(res)) return;
       if (res.ok) {
         showToast('삭제되었습니다.');
         if (selectedProblemId === problem.id) resetForm();
@@ -329,6 +366,12 @@ problemForm.addEventListener('submit', async (e) => {
   submitBtn.disabled = true;
   try {
     const res = await fetch(url, { method, credentials: 'include', body: formData });
+    // 저장할 때만은 로그인 화면으로 튕기지 않는다. 방금 쓴 제목·정답·사진이
+    // 통째로 날아간다. 같은 자리에 두고 무엇을 해야 하는지 알려준다.
+    if (res.status === 401) {
+      showToast('로그인이 풀렸습니다. 새 탭에서 다시 로그인한 뒤 저장해주세요.');
+      return;
+    }
     const data = await res.json();
     if (!res.ok) {
       showToast(data.error || '저장에 실패했습니다.');
@@ -346,7 +389,10 @@ problemForm.addEventListener('submit', async (e) => {
 });
 
 updateAnswerFieldVisibility();
-checkAuth().then(() => {
-  loadProblems();
-  loadUnits();
-});
+// 서버에 닿지 못하면 화면이 빈 채로 멈춰 있었다. 왜 비었는지는 말해줘야 한다.
+checkAuth()
+  .then(() => {
+    loadProblems();
+    loadUnits();
+  })
+  .catch(() => showToast('서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.'));

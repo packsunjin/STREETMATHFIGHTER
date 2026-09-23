@@ -393,6 +393,13 @@ app.put('/api/problems/:id', requireAuth, parseId, upload.single('image'), async
     if (!normalizedAnswer.ok) {
       return res.status(400).json({ error: '객관식 정답은 ①~⑤ 중 하나를 선택해주세요.' });
     }
+    // 유형만 객관식으로 바꾸고 정답은 그대로 두면, 예전 주관식 정답("7/10")이
+    // 객관식 정답 자리에 남는다. 진행 화면은 그걸 ①로 읽어서 엉뚱하게 채점한다.
+    const effectiveAnswer =
+      normalizedAnswer.value !== undefined ? normalizedAnswer.value : existing.answer;
+    if (effectiveType === 'objective' && !OBJECTIVE_CHOICES.includes(String(effectiveAnswer || '').trim())) {
+      return res.status(400).json({ error: '객관식으로 바꾸려면 정답을 ①~⑤ 중 하나로 다시 지정해주세요.' });
+    }
     // 정답 칸을 비워서 저장하면 그 문제는 진행 화면에서 사라진다. 지우지는 못하게 한다.
     // (answer를 아예 안 보낸 경우는 value가 undefined라서 기존 정답을 그대로 둔다)
     if (normalizedAnswer.value === null) {
