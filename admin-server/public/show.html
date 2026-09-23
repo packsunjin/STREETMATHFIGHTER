@@ -319,7 +319,7 @@ textarea.input { min-height: 90px; resize: vertical; }
     <div style="flex:1;min-height:0;position:relative;display:flex;flex-direction:column">
       <div style="flex:1;min-height:0;display:flex;flex-direction:column">
         <div style="display:flex;gap:5px;padding:5px 8px;border-bottom:2px solid var(--color-divider);flex-wrap:wrap;align-items:center">
-          <button id="penBtn" style="border:2px solid var(--color-text);background:var(--color-text);color:var(--color-bg);padding:6px 10px;font-size:12px;cursor:pointer">펜</button><button id="eraserBtn" style="border:2px solid var(--color-divider);background:transparent;padding:6px 10px;font-size:12px;cursor:pointer">지우개 E</button><button id="moveBtn" style="border:2px solid var(--color-divider);background:transparent;padding:6px 10px;font-size:12px;cursor:pointer">이동 M</button><input id="widthInput" type="range" min="1" max="24" value="6" style="width:120px"><div id="widthLabel" style="font-size:12px;min-width:56px">펜 6px</div><button id="undoBtn" style="border:2px solid var(--color-divider);background:transparent;padding:6px 10px;font-size:12px;cursor:pointer">되돌리기 U</button><button id="redoBtn" style="border:2px solid var(--color-divider);background:transparent;padding:6px 10px;font-size:12px;cursor:pointer">다시 R</button><button id="clearBtn" style="border:2px solid var(--color-divider);background:transparent;padding:6px 10px;font-size:12px;cursor:pointer">전체 지우기 C</button><div style="margin-left:auto;display:flex;gap:6px;align-items:center"><button id="zoomOut" style="border:2px solid var(--color-divider);background:transparent;padding:6px 10px;font-size:12px;cursor:pointer">−</button><div id="zoomLabel" style="font-size:12px;min-width:44px">100%</div><button id="zoomIn" style="border:2px solid var(--color-divider);background:transparent;padding:6px 10px;font-size:12px;cursor:pointer">+</button><button id="zoomReset" style="border:2px solid var(--color-divider);background:transparent;padding:6px 10px;font-size:12px;cursor:pointer">0</button></div>
+          <button id="penBtn" style="border:2px solid var(--color-text);background:var(--color-text);color:var(--color-bg);padding:6px 10px;font-size:12px;cursor:pointer">펜</button><button id="eraserBtn" style="border:2px solid var(--color-divider);background:transparent;padding:6px 10px;font-size:12px;cursor:pointer">지우개 E</button><button id="moveBtn" style="border:2px solid var(--color-divider);background:transparent;padding:6px 10px;font-size:12px;cursor:pointer">이동 M</button><input id="widthInput" type="range" min="1" max="24" value="5" style="width:120px"><div id="widthLabel" style="font-size:12px;min-width:56px">펜 5px</div><button id="undoBtn" style="border:2px solid var(--color-divider);background:transparent;padding:6px 10px;font-size:12px;cursor:pointer">되돌리기 U</button><button id="redoBtn" style="border:2px solid var(--color-divider);background:transparent;padding:6px 10px;font-size:12px;cursor:pointer">다시 R</button><button id="clearBtn" style="border:2px solid var(--color-divider);background:transparent;padding:6px 10px;font-size:12px;cursor:pointer">전체 지우기 C</button><div style="margin-left:auto;display:flex;gap:6px;align-items:center"><button id="zoomOut" style="border:2px solid var(--color-divider);background:transparent;padding:6px 10px;font-size:12px;cursor:pointer">−</button><div id="zoomLabel" style="font-size:12px;min-width:44px">100%</div><button id="zoomIn" style="border:2px solid var(--color-divider);background:transparent;padding:6px 10px;font-size:12px;cursor:pointer">+</button><button id="zoomReset" style="border:2px solid var(--color-divider);background:transparent;padding:6px 10px;font-size:12px;cursor:pointer">0</button></div>
         </div>
         <div id="boardWrap" style="flex:1;min-height:0;position:relative;overflow:hidden;background:var(--color-bg)"><div id="questionImg" role="img" aria-label="문제" style="position:absolute;left:0;top:0;right:0;bottom:0;background-position:left top;background-repeat:no-repeat;background-size:auto 100%;pointer-events:none"></div><canvas id="canvas" style="position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair"></canvas></div>
       </div>
@@ -347,7 +347,7 @@ textarea.input { min-height: 90px; resize: vertical; }
   const LEVELS=[{key:'1',id:'easy',name:'하',time:90,notes:['기본 계산 중심','여유 있는 풀이 시간']},{key:'2',id:'mid',name:'중',time:180,notes:['응용 한 단계 포함','표준 시험 속도']},{key:'3',id:'hard',name:'상',time:300,notes:['다단계 추론 문항','실전 최고 난도']}];
   const LABELS={idle:'대기',difficulty:'난이도 선택',confirm:'제한시간 확인',countdown:'카운트다운',solve:'문제 풀이',grading:'채점',result:'결과'};
   const screens=['idle','difficulty','confirm','countdown','solve','grading','result'];
-  const state={problems:[],level:'mid',index:0,question:null,used:new Set(),answer:'',picked:null,remain:0,elapsed:0,grade:0,photoSize:null,panX:0,panY:0,tool:'pen',retry:null,timedOut:false,score:0,muted:false,pen:true,width:6,zoom:100,strokes:[],acts:[],redo:[],timer:null,cd:null};
+  const state={problems:[],level:'mid',index:0,question:null,used:new Set(),answer:'',picked:null,remain:0,elapsed:0,grade:0,photoSize:null,panX:0,panY:0,tool:'pen',retry:null,timedOut:false,score:0,muted:false,pen:true,width:5,zoom:100,strokes:[],acts:[],redo:[],timer:null,cd:null};
   const norm=d=>({하:'easy',중:'mid',상:'hard',easy:'easy',mid:'mid',hard:'hard'}[String(d||'').toLowerCase()]||d);
   function show(s){screens.forEach(x=>$(x).classList.toggle('active',x===s)); $('screenLabel').textContent=LABELS[s]; if(s==='solve') requestAnimationFrame(initCanvas);}
   // ---- 소리 (시안 그대로)
@@ -390,7 +390,7 @@ textarea.input { min-height: 90px; resize: vertical; }
     $('questionImg').style.backgroundImage=`url(${JSON.stringify(q.image)})`;
     state.photoSize=null;
     const probe=new Image();
-    probe.onload=()=>{if(state.question===q){state.photoSize={w:probe.naturalWidth,h:probe.naturalHeight};applyZoom()}};
+    probe.onload=()=>{if(state.question===q){state.photoSize={w:probe.naturalWidth,h:probe.naturalHeight};centerPhoto();applyZoom()}};
     probe.src=q.image;
     applyZoom();
   }
@@ -404,12 +404,22 @@ textarea.input { min-height: 90px; resize: vertical; }
     const fit=Math.min(box.clientWidth/p.w,box.clientHeight/p.h)*state.zoom/100;
     return {w:p.w*fit,h:p.h*fit};
   }
+  // 사진은 판 한가운데에 놓고 시작한다. 왼쪽 위에 붙여 두면 넓은 화면에서
+  // 한쪽 구석에 박힌 것처럼 보인다.
+  function centerPhoto(){
+    const b=photoBox(),box=$('boardWrap');
+    if(!b)return false;
+    state.panX=(box.clientWidth-b.w)/2;state.panY=(box.clientHeight-b.h)/2;
+    return true;
+  }
   function applyZoom(){
     const el=$('questionImg'),b=photoBox();
-    if(b)el.style.backgroundSize=`${b.w}px ${b.h}px`;
-    // 사진 크기를 아직 모르는 짧은 순간. 브라우저가 판에 맞춰 주는 값으로 버틴다.
-    else el.style.backgroundSize=state.zoom===100?'contain':'auto '+state.zoom+'%';
-    el.style.backgroundPosition=`${Math.round(state.panX)}px ${Math.round(state.panY)}px`;
+    if(b){el.style.backgroundSize=`${b.w}px ${b.h}px`;el.style.backgroundPosition=`${Math.round(state.panX)}px ${Math.round(state.panY)}px`}
+    else{
+      // 사진 크기를 아직 모르는 짧은 순간. 브라우저가 판에 맞춰 주는 값으로 버틴다.
+      el.style.backgroundSize=state.zoom===100?'contain':'auto '+state.zoom+'%';
+      el.style.backgroundPosition='center center';
+    }
     $('zoomLabel').textContent=state.zoom+'%';
   }
   // 확대는 기준점(손가락 가운데, 없으면 판 한가운데)을 붙잡고 한다.
@@ -429,8 +439,8 @@ textarea.input { min-height: 90px; resize: vertical; }
     applyZoom();
   }
   function panBy(dx,dy){state.panX+=dx;state.panY+=dy;applyZoom()}
-  // 사진을 판에 맞춰 왼쪽 위로 되돌린다
-  function resetView(){state.zoom=100;state.panX=0;state.panY=0;applyZoom()}
+  // 사진을 판에 맞춰 한가운데로 되돌린다
+  function resetView(){state.zoom=100;if(!centerPhoto()){state.panX=0;state.panY=0}applyZoom()}
   function renderAnswer(){ $('answerDisplay').textContent=state.answer||''; document.querySelectorAll('.choice-btn').forEach(b=>b.style.background=b.dataset.i==state.picked?'var(--color-accent)':'transparent');$('shortPanel').style.display=state.question&&state.question.type==='short'?'flex':'none';$('choicePanel').style.display=state.question&&state.question.type==='choice'?'grid':'none';$('panelMode').textContent=state.question&&state.question.type==='choice'?'객관식':'주관식';}
   function makeKeypad(){const keys=['7','8','9','4','5','6','1','2','3','0','.','/','-','⌫','C'];const box=$('keypad');box.innerHTML='';keys.forEach(k=>{const b=document.createElement('button');b.textContent=k;b.style.cssText='border:2px solid var(--color-divider);background:transparent;padding:0;font-size:clamp(14px,2.2vh,19px);font-weight:700;cursor:pointer;min-height:0';// click은 누른 곳과 뗀 곳이 같아야 발생한다. 전자칠판에서 손가락이 조금만
     // 미끄러져도 입력이 통째로 씹혔다. 계산기처럼 누르는 순간 들어가게 한다.
