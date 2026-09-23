@@ -448,7 +448,9 @@ textarea.input { min-height: 90px; resize: vertical; }
   $('canvas').addEventListener('pointermove',e=>{
     if(pts.has(e.pointerId))pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
     if(pinch&&pts.size>=2){const g=gap();if(pinch.gap>0){state.zoom=Math.max(ZOOM_MIN,Math.round(pinch.zoom*g/pinch.gap));applyZoom()}return}
-    if(!drawing)return;const p=pos(e);state.strokes.push({sid:strokeSeq,x1:last.x,y1:last.y,x2:p.x,y2:p.y,erase:!state.pen,w:state.width,zoom:state.zoom});last=p;drawAll()
+    if(!drawing)return;const p=pos(e);const r=$('canvas').getBoundingClientRect();
+    if(r.width&&r.height)state.strokes.push({sid:strokeSeq,x1:last.x/r.width,y1:last.y/r.height,x2:p.x/r.width,y2:p.y/r.height,erase:!state.pen,w:state.width});
+    last=p;drawAll()
   });
   ['pointerup','pointercancel'].forEach(ev=>$('canvas').addEventListener(ev,e=>{
     pts.delete(e.pointerId);
@@ -456,7 +458,8 @@ textarea.input { min-height: 90px; resize: vertical; }
     // 확대하다 손가락 하나를 떼도 남은 손가락으로 갑자기 선이 그어지면 안 된다
     drawing=false;last=null;
   }));
-  function drawAll(){const c=$('canvas'),ctx=c.getContext('2d'),r=c.getBoundingClientRect();ctx.clearRect(0,0,r.width,r.height);ctx.lineCap='round';state.strokes.forEach(s=>{ctx.globalCompositeOperation=s.erase?'destination-out':'source-over';ctx.strokeStyle='#201e1d';ctx.lineWidth=s.w;ctx.beginPath();ctx.moveTo(s.x1,s.y1);ctx.lineTo(s.x2,s.y2);ctx.stroke()});ctx.globalCompositeOperation='source-over'}
+  // 획은 판 대비 비율로 들고 있다. 판이 커지거나 작아져도 사진 위 같은 자리에 남는다.
+  function drawAll(){const c=$('canvas'),ctx=c.getContext('2d'),r=c.getBoundingClientRect();ctx.clearRect(0,0,r.width,r.height);ctx.lineCap='round';state.strokes.forEach(s=>{ctx.globalCompositeOperation=s.erase?'destination-out':'source-over';ctx.strokeStyle='#201e1d';ctx.lineWidth=s.w;ctx.beginPath();ctx.moveTo(s.x1*r.width,s.y1*r.height);ctx.lineTo(s.x2*r.width,s.y2*r.height);ctx.stroke()});ctx.globalCompositeOperation='source-over'}
   $('penBtn').onclick=()=>setTool(true);$('eraserBtn').onclick=()=>setTool(false);$('widthInput').oninput=e=>{state.width=+e.target.value;$('widthLabel').textContent=state.width+'px'};
   // 되돌리기/다시는 획 하나를 통째로 다룬다(조각 하나씩이면 눌러도 티가 안 난다).
   $('undoBtn').onclick=()=>{const s=state.strokes;if(!s.length)return;const sid=s[s.length-1].sid,grp=[];while(s.length&&s[s.length-1].sid===sid)grp.unshift(s.pop());state.redo.push(grp);drawAll()};
