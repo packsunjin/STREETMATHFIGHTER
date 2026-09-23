@@ -1,11 +1,17 @@
+/* 문제 등록·관리 화면이 DB와 주고받는 부분.
+   화면 생김새는 시안(Modernist)대로 바뀌었지만, 부르는 API는 그대로다.
+   GET api/problems · POST api/problems · PUT/DELETE api/problems/:id · GET api/units */
+
 let currentDifficultyFilter = '';
 let selectedProblemId = null;
 let problemsCache = [];
 
 const problemList = document.getElementById('problemList');
 const emptyState = document.getElementById('emptyState');
+const listCount = document.getElementById('listCount');
 const problemForm = document.getElementById('problemForm');
 const formTitle = document.getElementById('formTitle');
+const formHint = document.getElementById('formHint');
 const submitBtn = document.getElementById('submitBtn');
 const problemIdInput = document.getElementById('problemId');
 const titleInput = document.getElementById('title');
@@ -31,14 +37,18 @@ document.querySelectorAll('input[name="questionType"]').forEach((radio) => {
   radio.addEventListener('change', updateAnswerFieldVisibility);
 });
 
+let toastTimer;
 function showToast(message) {
   toast.textContent = message;
   toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 2000);
+  // 연달아 뜨면 앞 알림의 타이머가 뒤 알림을 먼저 지웠다. 타이머를 하나만 둔다.
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 2000);
 }
 
 async function checkAuth() {
   const res = await fetch('api/me', { credentials: 'include' });
+  if (goLoginIfExpired(res)) return;
   const data = await res.json();
   if (!data.authenticated) {
     window.location.href = 'index.html';
@@ -57,12 +67,43 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
     document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
     currentDifficultyFilter = btn.dataset.difficulty;
-    loadProblems();
+    // 목록은 이미 받아 뒀다. 난이도를 누를 때마다 서버에 다시 묻지 않는다.
+    renderList();
   });
 });
 
+// 로그인이 풀리면 API가 401을 준다. 예전에는 그걸 그냥 빈 목록으로 그려서
+// "등록한 문제가 다 사라졌다"로 보였다. 로그인 화면으로 돌려보낸다.
+//
+// 단, 로그인 화면은 세션이 살아 있으면 이 화면으로 되돌려 보낸다. 두 응답이
+// 서로 어긋나면(api/me는 통과, 나머지는 401) 두 화면이 서로를 무한히 떠넘긴다.
+// 그래서 한 번만 보내고, 그래도 401이면 그 자리에 서서 이유를 말한다.
+const BOUNCE_KEY = 'smf-login-bounce';
+
+function bounceFlag(value) {
+  try {
+    if (value === null) return sessionStorage.removeItem(BOUNCE_KEY);
+    if (value === undefined) return sessionStorage.getItem(BOUNCE_KEY);
+    sessionStorage.setItem(BOUNCE_KEY, value);
+  } catch (err) {
+    return null; // 사생활 보호 모드 등에서 저장이 막혀도 화면은 돌아가야 한다
+  }
+}
+
+function goLoginIfExpired(res) {
+  if (res.status !== 401) return false;
+  if (bounceFlag()) {
+    showToast('로그인이 풀렸습니다. 다시 로그인해주세요.');
+    return true;
+  }
+  bounceFlag('1');
+  window.location.href = 'index.html';
+  return true;
+}
+
 async function loadUnits() {
   const res = await fetch('api/units', { credentials: 'include' });
+  if (goLoginIfExpired(res)) return;
   const data = await res.json();
   unitOptions.innerHTML = '';
   (data.units || []).forEach((unit) => {
@@ -72,30 +113,57 @@ async function loadUnits() {
   });
 }
 
+/* 난이도 칸은 거르개이면서 동시에 "지금 DB에 몇 개 있는지"를 보여준다.
+   그래서 목록을 난이도별로 나눠 받지 않고 한 번에 받아서, 숫자를 세고 화면에서 거른다.
+   (서버의 ?difficulty= 거르개는 그대로 살아 있다. 이 화면이 안 쓸 뿐이다.) */
 async function loadProblems() {
-  const qs = currentDifficultyFilter ? `?difficulty=${encodeURIComponent(currentDifficultyFilter)}` : '';
-  const res = await fetch(`api/problems${qs}`, { credentials: 'include' });
+  const res = await fetch('api/problems', { credentials: 'include' });
+  if (goLoginIfExpired(res)) return;
+  bounceFlag(null); // 제대로 받아왔으면 다음 만료 때 다시 한 번 보낼 수 있게 푼다
   const data = await res.json();
   problemsCache = data.problems || [];
+  renderCounts();
   renderList();
 }
 
-function renderList() {
-  problemList.innerHTML = '';
-  emptyState.style.display = problemsCache.length === 0 ? 'block' : 'none';
+function renderCounts() {
+  document.querySelectorAll('.tab-count').forEach((el) => {
+    const level = el.dataset.count;
+    el.textContent = level
+      ? problemsCache.filter((p) => p.difficulty === level).length
+      : problemsCache.length;
+  });
+}
 
-  problemsCache.forEach((problem) => {
+function visibleProblems() {
+  return currentDifficultyFilter
+    ? problemsCache.filter((p) => p.difficulty === currentDifficultyFilter)
+    : problemsCache;
+}
+
+function renderList() {
+  const problems = visibleProblems();
+  problemList.innerHTML = '';
+  emptyState.hidden = problems.length > 0;
+  listCount.textContent = currentDifficultyFilter
+    ? `${currentDifficultyFilter} ${problems.length}문제`
+    : `${problems.length}문제`;
+
+  problems.forEach((problem) => {
     const li = document.createElement('li');
     li.className = 'problem-item' + (problem.id === selectedProblemId ? ' selected' : '');
     li.innerHTML = `
       <img alt="" />
       <div class="meta">
         <div class="title">${escapeHtml(problem.title)}</div>
-        <span class="badge ${problem.difficulty}">${problem.difficulty}</span>
-        <span class="badge type">${problem.questionType === 'objective' ? '객관식' : '주관식'}</span>
-        ${problem.unit ? `<span class="badge type">${escapeHtml(problem.unit)}</span>` : ''}
+        <div class="tags">
+          <span class="badge level">${escapeHtml(problem.difficulty)}</span>
+          <span class="badge type">${problem.questionType === 'objective' ? '객관식' : '주관식'}</span>
+          ${problem.unit ? `<span class="badge type">${escapeHtml(problem.unit)}</span>` : ''}
+          <span class="badge answer">정답 ${escapeHtml(answerLabel(problem))}</span>
+        </div>
       </div>
-      <button class="btn-danger" data-id="${problem.id}">삭제</button>
+      <button class="btn btn-sm btn-danger" data-id="${problem.id}">삭제</button>
     `;
     // src는 문자열로 끼워넣지 않는다(따옴표가 섞이면 속성이 깨질 수 있음)
     li.querySelector('img').src = problem.imageUrl;
@@ -110,6 +178,7 @@ function renderList() {
         method: 'DELETE',
         credentials: 'include',
       });
+      if (goLoginIfExpired(res)) return;
       if (res.ok) {
         showToast('삭제되었습니다.');
         if (selectedProblemId === problem.id) resetForm();
@@ -120,6 +189,16 @@ function renderList() {
     });
     problemList.appendChild(li);
   });
+}
+
+// 객관식 정답은 DB에 1~5로 들어 있다. 등록 화면에서 고른 모양(①~⑤) 그대로 보여준다.
+const CHOICE_MARKS = { 1: '①', 2: '②', 3: '③', 4: '④', 5: '⑤' };
+
+function answerLabel(problem) {
+  if (!problem.answer) return '없음';
+  return problem.questionType === 'objective'
+    ? CHOICE_MARKS[problem.answer] || problem.answer
+    : problem.answer;
 }
 
 function escapeHtml(str) {
@@ -156,6 +235,7 @@ function loadIntoForm(problem) {
   dropzoneFile.hidden = false;
   dropzoneFile.textContent = '등록된 사진 · 바꾸려면 새로 넣어주세요';
   formTitle.textContent = '문제 수정';
+  formHint.textContent = `#${problem.id} ${problem.title}`;
   submitBtn.textContent = '수정 저장';
   renderList();
 }
@@ -173,6 +253,7 @@ function resetForm() {
   dropzoneHint.hidden = false;
   dropzoneFile.hidden = true;
   formTitle.textContent = '새 문제 등록';
+  formHint.textContent = '비어 있는 폼';
   submitBtn.textContent = '등록하기';
   updateAnswerFieldVisibility();
   renderList();
@@ -285,6 +366,12 @@ problemForm.addEventListener('submit', async (e) => {
   submitBtn.disabled = true;
   try {
     const res = await fetch(url, { method, credentials: 'include', body: formData });
+    // 저장할 때만은 로그인 화면으로 튕기지 않는다. 방금 쓴 제목·정답·사진이
+    // 통째로 날아간다. 같은 자리에 두고 무엇을 해야 하는지 알려준다.
+    if (res.status === 401) {
+      showToast('로그인이 풀렸습니다. 새 탭에서 다시 로그인한 뒤 저장해주세요.');
+      return;
+    }
     const data = await res.json();
     if (!res.ok) {
       showToast(data.error || '저장에 실패했습니다.');
@@ -302,7 +389,10 @@ problemForm.addEventListener('submit', async (e) => {
 });
 
 updateAnswerFieldVisibility();
-checkAuth().then(() => {
-  loadProblems();
-  loadUnits();
-});
+// 서버에 닿지 못하면 화면이 빈 채로 멈춰 있었다. 왜 비었는지는 말해줘야 한다.
+checkAuth()
+  .then(() => {
+    loadProblems();
+    loadUnits();
+  })
+  .catch(() => showToast('서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.'));

@@ -9,6 +9,12 @@
 </head>
 <body>
   <div class="login-wrap">
+    <!-- 진행 화면 대기 상태와 같은 짜임새. 왼쪽이 이름, 오른쪽이 할 일. -->
+    <div class="login-aside">
+      <div class="eyebrow">Street Math Fighter</div>
+      <h1 class="headline">문제 관리</h1>
+      <p class="muted">등록한 문제는 강당 전자칠판의 진행 화면에서 그대로 쓰입니다.</p>
+    </div>
     <form class="login-card" id="loginForm">
       <h1>관리자 로그인</h1>
       <p>문제를 등록하고 관리하려면 로그인하세요.</p>
@@ -20,7 +26,7 @@
         <label for="password">비밀번호</label>
         <input type="password" id="password" name="password" autocomplete="current-password" required />
       </div>
-      <button type="submit" class="btn-primary">로그인</button>
+      <button type="submit" class="btn btn-primary btn-block">로그인</button>
       <div class="error-msg" id="errorMsg"></div>
     </form>
   </div>
