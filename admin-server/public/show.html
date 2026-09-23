@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <style>
 /* Modernist — design-system tokens and component classes. This file is the source of truth for the system's look; retune it here and see readme.md. */
 /* 같은 Archivo를 직접 들고 있는 파일에서 부른다. 행사 당일 학교 네트워크가
@@ -260,7 +260,7 @@ textarea.input { min-height: 90px; resize: vertical; }
 
 
 </style>
-<style>html,body{margin:0;height:100%;overflow:hidden}button,input{font-family:inherit}*{box-sizing:border-box}.screen:not(.active){display:none!important}
+<style>html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;touch-action:manipulation}button,input{font-family:inherit}*{box-sizing:border-box}.screen:not(.active){display:none!important}
 /* 전자칠판은 손가락 접촉면이 넓어서 탭 한 번에도 화면상 수십 px이 밀린다.
    그대로 두면 브라우저가 탭을 취소하거나(입력 씹힘), 글자를 선택하거나,
    길게 누르면 복사 팝업이 뜬다. 답 입력 버튼들은 그걸 전부 막는다. */
@@ -340,6 +340,10 @@ textarea.input { min-height: 90px; resize: vertical; }
 <script>
 (() => {
   const $=id=>document.getElementById(id);
+  // 두 손가락은 문제 사진 확대에만 쓴다(캔버스가 처리). 브라우저가 페이지를 통째로
+  // 확대해 버리면 제목과 '답 입력하기' 버튼이 화면 밖으로 밀려 손을 못 댄다.
+  document.addEventListener('touchmove',e=>{if(e.touches.length>1)e.preventDefault()},{passive:false});
+  ['gesturestart','gesturechange','gestureend'].forEach(ev=>document.addEventListener(ev,e=>e.preventDefault()));
   const LEVELS=[{key:'1',id:'easy',name:'하',time:90,notes:['기본 계산 중심','여유 있는 풀이 시간']},{key:'2',id:'mid',name:'중',time:180,notes:['응용 한 단계 포함','표준 시험 속도']},{key:'3',id:'hard',name:'상',time:300,notes:['다단계 추론 문항','실전 최고 난도']}];
   const LABELS={idle:'대기',difficulty:'난이도 선택',confirm:'제한시간 확인',countdown:'카운트다운',solve:'문제 풀이',grading:'채점',result:'결과'};
   const screens=['idle','difficulty','confirm','countdown','solve','grading','result'];
