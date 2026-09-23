@@ -215,6 +215,12 @@ tests/                                # 통합 테스트 (node:test + supertest 
 npm test
 ```
 
+테스트 파일은 **한 번에 하나씩** 돌린다(`--test-concurrency=1`). 파일마다 관리자 앱을
+새로 띄우는데, 앱이 뜰 때 세션 표(`session`)를 없으면 만든다. 두 파일이 동시에 뜨면
+같은 표를 동시에 만들려다 한쪽이 `duplicate key ... pg_type_typname_nsp_index`로
+깨지고, 그 뒤로 그 앱의 모든 요청이 500이 된다. 실제로 CI가 이것 때문에 간헐적으로
+빨갛게 떴다.
+
 `shared/db.js`의 CRUD, 진행 화면 API(로그인 없이는 정답이 안 나가는지 포함),
 공개 페이지가 정답·사진·필기를 흘리지 않는지, admin-server의 인증/권한을
 로컬 Postgres에 대고 검증합니다. `DATABASE_URL`이 로컬 테스트 DB를 가리키도록
