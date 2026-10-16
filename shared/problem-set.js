@@ -8,7 +8,7 @@
 
 const { pool, ready } = require('./db');
 
-const PROBLEM_SET_VERSION = '2026-10-문제수합';
+const PROBLEM_SET_VERSION = '2026-10-문제수합-2';
 
 // 사진이 우리 서버에 있는 문제는 image_public_id가 이 접두어로 시작한다.
 // Cloudinary에 지우라고 보내면 안 되는 표시다.
@@ -27,7 +27,6 @@ const PROBLEM_SET = [
   { file: '07.jpg', difficulty: '중', unit: '대수', author: '김다연', type: 'objective', answer: '3' },
   { file: '08.jpg', difficulty: '중', unit: '대수', author: '구현지', type: 'subjective', answer: '12' },
   { file: '09.jpg', difficulty: '중', unit: '대수(삼각함수)', author: '김지영', type: 'objective', answer: '4' },
-  { file: '10.jpg', difficulty: '중', unit: '대수(삼각함수)', author: '김지영', type: 'objective', answer: '1' },
   { file: '11.jpg', difficulty: '중', unit: '기하', author: '김태완', type: 'objective', answer: '3' },
   { file: '12.jpg', difficulty: '중', unit: '대수', author: '김다연', type: 'objective', answer: '3' },
   { file: '13.jpg', difficulty: '중', unit: '기하', author: '김태완', type: 'objective', answer: '5' },
@@ -39,6 +38,7 @@ const PROBLEM_SET = [
   { file: '18.jpg', difficulty: '하', unit: '공통수학1', author: '구현지', type: 'objective', answer: '4' },
   { file: '19.jpg', difficulty: '하', unit: '공통수학2', author: '구현지', type: 'objective', answer: '4' },
   { file: '20.jpg', difficulty: '하', unit: '대수(수열)', author: '김지영', type: 'subjective', answer: '462' },
+  // 김지영(중) 슬라이드에도 똑같은 문제가 있었다. 한 번만 나오게 이쪽만 남긴다.
   { file: '21.jpg', difficulty: '하', unit: '대수', author: '김다연', type: 'objective', answer: '1' },
   { file: '22.jpg', difficulty: '하', unit: '공통수학1', author: '오현준', type: 'subjective', answer: '29' },
 ];
