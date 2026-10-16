@@ -188,6 +188,7 @@ async function deleteProblem(id) {
 
 module.exports = {
   pool,
+  ready,
   DIFFICULTIES,
   QUESTION_TYPES,
   OBJECTIVE_CHOICES,

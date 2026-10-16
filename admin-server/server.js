@@ -24,6 +24,7 @@ const {
   updateProblem,
   deleteProblem,
 } = require('../shared/db');
+const { applyProblemSet, LOCAL_IMAGE_PREFIX } = require('../shared/problem-set');
 
 const PORT = process.env.ADMIN_PORT || 4000;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
@@ -126,6 +127,25 @@ function uploadImageToCloudinary(buffer) {
     );
     Readable.from(buffer).pipe(uploadStream);
   });
+}
+
+// 문제 사진을 지운다. 행사용 묶음 사진(우리 서버에 있는 것)은 Cloudinary에 없으니
+// 보내지 않는다. 실패해도 문제 삭제/수정 자체는 이미 끝났으므로 무시한다.
+function destroyImage(publicId) {
+  if (!publicId || publicId.startsWith(LOCAL_IMAGE_PREFIX)) return;
+  cloudinary.uploader.destroy(publicId).catch(() => {});
+}
+
+// 서버가 뜰 때 DB를 행사용 문제 묶음으로 갈아끼운다(버전마다 한 번, shared/problem-set.js).
+async function installProblemSet() {
+  const result = await applyProblemSet();
+  if (result.applied) {
+    console.log(
+      `[admin-server] 문제 묶음을 새로 넣었습니다: 기존 ${result.removed}개 삭제, ${result.inserted}개 등록`
+    );
+    result.removedPublicIds.forEach(destroyImage);
+  }
+  return result;
 }
 
 // public 아래에 화면과 vendor(글꼴/애니메이션 라이브러리)가 같이 있다.
@@ -272,7 +292,6 @@ app.get('/api/stats/problem-counts', requireAuth, async (req, res, next) => {
   }
 });
 
-// 선생님용: 학생들이 실제로 어떻게 풀고 있는지(등록된 문제 수가 아니라 성취도)
 // ---- 강당 라이브 이벤트(진행 화면) ----
 // 진행 화면은 정답을 미리 알고 있어야 한다(타이머 끝나면 그 자리에서 공개).
 // 문제 목록만은 로그인 없이 연다. 시안 진행 화면에 로그인 자리가 없어서,
@@ -416,7 +435,7 @@ app.put('/api/problems/:id', requireAuth, parseId, upload.single('image'), async
       const uploaded = await uploadImageToCloudinary(req.file.buffer);
       image_path = uploaded.secure_url;
       image_public_id = uploaded.public_id;
-      cloudinary.uploader.destroy(existing.image_public_id).catch(() => {});
+      destroyImage(existing.image_public_id);
     }
 
     const problem = await updateProblem(req.problemId, {
@@ -441,7 +460,7 @@ app.delete('/api/problems/:id', requireAuth, parseId, async (req, res, next) => 
     const deleted = await deleteProblem(req.problemId);
     if (!deleted) return res.status(404).json({ error: '문제를 찾을 수 없습니다.' });
 
-    cloudinary.uploader.destroy(deleted.image_public_id).catch(() => {});
+    destroyImage(deleted.image_public_id);
 
     res.json({ ok: true });
   } catch (err) {
@@ -475,6 +494,7 @@ app.use((err, req, res, next) => {
 });
 
 if (require.main === module) {
+  installProblemSet().catch((err) => console.error('[admin-server] 문제 묶음을 넣지 못했습니다:', err));
   const server = app.listen(PORT, () => {
     console.log(`[admin-server] 관리자 서버 실행 중: http://localhost:${PORT}`);
   });
@@ -489,3 +509,4 @@ if (require.main === module) {
 }
 
 module.exports = app;
+module.exports.installProblemSet = installProblemSet;

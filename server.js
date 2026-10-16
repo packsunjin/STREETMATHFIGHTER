@@ -55,6 +55,12 @@ app.get('/', (req, res) =>
 app.use('/admin', adminApp);
 app.use('/', adminApp);
 
+// 행사용 문제 묶음을 DB에 넣는다(버전마다 한 번). 실패해도 서버는 띄운다 —
+// 그 경우 기존 문제가 그대로 남아 있으므로 진행 화면은 계속 쓸 수 있다.
+adminApp.installProblemSet().catch((err) => {
+  console.error('[server] 문제 묶음을 넣지 못했습니다:', err);
+});
+
 const server = app.listen(PORT, () => {
   console.log(`[server] 스트릿매쓰파이터 실행 중: http://localhost:${PORT} (문제 등록: /admin)`);
 });
