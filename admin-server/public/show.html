@@ -2,6 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
+<link rel="icon" href="data:,">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <style>
 /* Modernist — design-system tokens and component classes. This file is the source of truth for the system's look; retune it here and see readme.md. */
@@ -326,7 +327,7 @@ textarea.input { min-height: 90px; resize: vertical; }
       <div id="answerOpenWrap" style="position:absolute;right:16px;bottom:16px;z-index:10"><button id="openAnswer" style="border:2px solid var(--color-text);background:var(--color-accent);color:#fff;padding:16px 20px;text-align:left;font-size:16px;font-weight:700;cursor:pointer">답 입력하기 A</button></div>
       <div id="answerPanel" style="position:absolute;right:0;top:0;height:100%;width:min(360px,42vw);background:var(--color-bg);border-left:2px solid var(--color-divider);display:none;flex-direction:column;z-index:20">
         <div style="padding:12px;border-bottom:2px solid var(--color-divider);flex:0 0 auto;font-size:12px;letter-spacing:0.08em;text-transform:uppercase" id="panelMode">주관식</div>
-        <div id="shortPanel" style="flex:1 1 0;padding:10px;display:flex;flex-direction:column;gap:8px;min-height:0;overflow:hidden"><div id="answerDisplay" style="flex:0 0 auto;border:2px solid var(--color-text);padding:10px 12px;min-height:clamp(48px,7vh,64px);display:flex;align-items:center;justify-content:flex-end;font-family:var(--font-heading);font-size:clamp(24px,4.2vh,38px);font-weight:800;letter-spacing:-0.02em;overflow:hidden;white-space:nowrap"></div><div id="keypad" style="flex:1 1 0;min-height:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:minmax(0,1fr);gap:6px"></div></div>
+        <div id="shortPanel" style="flex:1 1 0;padding:10px;display:flex;flex-direction:column;gap:8px;min-height:0;overflow:hidden"><div id="answerDisplay" style="flex:0 0 auto;border:2px solid var(--color-text);padding:0 12px;height:clamp(52px,8vh,72px);line-height:1;display:flex;align-items:center;justify-content:flex-end;font-family:var(--font-heading);font-size:clamp(24px,4.2vh,38px);font-weight:800;letter-spacing:-0.02em;overflow:hidden;white-space:nowrap"></div><div id="keypad" style="flex:1 1 0;min-height:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:minmax(0,1fr);gap:6px"></div></div>
         <div id="choicePanel" style="flex:1 1 0;padding:10px;display:none;grid-auto-rows:minmax(0,1fr);gap:8px;min-height:0;overflow:hidden"></div>
         <div id="answerFooter" style="margin-top:auto;padding:12px;border-top:2px solid var(--color-divider);display:flex;flex-direction:column;gap:8px"><button id="submitBtn" style="width:100%;border:2px solid var(--color-text);background:var(--color-accent);color:#fff;padding:16px;font-size:16px;font-weight:700;text-align:left;cursor:pointer">제출 Enter</button><button id="closeAnswer" style="width:100%;border:2px solid var(--color-divider);background:transparent;padding:10px;font-size:13px;text-align:left;cursor:pointer">닫기 A</button></div>
       </div>
@@ -393,10 +394,12 @@ textarea.input { min-height: 90px; resize: vertical; }
   // (브라우저 캐시에서 나오므로 사진을 두 번 받지는 않는다).
   function loadQuestionImage(){
     const q=state.question;
-    $('questionImg').style.backgroundImage=`url(${JSON.stringify(q.image)})`;
+    // 사진은 크기를 안 다음에야 띄운다. 먼저 띄우면 판 전체 크기로 0.1초쯤 번쩍
+    // 보였다가 제 크기로 줄어들었다.
+    $('questionImg').style.backgroundImage='none';
     state.photoSize=null;
     const probe=new Image();
-    probe.onload=()=>{if(state.question===q){state.photoSize={w:probe.naturalWidth,h:probe.naturalHeight};centerPhoto();applyZoom()}};
+    probe.onload=()=>{if(state.question===q){state.photoSize={w:probe.naturalWidth,h:probe.naturalHeight};centerPhoto();applyZoom();$('questionImg').style.backgroundImage=`url(${JSON.stringify(q.image)})`}};
     // 사진을 못 받으면 빈 판만 남아서 무슨 일인지 알 수 없었다. 판 위에 이유를 띄운다
     // (그 사이에도 타이머와 필기는 그대로 돈다).
     probe.onerror=()=>{if(state.question===q)photoNote('문제 사진을 불러오지 못했습니다 — 인터넷 연결을 확인하세요')};
@@ -407,14 +410,16 @@ textarea.input { min-height: 90px; resize: vertical; }
   function photoNote(text){let n=$('photoNote');
     if(!n){n=document.createElement('div');n.id='photoNote';n.style.cssText='position:absolute;left:16px;top:16px;z-index:5;border:2px solid var(--color-accent);background:var(--color-bg);color:var(--color-accent-700);padding:10px 14px;font-weight:700;pointer-events:none';$('boardWrap').appendChild(n)}
     n.textContent=text;n.style.display=text?'block':'none'}
-  // 100%는 사진이 판에 통째로 들어오는 크기다. 세로로 긴 사진은 이때 위아래가 판에
-  // 딱 맞고, 가로로 긴 사진은 좌우가 딱 맞는다. 어느 쪽이든 처음부터 전부 보인다.
-  // 사진을 왼쪽 위에 붙여서, 남는 자리가 한 덩어리(오른쪽 또는 아래)로 이어지게 한다.
+  // 100%는 사진이 판의 가로 60% · 세로 65% 안에 통째로 들어오는 크기다.
+  // 예전에는 판 전체에 맞췄는데, 가로로 긴 교과서 캡처가 판 너비를 다 먹어서 글자가
+  // 지나치게 크고 풀 자리가 없었다. 작은 캡처를 원래보다 1.5배 넘게 늘리지도 않는다
+  // (늘릴수록 흐려진다). 더 크게 봐야 하면 +나 두 손가락으로 키운다.
+  const PHOTO_FIT={w:0.6,h:0.65,maxScale:1.5};
   // 지금 판에 그려지는 사진의 크기(px)
   function photoBox(){
     const box=$('boardWrap'),p=state.photoSize;
     if(!p||!p.w||!p.h||!box.clientWidth||!box.clientHeight)return null;
-    const fit=Math.min(box.clientWidth/p.w,box.clientHeight/p.h)*state.zoom/100;
+    const fit=Math.min(box.clientWidth*PHOTO_FIT.w/p.w,box.clientHeight*PHOTO_FIT.h/p.h,PHOTO_FIT.maxScale)*state.zoom/100;
     return {w:p.w*fit,h:p.h*fit};
   }
   // 사진은 판 한가운데에 놓고 시작한다. 왼쪽 위에 붙여 두면 넓은 화면에서
@@ -606,7 +611,9 @@ textarea.input { min-height: 90px; resize: vertical; }
     if(a.t==='d'){state.strokes=byStroke(state.strokes.concat(a.segs));state.acts.push({t:'d',sid:a.sid})}
     else{const ids=new Set(a.segs.map(s=>s.sid));state.strokes=state.strokes.filter(s=>!ids.has(s.sid));state.acts.push(a)}
     drawAll()};
-  $('clearBtn').onclick=()=>{state.strokes=[];state.acts=[];state.redo=[];drawAll()};
+  // 전체 지우기도 되돌릴 수 있다. 예전에는 기록까지 통째로 버려서, 'C'를 잘못 누르거나
+  // 버튼이 스치면 학생이 쓴 풀이가 영영 사라졌다. 한 번에 문질러 지운 것과 똑같이 기록한다.
+  $('clearBtn').onclick=()=>{if(!state.strokes.length)return;state.acts.push({t:'e',segs:state.strokes});state.strokes=[];state.redo=[];drawAll()};
   $('zoomIn').onclick=()=>zoomBy(1.15);$('zoomOut').onclick=()=>zoomBy(1/1.15);$('zoomReset').onclick=resetView;
   $('openAnswer').onclick=()=>{$('answerPanel').style.display='flex';$('answerOpenWrap').style.display='none';renderAnswer()};$('closeAnswer').onclick=()=>{$('answerPanel').style.display='none';$('answerOpenWrap').style.display='block'};$('submitBtn').onclick=()=>submit(false);
   $('startBtn').onclick=async()=>{
