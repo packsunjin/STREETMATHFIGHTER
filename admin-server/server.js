@@ -92,13 +92,23 @@ const loginLimiter = rateLimit({
 
 const ALLOWED_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp']);
 
+// 확장자가 안 맞는 파일. 예전에는 그냥 Error라서 오류 처리기가 "요청을 처리할 수
+// 없습니다"(500)로 바꿔 버렸고, 선생님은 뭘 고쳐야 하는지 알 수 없었다.
+class BadImageError extends Error {
+  constructor() {
+    super('이미지 파일(png, jpg, jpeg, gif, webp)만 업로드할 수 있습니다.');
+    this.name = 'BadImageError';
+    this.status = 400;
+  }
+}
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     if (!ALLOWED_EXTENSIONS.has(ext)) {
-      return cb(new Error('이미지 파일(png, jpg, jpeg, gif, webp)만 업로드할 수 있습니다.'));
+      return cb(new BadImageError());
     }
     cb(null, true);
   },
@@ -401,6 +411,10 @@ app.put('/api/problems/:id', requireAuth, parseId, upload.single('image'), async
 
     const { title, difficulty, description, questionType, answer, unit } = req.body || {};
 
+    // 수정에서 제목을 지우고 저장하면 빈 제목이 그대로 들어가, 목록에 이름 없는 줄이 생겼다.
+    if (title !== undefined && !String(title).trim()) {
+      return res.status(400).json({ error: '제목을 입력해주세요.' });
+    }
     if (difficulty && !DIFFICULTIES.includes(difficulty)) {
       return res.status(400).json({ error: '난이도는 상/중/하 중 하나여야 합니다.' });
     }
@@ -486,7 +500,7 @@ app.use((err, req, res, next) => {
 
   // 우리가 직접 만든 오류만 메시지를 그대로 내보낸다.
   // 그 외에는 라이브러리/DB 내부 메시지가 브라우저로 새지 않도록 막는다.
-  if (err instanceof ImageUploadError) {
+  if (err instanceof ImageUploadError || err instanceof BadImageError) {
     return res.status(err.status).json({ error: err.message });
   }
 
