@@ -177,3 +177,33 @@ test('업로드가 실패해도 내부 오류 메시지가 브라우저로 새�
   assert.equal(res.body.error, '사진 업로드에 실패했습니다. 잠시 후 다시 시도해주세요.');
   assert.ok(!/403|status code|cloudinary/i.test(JSON.stringify(res.body)), '내부 정보가 없어야 함');
 });
+
+test('이미지가 아닌 파일을 올리면 무엇이 문제인지 400으로 알려준다', async () => {
+  // 예전에는 확장자 검사 오류가 "요청을 처리할 수 없습니다"(500)로 바뀌어 나갔다.
+  const agent = request.agent(app);
+  await agent
+    .post('/api/login')
+    .send({ username: process.env.ADMIN_USERNAME, password: process.env.ADMIN_PASSWORD });
+
+  const res = await agent
+    .post('/api/problems')
+    .field('title', '[test] 잘못된 파일')
+    .field('difficulty', '중')
+    .field('answer', '10')
+    .attach('image', Buffer.from('hello'), 'notes.txt');
+
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /이미지 파일/);
+});
+
+test('수정에서 제목을 비우고 저장하면 막힌다', async () => {
+  const problem = await makeProblem({ title: '제목 비우기' });
+  const agent = request.agent(app);
+  await agent
+    .post('/api/login')
+    .send({ username: process.env.ADMIN_USERNAME, password: process.env.ADMIN_PASSWORD });
+
+  const res = await agent.put(`/api/problems/${problem.id}`).field('title', '   ');
+  assert.equal(res.status, 400);
+  assert.equal((await db.getProblem(problem.id)).title, problem.title);
+});

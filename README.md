@@ -71,7 +71,7 @@
 - 다음 문제 사진은 예고 화면이 떠 있는 동안 미리 받아둬서, 시작하자마자 보입니다.
 - 사진을 못 받으면 이유를 화면에 띄우고, 그 사이에도 타이머와 필기는 계속 됩니다.
 - 세션이 만료되면(점심시간 내내 켜두면 생깁니다) 감지해서 알려줍니다.
-- 글꼴과 애니메이션 라이브러리를 직접 들고 있어서, 학교 네트워크가 외부 CDN을
+- 글꼴을 직접 들고 있어서, 학교 네트워크가 외부 CDN을
   막아둬도 화면이 그대로 뜹니다.
 - 등장 연출이 끝날 때까지 입력을 잠급니다. 급하게 두 번 눌러도 엉뚱한 버튼이
   눌리지 않습니다.
@@ -202,16 +202,13 @@ Railway, Fly.io 등 다른 Node.js 호스팅도 원리는 같습니다: 빌드 `
 ```
 shared/db.js                          # 문제 Postgres 모듈
 admin-server/                         # 로그인, 문제 CRUD API, Cloudinary 업로드, 관리 화면
-admin-server/public/show.html         # 강당 전자칠판 진행 화면
-admin-server/public/js/show.js        #   └ 진행 상태 전환 + 자동 채점
-admin-server/public/js/show-draw.js   #   └ 필기 엔진(벡터 저장 + 손바닥 걸러내기)
-admin-server/public/js/show-anim.js   #   └ 연출(화면 교대/카운트다운/채점 막대/효과음)
+admin-server/public/show.html         # 강당 전자칠판 진행 화면(화면·필기·채점이 이 파일 하나에 다 있다)
+admin-server/public/problem-set/      # 행사용 문제 사진 (정답 등은 shared/problem-set.js)
 admin-server/admin-dashboard-app/     # 통계 대시보드(React+Vite+Tailwind, /stats로 서빙)
-admin-server/public/css/show.css      #   └ Modernist 디자인 토큰과 화면 레이아웃
 admin-server/public/dashboard.html    # 문제 등록·수정·삭제 화면
 admin-server/public/js/dashboard.js   #   └ 문제 CRUD API 호출과 목록/폼 상태
 admin-server/public/css/style.css     #   └ 관리 화면의 Modernist 레이아웃(로그인 포함)
-admin-server/public/vendor/           # 글꼴(Archivo·Noto Sans KR)·Anime.js 자체 호스팅
+admin-server/public/vendor/           # 글꼴(Archivo·Noto Sans KR) 자체 호스팅
 server.js                             # 진입점
 render.yaml                           # Render 배포 블루프린트
 tests/                                # 통합 테스트 (node:test + supertest + Playwright)
