@@ -200,7 +200,8 @@ Railway, Fly.io 등 다른 Node.js 호스팅도 원리는 같습니다: 빌드 `
 ```
 shared/db.js                          # 문제 Postgres 모듈
 admin-server/                         # 로그인, 문제 CRUD API, Cloudinary 업로드, 관리 화면
-admin-server/public/show.html         # 강당 전자칠판 진행 화면(화면·필기·채점이 이 파일 하나에 다 있다)
+admin-server/public/show.html         # 강당 전자칠판 진행 화면(생김새)
+admin-server/public/js/stage.js       #   └ 진행 화면 동작 전부(화면 전환·필기·채점·소리)
 admin-server/public/problem-set/      # 행사용 문제 사진 (정답 등은 shared/problem-set.js)
 admin-server/admin-dashboard-app/     # 통계 대시보드(React+Vite+Tailwind, /stats로 서빙)
 admin-server/public/dashboard.html    # 문제 등록·수정·삭제 화면
@@ -238,7 +239,8 @@ npm test
 그리고 화면 어디에도 3D·둥근 모서리·그림자가 남아 있지 않은지.
 행사 중에 막히면 되돌릴 방법이 없는 화면이라 회귀 테스트로 고정해뒀습니다.
 브라우저가 없는 환경에서는 이 테스트만 자동으로 건너뜁니다
-(`npx playwright install chromium`으로 설치).
+(`npx playwright install chromium`으로 설치). 설치된 playwright와 브라우저 버전이 다르면
+`CHROMIUM_PATH=/경로/chrome npm test`로 실행 파일을 직접 지정합니다.
 
 CI(`.github/workflows/ci.yml`)는 push/PR마다 임시 Postgres 컨테이너와 크로미움을
 띄워 위 테스트 전체와 관리자 대시보드 빌드를 자동으로 실행합니다.
