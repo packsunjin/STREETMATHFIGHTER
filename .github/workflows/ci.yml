@@ -6,7 +6,9 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # ubuntu-latest가 26.04로 바뀌면서 playwright 1.56이 크로미움을 못 깔아 CI가 테스트 전에
+    # 죽었다("Playwright does not support chromium on ubuntu26.04-x64"). 지원되는 판으로 고정한다.
+    runs-on: ubuntu-24.04
 
     services:
       postgres:

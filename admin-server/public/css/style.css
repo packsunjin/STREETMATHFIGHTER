@@ -430,7 +430,9 @@ textarea {
 .field input[type='text'],
 .field input[type='password'],
 .field select,
-.field textarea {
+.field textarea,
+.bulk-row input,
+.bulk-row select {
   width: 100%;
   padding: 10px 12px;
   border: var(--line);
@@ -440,12 +442,16 @@ textarea {
 
 .field input:hover,
 .field select:hover,
+.bulk-row input:hover,
+.bulk-row select:hover,
 .field textarea:hover {
   border-color: var(--text);
 }
 
 .field input:focus-visible,
 .field select:focus-visible,
+.bulk-row input:focus-visible,
+.bulk-row select:focus-visible,
 .field textarea:focus-visible {
   border-color: var(--accent);
   outline-offset: 0;
@@ -690,5 +696,100 @@ textarea {
 
   .col-body {
     overflow: visible;
+  }
+}
+
+/* ================= 켜고 끄기 · 미리보기 ================= */
+
+/* 이번 행사에서 뺀 문제. 지우지 않았으니 목록에는 있지만 흐리게. */
+.problem-item.off img,
+.problem-item.off .meta {
+  opacity: 0.45;
+}
+.badge.off {
+  border-color: var(--text);
+  color: var(--text);
+  font-weight: 700;
+}
+.item-actions {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+.item-actions .btn {
+  justify-content: center;
+  min-width: 72px;
+}
+.btn-toggle.on {
+  border: var(--line-strong);
+  background: var(--text);
+  color: var(--bg);
+}
+
+.field-note.error {
+  color: var(--accent-700);
+  font-weight: 700;
+}
+
+/* ================= 여러 장 한꺼번에 ================= */
+
+.bulk {
+  border-top: var(--line-strong);
+  padding: 18px 20px 40px;
+}
+.bulk-title {
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+.bulk-list {
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+  border-top: var(--line);
+}
+.bulk-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 10px 14px;
+  padding: 12px 0;
+  border-bottom: var(--line);
+}
+.bulk-row img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  border: var(--line);
+  background: var(--paper);
+  grid-row: span 2;
+}
+.bulk-row .bulk-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  gap: 8px;
+  align-items: center;
+}
+/* 제목은 한 줄을 다 쓰고, 그 아래에 난이도·유형·정답·빼기 */
+.bulk-row .b-title {
+  grid-column: 1 / -1;
+}
+.bulk-row input,
+.bulk-row select {
+  width: 100%;
+  min-width: 0;
+}
+.bulk-row .bulk-status {
+  font-size: 12px;
+  color: var(--muted);
+}
+.bulk-row .bulk-status.error {
+  color: var(--accent-700);
+  font-weight: 700;
+}
+@media (max-width: 900px) {
+  .bulk-row .bulk-fields {
+    grid-template-columns: 1fr 1fr;
+  }
+  .item-actions {
+    flex-direction: column;
   }
 }

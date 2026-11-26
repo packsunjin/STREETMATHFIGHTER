@@ -22,6 +22,7 @@ const {
   getProblem,
   createProblem,
   updateProblem,
+  setProblemActive,
   deleteProblem,
 } = require('../shared/db');
 const { applyProblemSet, LOCAL_IMAGE_PREFIX } = require('../shared/problem-set');
@@ -46,7 +47,28 @@ const app = express();
 // 프록시가 아니라 실제 클라이언트 기준으로 동작하게 함.
 app.set('trust proxy', 1);
 
-app.use(helmet({ contentSecurityPolicy: false })); // CSP는 인라인 스크립트가 없어질 때까지 보류
+// 인라인 스크립트가 없어져서(진행 화면 스크립트를 js/stage.js로 꺼냄) CSP를 켠다.
+// 스크립트는 우리 서버 것만. 화면이 style 속성을 많이 써서 스타일만 inline을 허용한다.
+// 사진은 Cloudinary, 일괄 등록 미리보기는 blob:, favicon은 data:.
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      useDefaults: false,
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:', 'blob:', 'https://res.cloudinary.com'],
+        fontSrc: ["'self'"],
+        connectSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'self'"],
+      },
+    },
+  })
+);
 app.use(compression());
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 // 관리자 페이지(정적 파일+API)는 항상 같은 오리진에서만 호출되므로 CORS는 필요 없고,
@@ -160,16 +182,31 @@ async function installProblemSet() {
 
 // public 아래에 화면과 vendor(글꼴/애니메이션 라이브러리)가 같이 있다.
 // 단독 실행이든 /admin 마운트든 같은 상대경로로 잡히도록 여기서만 서빙한다.
+// 행사용 문제 사진과 글꼴은 바뀔 일이 거의 없다. 브라우저가 들고 있게 해서 다시 열 때
+// 사진이 바로 뜨게 한다(문제 묶음을 바꾸면 파일 이름도 바뀌므로 하루면 충분).
+app.use('/problem-set', express.static(path.join(__dirname, 'public', 'problem-set'), { maxAge: '1d' }));
+app.use('/vendor', express.static(path.join(__dirname, 'public', 'vendor'), { maxAge: '30d' }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/stats', express.static(path.join(__dirname, 'admin-dashboard-app', 'dist')));
+
+// 진행 화면 숫자판에 있는 것(숫자 . / -)으로 칠 수 있는 답: 정수, 소수, 분수, 음수.
+// "9분의 4"나 "③"처럼 숫자판으로 칠 수 없는 정답이 들어가면 학생이 맞게 풀어도
+// 정답을 입력할 방법이 없다. 실제로 문제 수합 슬라이드에 "9분의 4"가 있었다.
+const KEYPAD_ANSWER = /^-?\d*\.?\d+(\/-?\d*\.?\d+)?$/;
 
 // 정답 문자열 정규화. 미입력이면 null(채점 기능 없음), 객관식이면 1~5만 허용.
 function normalizeAnswer(questionType, rawAnswer) {
   if (rawAnswer === undefined || rawAnswer === null) return { ok: true, value: undefined };
-  const trimmed = String(rawAnswer).trim();
+  const trimmed = String(rawAnswer).trim().replace(/\s+/g, '');
   if (!trimmed) return { ok: true, value: null };
   if (questionType === 'objective' && !OBJECTIVE_CHOICES.includes(trimmed)) {
-    return { ok: false };
+    return { ok: false, error: '객관식 정답은 ①~⑤ 중 하나를 선택해주세요.' };
+  }
+  if (questionType !== 'objective' && !KEYPAD_ANSWER.test(trimmed)) {
+    return {
+      ok: false,
+      error: '주관식 정답은 진행 화면 숫자판으로 칠 수 있게 숫자로 적어주세요 (예: 42, 0.4, 3/4, -2).',
+    };
   }
   return { ok: true, value: trimmed };
 }
@@ -238,6 +275,7 @@ function toPublicProblem(problem) {
     questionType: problem.question_type,
     answer: problem.answer,
     unit: problem.unit || null,
+    active: problem.active !== false,
     createdAt: problem.created_at,
     updatedAt: problem.updated_at,
   };
@@ -315,7 +353,7 @@ app.get('/api/show/problems', async (req, res, next) => {
       return res.status(400).json({ error: '올바르지 않은 난이도입니다.' });
     }
 
-    const problems = await listProblems({ difficulty: difficulty || undefined });
+    const problems = await listProblems({ difficulty: difficulty || undefined, activeOnly: true });
 
     // 정답이 없으면 채점을 못 하니 쇼에서 쓸 수 없다. 다만 조용히 버리면
     // 진행 화면에는 "등록된 문제 없음"으로만 뜨고 왜 그런지 알 방법이 없다.
@@ -332,6 +370,8 @@ app.get('/api/show/problems', async (req, res, next) => {
         imageUrl: p.image_path,
         questionType: p.question_type,
         answer: p.answer,
+        // 정답을 공개할 때 출제자·해설을 같이 띄운다
+        description: p.description || null,
       })),
       noAnswer: noAnswer.map((p) => ({
         id: p.id,
@@ -369,7 +409,7 @@ app.post('/api/problems', requireAuth, upload.single('image'), async (req, res, 
     }
     const normalizedAnswer = normalizeAnswer(questionType || 'subjective', answer);
     if (!normalizedAnswer.ok) {
-      return res.status(400).json({ error: '객관식 정답은 ①~⑤ 중 하나를 선택해주세요.' });
+      return res.status(400).json({ error: normalizedAnswer.error });
     }
     // 정답이 없으면 진행 화면이 채점을 못 해서 그 문제를 아예 안 쓴다.
     // 예전에는 그냥 등록됐고, 관리자 목록에만 보이고 진행 화면에서는
@@ -424,7 +464,7 @@ app.put('/api/problems/:id', requireAuth, parseId, upload.single('image'), async
     const effectiveType = questionType || existing.question_type;
     const normalizedAnswer = normalizeAnswer(effectiveType, answer);
     if (!normalizedAnswer.ok) {
-      return res.status(400).json({ error: '객관식 정답은 ①~⑤ 중 하나를 선택해주세요.' });
+      return res.status(400).json({ error: normalizedAnswer.error });
     }
     // 유형만 객관식으로 바꾸고 정답은 그대로 두면, 예전 주관식 정답("7/10")이
     // 객관식 정답 자리에 남는다. 진행 화면은 그걸 ①로 읽어서 엉뚱하게 채점한다.
@@ -463,6 +503,21 @@ app.put('/api/problems/:id', requireAuth, parseId, upload.single('image'), async
       unit: unit !== undefined ? unit.trim() : undefined,
     });
 
+    res.json({ problem: toPublicProblem(problem) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// 이번 행사에 낼지 켜고 끈다. 목록에서 바로 누르는 스위치라 다른 칸은 건드리지 않는다.
+app.patch('/api/problems/:id/active', requireAuth, parseId, async (req, res, next) => {
+  try {
+    const { active } = req.body || {};
+    if (typeof active !== 'boolean') {
+      return res.status(400).json({ error: 'active는 true/false여야 합니다.' });
+    }
+    const problem = await setProblemActive(req.problemId, active);
+    if (!problem) return res.status(404).json({ error: '문제를 찾을 수 없습니다.' });
     res.json({ problem: toPublicProblem(problem) });
   } catch (err) {
     next(err);

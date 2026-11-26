@@ -207,3 +207,71 @@ test('수정에서 제목을 비우고 저장하면 막힌다', async () => {
   assert.equal(res.status, 400);
   assert.equal((await db.getProblem(problem.id)).title, problem.title);
 });
+
+test('주관식 정답은 숫자판으로 칠 수 있어야 한다("9분의 4"는 막는다)', async () => {
+  const agent = request.agent(app);
+  await agent
+    .post('/api/login')
+    .send({ username: process.env.ADMIN_USERNAME, password: process.env.ADMIN_PASSWORD });
+
+  const bad = await agent
+    .post('/api/problems')
+    .field('title', '[test] 한글 정답')
+    .field('difficulty', '상')
+    .field('questionType', 'subjective')
+    .field('answer', '9분의 4')
+    .attach('image', Buffer.from([0x89, 0x50, 0x4e, 0x47]), 'x.png');
+  assert.equal(bad.status, 400);
+  assert.match(bad.body.error, /숫자판/);
+
+  // 수정에서도 막는다. 분수·소수·음수는 된다.
+  const problem = await makeProblem({ title: '정답 형식', answer: '10' });
+  const badEdit = await agent.put(`/api/problems/${problem.id}`).field('answer', '③');
+  assert.equal(badEdit.status, 400);
+  for (const ok of ['3/4', '0.4', '-2']) {
+    const res = await agent.put(`/api/problems/${problem.id}`).field('answer', ok);
+    assert.equal(res.status, 200, `${ok}는 받아야 함`);
+    assert.equal(res.body.problem.answer, ok);
+  }
+});
+
+test('이번 행사에 낼지 켜고 끈다', async () => {
+  const problem = await makeProblem({ title: '켜고 끄기' });
+  const agent = request.agent(app);
+  await agent
+    .post('/api/login')
+    .send({ username: process.env.ADMIN_USERNAME, password: process.env.ADMIN_PASSWORD });
+
+  assert.equal((await request(app).patch(`/api/problems/${problem.id}/active`).send({ active: false })).status, 401);
+  assert.equal((await agent.patch(`/api/problems/${problem.id}/active`).send({ active: 'no' })).status, 400);
+
+  const off = await agent.patch(`/api/problems/${problem.id}/active`).send({ active: false });
+  assert.equal(off.status, 200);
+  assert.equal(off.body.problem.active, false);
+  const show = await request(app).get('/api/show/problems');
+  assert.ok(!show.body.problems.some((p) => p.id === problem.id), '끈 문제는 진행 화면에 안 나와야 함');
+
+  // 관리 목록에는 그대로 있다
+  const list = await agent.get('/api/problems');
+  assert.equal(list.body.problems.find((p) => p.id === problem.id).active, false);
+
+  await agent.patch(`/api/problems/${problem.id}/active`).send({ active: true });
+  const show2 = await request(app).get('/api/show/problems');
+  assert.ok(show2.body.problems.some((p) => p.id === problem.id));
+});
+
+test('CSP가 켜져 있고 스크립트는 우리 서버 것만 허용한다', async () => {
+  const res = await request(app).get('/show.html');
+  const csp = res.headers['content-security-policy'];
+  assert.ok(csp, 'CSP 헤더가 있어야 함');
+  assert.match(csp, /script-src 'self'(;|$)/);
+  assert.doesNotMatch(csp, /script-src[^;]*unsafe-inline/);
+  // 진행 화면에 인라인 스크립트가 다시 생기면 CSP에 막혀 화면이 통째로 안 돈다
+  assert.doesNotMatch(res.text, /<script>(?!\s*<\/script>)/);
+});
+
+test('문제 묶음 사진은 브라우저가 들고 있게 한다', async () => {
+  const res = await request(app).get('/problem-set/01.jpg');
+  assert.equal(res.status, 200);
+  assert.match(res.headers['cache-control'], /max-age=86400/);
+});
