@@ -332,6 +332,8 @@ app.get('/api/show/problems', async (req, res, next) => {
         imageUrl: p.image_path,
         questionType: p.question_type,
         answer: p.answer,
+        // 정답을 공개할 때 출제자·해설을 같이 띄운다
+        description: p.description || null,
       })),
       noAnswer: noAnswer.map((p) => ({
         id: p.id,

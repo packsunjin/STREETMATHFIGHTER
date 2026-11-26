@@ -24,13 +24,14 @@ async function makeProblem(overrides = {}) {
     question_type: 'subjective',
     answer: overrides.answer ?? '42',
     unit: overrides.unit ?? null,
+    description: overrides.description ?? null,
   });
   createdProblemIds.push(created.id);
   return created;
 }
 
 before(async () => {
-  problem = await makeProblem({ title: '쇼 문제', answer: '42', unit: '등비수열' });
+  problem = await makeProblem({ title: '쇼 문제', answer: '42', unit: '등비수열', description: '출제자: 테스트' });
   agent = request.agent(adminApp);
   await agent
     .post('/api/login')
@@ -59,6 +60,7 @@ test('진행용 문제 목록에는 정답이 함께 온다(진행자가 그 자
   assert.ok(mine, '방금 만든 문제가 목록에 있어야 함');
   assert.equal(mine.answer, '42');
   assert.equal(mine.unit, '등비수열');
+  assert.equal(mine.description, '출제자: 테스트'); // 정답 공개 때 같이 띄운다
   assert.ok(mine.imageUrl);
 });
 

@@ -300,3 +300,33 @@ test('펜 색을 바꿔 쓸 수 있다(키 2 = 빨강). 쓰는 동안 그린 것
   assert.ok(Math.abs(redrawn - live) / live < 0.25, `쓰는 중 ${live}px, 다시 그림 ${redrawn}px`);
   assert.deepEqual(ui.errors, []);
 });
+
+test('정답 공개는 두 번 눌러야 되고, 공개할 때 출제자도 같이 보인다', async (t) => {
+  const ui = await openStage(t);
+  if (!ui) return;
+  await ui.startLevel('1');
+  await ui.page.click('#revealBtn');
+  await ui.page.clock.runFor(2500); // 2초가 지나면 다시 처음 상태
+  await ui.page.click('#revealBtn');
+  await ui.page.clock.runFor(200);
+  assert.equal(await ui.active(), 'solve', '한 번 눌러서는 공개되면 안 됨');
+  await ui.page.click('#revealBtn');
+  await ui.page.clock.runFor(1500);
+  assert.equal(await ui.text('#verdict'), '정답 공개');
+  assert.equal(await ui.text('#resultCorrect'), '462');
+  assert.equal(await ui.text('#resultCredit'), '출제자: 김지영');
+});
+
+test('마지막 10초에만 화면 가장자리 빨간 테가 켜지고, 틀렸을 때는 출제자를 가린다', async (t) => {
+  const ui = await openStage(t);
+  if (!ui) return;
+  await ui.startLevel('1');
+  const ring = () => ui.page.$eval('#urgentRing', (e) => e.classList.contains('on'));
+  assert.equal(await ring(), false);
+  await ui.page.clock.runFor(81_000); // 1:30 중 9초 남음
+  assert.equal(await ring(), true);
+  await ui.answer('1');
+  assert.equal(await ring(), false);
+  assert.equal(await ui.text('#verdict'), '오답');
+  assert.equal(await ui.text('#resultCredit'), '');
+});

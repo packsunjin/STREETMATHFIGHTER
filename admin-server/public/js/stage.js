@@ -89,6 +89,10 @@
       o.stop(a.currentTime + dur);
     } catch (e) {}
   }
+  // 음 여러 개를 차례로(ms 간격). 정답 팡파레·오답 부저에 쓴다.
+  function melody(notes, step, type) {
+    notes.forEach((f, i) => setTimeout(() => beep(f, i === notes.length - 1 ? 0.35 : 0.12, type), i * step));
+  }
   async function loadProblems() {
     try {
       const r = await fetch('api/show/problems', { credentials: 'include' });
@@ -116,9 +120,11 @@
             difficulty: norm(p.difficulty),
             unit: p.unit || '',
             title: p.title || '',
+            description: p.description || '',
           };
         });
       state.loadError = null;
+      preloadPhotos();
     } catch (e) {
       console.warn('실시간 문제 연동 실패', e);
       // 행사 중에 와이파이가 한 번 끊긴 채로 '시작'을 누르면 받아 둔 문제까지 날아가
@@ -130,6 +136,33 @@
     }
     renderStatus();
   }
+  // 문제 사진을 전부 미리 받아 둔다(묶음 사진 21장이 1MB 남짓). 그러면 문제를 띄울 때
+  // 기다릴 일이 없고, 행사 중에 와이파이가 끊겨도 받아 둔 사진은 그대로 뜬다.
+  const preloaded = new Map();
+  function preloadPhotos() {
+    state.problems.forEach((p) => {
+      if (preloaded.has(p.image)) return;
+      const img = new Image();
+      img.decoding = 'async';
+      img.src = p.image;
+      preloaded.set(p.image, img);
+    });
+  }
+  // 전자칠판 PC가 점심시간 중간에 화면 보호기로 꺼지지 않게 한다(지원하는 브라우저에서만).
+  let wakeLock = null;
+  async function keepAwake() {
+    try {
+      if (!wakeLock && navigator.wakeLock && document.visibilityState === 'visible') {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => (wakeLock = null));
+      }
+    } catch (e) {
+      wakeLock = null;
+    }
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && state.wantAwake) keepAwake();
+  });
   function pool(level) {
     return state.problems.filter((p, i) => p.difficulty === level && !state.used.has(p.id));
   }
@@ -234,7 +267,9 @@
     state.panY = 0;
     setTool('pen');
     $('answerPanel').style.display = 'none';
-    $('answerOpenWrap').style.display = 'block';
+    $('answerOpenWrap').style.display = 'flex';
+    state.gaveUp = false;
+    armReveal(false);
     makeChoices();
     renderAnswer();
     updateSolveUI();
@@ -260,8 +295,12 @@
       }
     }, 1000);
   }
+  function setUrgent(on) {
+    $('urgentRing').classList.toggle('on', Boolean(on));
+  }
   function updateSolveUI() {
     $('clock').textContent = state.remain <= 0 ? '0:00' : fmt(state.remain);
+    setUrgent(state.remain > 0 && state.remain <= 10);
     $('gauge').style.width = Math.max(0, (state.remain / levelObj().time) * 100) + '%';
     $('modeLabel').textContent = state.question.type === 'choice' ? '객관식' : '주관식';
     $('unitName').textContent = state.question.unit || '';
@@ -436,7 +475,7 @@
       const b = document.createElement('button');
       b.className = 'choice-btn';
       b.dataset.i = i;
-      b.textContent = c;
+      b.textContent = MARK[i] || c;
       b.style.cssText =
         'border:2px solid var(--color-divider);background:transparent;padding:0;font-size:clamp(18px,3vh,28px);font-weight:700;cursor:pointer';
       b.onpointerdown = (e) => {
@@ -475,6 +514,9 @@
       y = toNumber(b);
     return Number.isFinite(x) && Number.isFinite(y) && Math.abs(x - y) <= 1e-9 * Math.max(1, Math.abs(y));
   }
+  // 객관식 번호는 문제지에 찍힌 모양(①~⑤)으로 보여준다
+  const MARK = ['①', '②', '③', '④', '⑤'];
+  const typedLabel = () => state.answer || (state.picked != null ? MARK[state.picked] : '—');
   function submit(timeout = false) {
     // 아무것도 안 넣고 제출을 누르면(손이 스쳤거나 Enter를 먼저 눌렀거나) 오답으로 처리돼
     // 그 학생 기회가 날아갔다. 시간이 다 된 경우가 아니면 빈 답은 받지 않는다.
@@ -496,7 +538,7 @@
     state.correct = ok;
     state.score = (state.score || 0) + (ok ? 10 : 0);
     $('gradingMode').textContent = q.type === 'choice' ? '객관식' : '주관식';
-    $('gradingAnswer').textContent = state.answer || (state.picked != null ? String(state.picked + 1) : '—');
+    $('gradingAnswer').textContent = typedLabel();
     $('gradingElapsed').textContent = fmt(state.elapsed);
     $('gradeBar').style.width = '0%';
     $('gradeStep').textContent = '답안 확인';
@@ -509,7 +551,7 @@
       $('gradeStep').textContent = p < 60 ? '계산 중' : p < 100 ? '판정 중' : '완료';
       if (p >= 100) {
         clearInterval(state.gradeTimer);
-        beep(ok ? 1046 : 220, ok ? 0.25 : 0.35, ok ? 'triangle' : 'sawtooth');
+        if (!ok && !timeout) melody([233, 175], 220, 'sawtooth');
         showResult(ok, timeout);
       }
     }, 120);
@@ -527,23 +569,54 @@
     } else state.retry = q;
     show('result');
     const reveal = ok || timeout;
-    $('resultTyped').textContent = state.answer || (state.picked != null ? String(state.picked + 1) : '—');
-    $('resultCorrect').textContent = reveal
-      ? q.type === 'choice'
-        ? String(q.correctIndex + 1)
-        : q.answer
-      : '—';
+    $('resultTyped').textContent = typedLabel();
+    $('resultCorrect').textContent = reveal ? (q.type === 'choice' ? MARK[q.correctIndex] : q.answer) : '—';
     $('resultElapsed').textContent = fmt(state.elapsed);
-    $('verdict').textContent = timeout ? '시간 종료' : ok ? '정답' : '오답';
+    setUrgent(false);
+    $('verdict').textContent = state.gaveUp ? '정답 공개' : timeout ? '시간 종료' : ok ? '정답' : '오답';
+    // 정답을 공개할 때는 출제자·해설도 같이 보여준다(틀렸을 때는 정답과 함께 가린다)
+    $('resultCredit').textContent = reveal ? q.description || '' : '';
     $('verdict').style.background = ok ? 'var(--color-accent)' : 'var(--color-text)';
-    $('prizeLabel').textContent = ok ? '상품 지급' : timeout ? '시간 종료' : '다음 사람';
+    $('prizeLabel').textContent = ok ? '상품 지급' : state.gaveUp ? '정답 공개' : timeout ? '시간 종료' : '다음 사람';
     $('prizeNote').textContent = ok
       ? '정답 — 상품을 받아가세요'
       : timeout
-        ? '시간 종료 — 정답을 확인하세요'
+        ? '정답을 확인하세요 — 다음 문제로 갑니다'
         : '오답 — 정답은 가려 둡니다. 같은 문제를 다음 사람이 풉니다';
-    $('nextBtn').textContent = reveal ? '다음 문제' : '다음 사람';
+    $('nextBtn').textContent = (reveal ? '다음 문제' : '다음 사람') + ' Enter';
     renderScore();
+    if (ok) celebrate();
+  }
+  // 정답 연출: 평면 색종이가 1.8초 쏟아지고 팡파레가 울린다. 시안대로 둥근 것도 그림자도 없다.
+  function celebrate() {
+    melody([523, 659, 784, 1046], 110, 'triangle');
+    const c = $('fx'),
+      ctx = c.getContext('2d');
+    const W = (c.width = innerWidth),
+      H = (c.height = innerHeight);
+    const colors = ['#ec3013', '#201e1d', '#1f4fd1', '#f3f2f2'];
+    const bits = Array.from({ length: 140 }, () => ({
+      x: Math.random() * W,
+      y: -Math.random() * H * 0.5,
+      s: 8 + Math.random() * 14,
+      vy: 4 + Math.random() * 7,
+      vx: -2 + Math.random() * 4,
+      c: colors[Math.floor(Math.random() * colors.length)],
+    }));
+    const t0 = performance.now();
+    cancelAnimationFrame(state.fxFrame);
+    const frame = (t) => {
+      ctx.clearRect(0, 0, W, H);
+      if (t - t0 > 1800 || !on('result')) return;
+      bits.forEach((b) => {
+        b.x += b.vx;
+        b.y += b.vy;
+        ctx.fillStyle = b.c;
+        ctx.fillRect(b.x, b.y, b.s, b.s * 0.6);
+      });
+      state.fxFrame = requestAnimationFrame(frame);
+    };
+    state.fxFrame = requestAnimationFrame(frame);
   }
   // 다음 사람은 난이도 고르는 화면부터 다시 시작한다.
   // 바로 풀이로 들어가면 학생이 앞으로 나오는 동안 타이머가 이미 돌아간다.
@@ -563,6 +636,7 @@
   // 카운트다운·채점 막대 타이머도 같이 멈춘다. 안 그러면 Esc로 대기 화면에 나와도
   // 몇 초 뒤 풀이/결과 화면이 저절로 다시 튀어나왔다.
   function toIdle() {
+    setUrgent(false);
     clearInterval(state.timer);
     clearInterval(state.cd);
     clearInterval(state.gradeTimer);
@@ -919,7 +993,24 @@
   };
   $('closeAnswer').onclick = () => {
     $('answerPanel').style.display = 'none';
-    $('answerOpenWrap').style.display = 'block';
+    $('answerOpenWrap').style.display = 'flex';
+  };
+  // 아무도 못 풀 것 같으면 진행자가 정답을 공개하고 넘어간다. 실수로 스쳐서 판이
+  // 끝나면 안 되므로 두 번 눌러야 한다(2초 안에).
+  function armReveal(on) {
+    clearTimeout(state.revealTimer);
+    state.revealArmed = on;
+    const b = $('revealBtn');
+    b.textContent = on ? '한 번 더 누르면 공개' : '정답 공개';
+    b.style.background = on ? 'var(--color-text)' : 'var(--color-bg)';
+    b.style.color = on ? 'var(--color-bg)' : 'var(--color-text)';
+    if (on) state.revealTimer = setTimeout(() => armReveal(false), 2000);
+  }
+  $('revealBtn').onclick = () => {
+    if (!state.revealArmed) return armReveal(true);
+    armReveal(false);
+    state.gaveUp = true;
+    submit(true);
   };
   $('submitBtn').onclick = () => submit(false);
   $('startBtn').onclick = async () => {
@@ -927,6 +1018,8 @@
     // 시작할 때마다 다시 받는다. 관리 화면에서 방금 고친 문제도 바로 반영된다.
     if (state.loading) return;
     state.loading = true;
+    state.wantAwake = true;
+    keepAwake();
     try {
       await loadProblems();
     } finally {
