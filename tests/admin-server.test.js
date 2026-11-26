@@ -259,3 +259,19 @@ test('이번 행사에 낼지 켜고 끈다', async () => {
   const show2 = await request(app).get('/api/show/problems');
   assert.ok(show2.body.problems.some((p) => p.id === problem.id));
 });
+
+test('CSP가 켜져 있고 스크립트는 우리 서버 것만 허용한다', async () => {
+  const res = await request(app).get('/show.html');
+  const csp = res.headers['content-security-policy'];
+  assert.ok(csp, 'CSP 헤더가 있어야 함');
+  assert.match(csp, /script-src 'self'(;|$)/);
+  assert.doesNotMatch(csp, /script-src[^;]*unsafe-inline/);
+  // 진행 화면에 인라인 스크립트가 다시 생기면 CSP에 막혀 화면이 통째로 안 돈다
+  assert.doesNotMatch(res.text, /<script>(?!\s*<\/script>)/);
+});
+
+test('문제 묶음 사진은 브라우저가 들고 있게 한다', async () => {
+  const res = await request(app).get('/problem-set/01.jpg');
+  assert.equal(res.status, 200);
+  assert.match(res.headers['cache-control'], /max-age=86400/);
+});

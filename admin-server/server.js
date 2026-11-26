@@ -47,7 +47,28 @@ const app = express();
 // 프록시가 아니라 실제 클라이언트 기준으로 동작하게 함.
 app.set('trust proxy', 1);
 
-app.use(helmet({ contentSecurityPolicy: false })); // CSP는 인라인 스크립트가 없어질 때까지 보류
+// 인라인 스크립트가 없어져서(진행 화면 스크립트를 js/stage.js로 꺼냄) CSP를 켠다.
+// 스크립트는 우리 서버 것만. 화면이 style 속성을 많이 써서 스타일만 inline을 허용한다.
+// 사진은 Cloudinary, 일괄 등록 미리보기는 blob:, favicon은 data:.
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      useDefaults: false,
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:', 'blob:', 'https://res.cloudinary.com'],
+        fontSrc: ["'self'"],
+        connectSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'self'"],
+      },
+    },
+  })
+);
 app.use(compression());
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 // 관리자 페이지(정적 파일+API)는 항상 같은 오리진에서만 호출되므로 CORS는 필요 없고,
@@ -161,6 +182,10 @@ async function installProblemSet() {
 
 // public 아래에 화면과 vendor(글꼴/애니메이션 라이브러리)가 같이 있다.
 // 단독 실행이든 /admin 마운트든 같은 상대경로로 잡히도록 여기서만 서빙한다.
+// 행사용 문제 사진과 글꼴은 바뀔 일이 거의 없다. 브라우저가 들고 있게 해서 다시 열 때
+// 사진이 바로 뜨게 한다(문제 묶음을 바꾸면 파일 이름도 바뀌므로 하루면 충분).
+app.use('/problem-set', express.static(path.join(__dirname, 'public', 'problem-set'), { maxAge: '1d' }));
+app.use('/vendor', express.static(path.join(__dirname, 'public', 'vendor'), { maxAge: '30d' }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/stats', express.static(path.join(__dirname, 'admin-dashboard-app', 'dist')));
 

@@ -57,6 +57,9 @@
     timer: null,
     cd: null,
   };
+  // 관리 화면에서 넣은 글자(단원 등)를 HTML로 끼울 때는 꼭 거친다
+  const esc = (v) =>
+    String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const norm = (d) =>
     ({ 하: 'easy', 중: 'mid', 상: 'hard', easy: 'easy', mid: 'mid', hard: 'hard' })[
       String(d || '').toLowerCase()
@@ -228,7 +231,7 @@
     $('limitLabel').textContent = fmt(levelObj().time);
     $('levelName').textContent = '난이도 ' + levelObj().name;
     $('confirmStats').innerHTML =
-      `<div style="padding:16px;border-right:2px solid var(--color-divider)"><div style="font-size:11px;letter-spacing:.1em">유형</div><div style="font-family:var(--font-heading);font-size:26px;font-weight:800">${state.question.type === 'choice' ? '객관식' : '주관식'}</div></div><div style="padding:16px;border-right:2px solid var(--color-divider)"><div style="font-size:11px;letter-spacing:.1em">단원</div><div style="font-family:var(--font-heading);font-size:20px;font-weight:800">${state.question.unit || '—'}</div></div><div style="padding:16px"><div style="font-size:11px;letter-spacing:.1em">남은 문제</div><div style="font-family:var(--font-heading);font-size:26px;font-weight:800">${pool(level).filter((p) => p.id !== state.question.id).length}개</div></div>`;
+      `<div style="padding:16px;border-right:2px solid var(--color-divider)"><div style="font-size:11px;letter-spacing:.1em">유형</div><div style="font-family:var(--font-heading);font-size:26px;font-weight:800">${state.question.type === 'choice' ? '객관식' : '주관식'}</div></div><div style="padding:16px;border-right:2px solid var(--color-divider)"><div style="font-size:11px;letter-spacing:.1em">단원</div><div style="font-family:var(--font-heading);font-size:20px;font-weight:800">${esc(state.question.unit || '—')}</div></div><div style="padding:16px"><div style="font-size:11px;letter-spacing:.1em">남은 문제</div><div style="font-family:var(--font-heading);font-size:26px;font-weight:800">${pool(level).filter((p) => p.id !== state.question.id).length}개</div></div>`;
     $('levelNotes').innerHTML = levelObj()
       .notes.map((n) => `<div style="font-size:13px;line-height:1.5">${n}</div>`)
       .join('');
