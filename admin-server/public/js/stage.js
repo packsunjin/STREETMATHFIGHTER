@@ -93,6 +93,24 @@
   function melody(notes, step, type) {
     notes.forEach((f, i) => setTimeout(() => beep(f, i === notes.length - 1 ? 0.35 : 0.12, type), i * step));
   }
+  // 서버가 주는 문제 한 줄을 화면이 쓰는 모양으로
+  function toQuestion(p) {
+    const type = p.questionType === 'objective' ? 'choice' : 'short';
+    const ans = String(p.answer);
+    const ai = Number(ans);
+    return {
+      id: p.id,
+      image: p.imageUrl,
+      type,
+      answer: ans,
+      choices: type === 'choice' ? ['1', '2', '3', '4', '5'] : [],
+      correctIndex: Number.isInteger(ai) && ai >= 1 && ai <= 5 ? ai - 1 : 0,
+      difficulty: norm(p.difficulty),
+      unit: p.unit || '',
+      title: p.title || '',
+      description: p.description || '',
+    };
+  }
   async function loadProblems() {
     try {
       const r = await fetch('api/show/problems', { credentials: 'include' });
@@ -106,23 +124,7 @@
       }));
       state.problems = rows
         .filter((p) => p && p.imageUrl && p.answer !== null && p.answer !== undefined)
-        .map((p) => {
-          const type = p.questionType === 'objective' ? 'choice' : 'short';
-          const ans = String(p.answer);
-          const ai = Number(ans);
-          return {
-            id: p.id,
-            image: p.imageUrl,
-            type,
-            answer: ans,
-            choices: type === 'choice' ? ['1', '2', '3', '4', '5'] : [],
-            correctIndex: Number.isInteger(ai) && ai >= 1 && ai <= 5 ? ai - 1 : 0,
-            difficulty: norm(p.difficulty),
-            unit: p.unit || '',
-            title: p.title || '',
-            description: p.description || '',
-          };
-        });
+        .map(toQuestion);
       state.loadError = null;
       preloadPhotos();
     } catch (e) {
@@ -621,6 +623,8 @@
   // 다음 사람은 난이도 고르는 화면부터 다시 시작한다.
   // 바로 풀이로 들어가면 학생이 앞으로 나오는 동안 타이머가 이미 돌아간다.
   function next() {
+    // 미리보기 탭에서는 같은 문제를 처음부터 다시 띄운다
+    if (state.preview) return showSolve();
     const q = state.question;
     // 맞혔거나 시간이 다 된 문제는 끝난 문제다. 틀린 문제는 같은 사람이 아니라
     // 다음 사람이 "그 문제를" 다시 푼다(화면이 그렇게 약속했다). 그래서 들고 있는다.
@@ -1153,7 +1157,33 @@
     const w = $('boardWrap');
     boardSize = { w: w.clientWidth, h: w.clientHeight };
   };
+  // 미리보기: 문제 관리에서 '미리보기'를 누르면 show.html?preview=문제번호로 열린다.
+  // 그 문제 하나를 바로 풀이 화면에 띄운다. 사진 크기와 정답 판정을 행사 전에 확인하는 용도라
+  // 뺀 문제도 열리고(관리자 로그인 필요), 이 탭에서 푼 기록은 어디에도 안 남는다.
+  async function startPreview(id) {
+    try {
+      const r = await fetch('api/problems/' + encodeURIComponent(id), { credentials: 'include' });
+      if (r.status === 401) throw new Error('관리자로 로그인한 브라우저에서 열어주세요');
+      if (!r.ok) throw new Error('문제를 찾을 수 없습니다');
+      const { problem } = await r.json();
+      state.question = toQuestion(problem);
+      state.level = state.question.difficulty;
+      state.preview = true;
+      showSolve();
+      LABELS.solve = LABELS.result = '미리보기';
+      $('screenLabel').textContent = '미리보기';
+    } catch (e) {
+      alert('미리보기를 열 수 없습니다: ' + e.message);
+      show('idle');
+      loadProblems();
+    }
+  }
+
   makeKeypad();
-  show('idle');
-  loadProblems();
+  const previewId = new URLSearchParams(location.search).get('preview');
+  if (previewId) startPreview(previewId);
+  else {
+    show('idle');
+    loadProblems();
+  }
 })();

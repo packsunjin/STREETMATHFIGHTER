@@ -26,6 +26,21 @@ const answerFieldObjective = document.getElementById('answerFieldObjective');
 const answerFieldSubjective = document.getElementById('answerFieldSubjective');
 const answerText = document.getElementById('answerText');
 
+// 진행 화면 숫자판(숫자 . / -)으로 칠 수 있는 답인지. 서버도 같은 규칙으로 막는다.
+const KEYPAD_ANSWER = /^-?\d*\.?\d+(\/-?\d*\.?\d+)?$/;
+const answerNote = document.getElementById('answerNote');
+const ANSWER_NOTE = answerNote.textContent;
+function checkAnswerText() {
+  const v = answerText.value.trim().replace(/\s+/g, '');
+  const bad = v && !KEYPAD_ANSWER.test(v);
+  answerNote.classList.toggle('error', Boolean(bad));
+  answerNote.textContent = bad
+    ? `"${answerText.value.trim()}"는 숫자판으로 칠 수 없습니다. 숫자로 적어주세요 (예: 4/9, 0.4, -2).`
+    : ANSWER_NOTE;
+  return !bad;
+}
+answerText.addEventListener('input', checkAnswerText);
+
 function updateAnswerFieldVisibility() {
   const checkedType = document.querySelector('input[name="questionType"]:checked');
   const isObjective = checkedType?.value === 'objective';
@@ -126,12 +141,13 @@ async function loadProblems() {
   renderList();
 }
 
+// 숫자는 진행 화면에 실제로 나오는(켜 둔) 문제 수. 뺀 게 있으면 옆에 따로 적는다.
 function renderCounts() {
   document.querySelectorAll('.tab-count').forEach((el) => {
     const level = el.dataset.count;
-    el.textContent = level
-      ? problemsCache.filter((p) => p.difficulty === level).length
-      : problemsCache.length;
+    const rows = level ? problemsCache.filter((p) => p.difficulty === level) : problemsCache;
+    const offCount = rows.filter((p) => p.active === false).length;
+    el.textContent = offCount ? `${rows.length - offCount} (+뺌 ${offCount})` : rows.length;
   });
 }
 
@@ -151,7 +167,9 @@ function renderList() {
 
   problems.forEach((problem) => {
     const li = document.createElement('li');
-    li.className = 'problem-item' + (problem.id === selectedProblemId ? ' selected' : '');
+    const off = problem.active === false;
+    li.className =
+      'problem-item' + (problem.id === selectedProblemId ? ' selected' : '') + (off ? ' off' : '');
     li.innerHTML = `
       <img alt="" />
       <div class="meta">
@@ -161,15 +179,36 @@ function renderList() {
           <span class="badge type">${problem.questionType === 'objective' ? '객관식' : '주관식'}</span>
           ${problem.unit ? `<span class="badge type">${escapeHtml(problem.unit)}</span>` : ''}
           <span class="badge answer">정답 ${escapeHtml(answerLabel(problem))}</span>
+          ${off ? '<span class="badge off">이번 행사에서 뺌</span>' : ''}
         </div>
       </div>
-      <button class="btn btn-sm btn-danger" data-id="${problem.id}">삭제</button>
+      <div class="item-actions">
+        <button class="btn btn-sm btn-toggle${off ? '' : ' on'}" title="진행 화면에 낼지">${off ? '빠짐' : '출제'}</button>
+        <a class="btn btn-sm" href="show.html?preview=${problem.id}" target="_blank" rel="noopener" title="진행 화면에서 어떻게 보이는지">미리보기</a>
+        <button class="btn btn-sm btn-danger" data-id="${problem.id}">삭제</button>
+      </div>
     `;
     // src는 문자열로 끼워넣지 않는다(따옴표가 섞이면 속성이 깨질 수 있음)
     li.querySelector('img').src = problem.imageUrl;
     li.addEventListener('click', (e) => {
-      if (e.target.closest('.btn-danger')) return;
+      if (e.target.closest('.item-actions')) return;
       loadIntoForm(problem);
+    });
+    // 이번 행사에 낼지. 지우지 않고 잠깐 빼 둘 때 쓴다.
+    li.querySelector('.btn-toggle').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const res = await fetch(`api/problems/${problem.id}/active`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: off }),
+      });
+      if (goLoginIfExpired(res)) return;
+      if (!res.ok) return showToast('바꾸지 못했습니다.');
+      problem.active = off;
+      showToast(off ? '진행 화면에 다시 냅니다.' : '진행 화면에서 뺐습니다.');
+      renderCounts();
+      renderList();
     });
     li.querySelector('.btn-danger').addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -298,8 +337,21 @@ function useImageFile(file) {
   dropzoneFile.textContent = `${file.name || '붙여넣은 이미지'} · ${formatSize(file.size)}`;
 }
 
+/** 들어온 사진들: 한 장이면 폼에, 여러 장이면 아래 일괄 등록 줄에 */
+function useImageFiles(files) {
+  const images = [...files].filter((f) => f && f.type.startsWith('image/'));
+  if (!images.length) return showToast('이미지 파일만 넣을 수 있어요.');
+  if (images.length === 1) return useImageFile(images[0]);
+  if (problemIdInput.value) return showToast('수정 중에는 사진을 한 장만 넣을 수 있어요.');
+  addBulk(images);
+}
+
 imageInput.addEventListener('change', () => {
-  if (imageInput.files[0]) useImageFile(imageInput.files[0]);
+  if (imageInput.files.length > 1) {
+    const files = [...imageInput.files];
+    imageInput.value = '';
+    useImageFiles(files);
+  } else if (imageInput.files[0]) useImageFile(imageInput.files[0]);
 });
 
 dropzone.addEventListener('click', () => imageInput.click());
@@ -323,17 +375,17 @@ dropzone.addEventListener('keydown', (e) => {
   })
 );
 dropzone.addEventListener('drop', (e) => {
-  const file = e.dataTransfer?.files?.[0];
-  if (file) useImageFile(file);
+  const files = e.dataTransfer?.files;
+  if (files && files.length) useImageFiles(files);
 });
 
 // 캡처(Ctrl+V)는 페이지 어디에서 눌러도 받는다. 단, 글자를 입력하는 중이면
 // 텍스트 붙여넣기를 방해하면 안 되므로 이미지가 들어 있을 때만 가로챈다.
 document.addEventListener('paste', (e) => {
-  const item = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith('image/'));
-  if (!item) return;
+  const items = [...(e.clipboardData?.items || [])].filter((i) => i.type.startsWith('image/'));
+  if (!items.length) return;
   e.preventDefault();
-  useImageFile(item.getAsFile());
+  useImageFiles(items.map((i) => i.getAsFile()));
 });
 
 problemForm.addEventListener('submit', async (e) => {
@@ -352,6 +404,11 @@ problemForm.addEventListener('submit', async (e) => {
     const checkedChoice = document.querySelector('input[name="answerChoice"]:checked');
     formData.append('answer', checkedChoice ? checkedChoice.value : '');
   } else {
+    if (!checkAnswerText()) {
+      showToast('정답을 숫자로 적어주세요.');
+      answerText.focus();
+      return;
+    }
     formData.append('answer', answerText.value.trim());
   }
 
@@ -396,3 +453,120 @@ checkAuth()
     loadUnits();
   })
   .catch(() => showToast('서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.'));
+
+/* ---- 여러 장 한꺼번에 등록 ----
+   문제를 스무 개씩 모아 오면 한 장씩 폼을 채우는 게 일이다. 사진을 한꺼번에 넣고
+   줄마다 난이도·유형·정답만 채워서 한 번에 올린다. 실패한 줄만 남는다. */
+
+const bulkPanel = document.getElementById('bulkPanel');
+const bulkList = document.getElementById('bulkList');
+const bulkCount = document.getElementById('bulkCount');
+const bulkSubmit = document.getElementById('bulkSubmit');
+
+function renderBulkCount() {
+  const n = bulkList.children.length;
+  bulkPanel.hidden = n === 0;
+  bulkCount.textContent = n ? `(${n}장)` : '';
+}
+
+function addBulk(files) {
+  files.forEach((file) => {
+    const li = document.createElement('li');
+    li.className = 'bulk-row';
+    const url = URL.createObjectURL(file);
+    const name = (file.name || '붙여넣은 이미지').replace(/\.[^.]+$/, '');
+    li.innerHTML = `
+      <img alt="" />
+      <div class="bulk-fields">
+        <input type="text" class="b-title" maxlength="200" placeholder="제목" />
+        <select class="b-level" aria-label="난이도">
+          <option value="하">하</option><option value="중" selected>중</option><option value="상">상</option>
+        </select>
+        <select class="b-type" aria-label="유형">
+          <option value="subjective">주관식</option><option value="objective">객관식</option>
+        </select>
+        <input type="text" class="b-answer" maxlength="20" placeholder="정답" title="주관식은 숫자(42, 3/4), 객관식은 1~5" />
+        <button type="button" class="btn btn-sm b-remove">빼기</button>
+      </div>
+      <div class="bulk-status"></div>`;
+    li.querySelector('img').src = url;
+    li.querySelector('.b-title').value = name;
+    li._file = file;
+    li._url = url;
+    li.querySelector('.b-remove').addEventListener('click', () => removeBulkRow(li));
+    bulkList.appendChild(li);
+  });
+  renderBulkCount();
+  bulkPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function removeBulkRow(li) {
+  URL.revokeObjectURL(li._url);
+  li.remove();
+  renderBulkCount();
+}
+
+function bulkRowError(li, message) {
+  const status = li.querySelector('.bulk-status');
+  status.textContent = message;
+  status.classList.add('error');
+}
+
+document.getElementById('bulkClear').addEventListener('click', () => {
+  [...bulkList.children].forEach(removeBulkRow);
+});
+
+bulkSubmit.addEventListener('click', async () => {
+  const rows = [...bulkList.children];
+  if (!rows.length) return;
+  bulkSubmit.disabled = true;
+  let done = 0;
+  try {
+    // 한 장씩 차례로 올린다. 동시에 올리면 Cloudinary 무료 한도에 걸리기 쉽다.
+    for (const li of rows) {
+      const title = li.querySelector('.b-title').value.trim();
+      const type = li.querySelector('.b-type').value;
+      const answer = li.querySelector('.b-answer').value.trim().replace(/\s+/g, '');
+      li.querySelector('.bulk-status').classList.remove('error');
+      if (!title) {
+        bulkRowError(li, '제목을 넣어주세요.');
+        continue;
+      }
+      if (type === 'objective' ? !/^[1-5]$/.test(answer) : !KEYPAD_ANSWER.test(answer)) {
+        bulkRowError(li, type === 'objective' ? '객관식 정답은 1~5 중 하나' : '정답을 숫자로 (예: 42, 3/4)');
+        continue;
+      }
+      li.querySelector('.bulk-status').textContent = '올리는 중…';
+      const formData = new FormData();
+      formData.append('title', title);
+      formData.append('difficulty', li.querySelector('.b-level').value);
+      formData.append('questionType', type);
+      formData.append('answer', answer);
+      formData.append('image', li._file, li._file.name || 'image.png');
+      try {
+        const res = await fetch('api/problems', { method: 'POST', credentials: 'include', body: formData });
+        if (res.status === 401) {
+          bulkRowError(li, '로그인이 풀렸습니다. 새 탭에서 다시 로그인한 뒤 다시 누르세요.');
+          break;
+        }
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          bulkRowError(li, data.error || '등록하지 못했습니다.');
+          continue;
+        }
+        done += 1;
+        removeBulkRow(li);
+      } catch (err) {
+        bulkRowError(li, '서버에 연결할 수 없습니다.');
+      }
+    }
+  } finally {
+    bulkSubmit.disabled = false;
+  }
+  const left = bulkList.children.length;
+  showToast(left ? `${done}개 등록, ${left}개는 확인이 필요합니다.` : `${done}개 모두 등록했습니다.`);
+  if (done) {
+    loadProblems();
+    loadUnits();
+  }
+});

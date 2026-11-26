@@ -51,6 +51,10 @@ const SCHEMA_SQL = `
   ALTER TABLE problems
     ADD COLUMN IF NOT EXISTS unit TEXT;
 
+  -- 이번 행사에 낼지. 끄면 진행 화면에 안 뜬다(지우지 않고 잠깐 빼 두는 용도).
+  ALTER TABLE problems
+    ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT true;
+
   CREATE INDEX IF NOT EXISTS idx_problems_difficulty ON problems (difficulty);
   CREATE INDEX IF NOT EXISTS idx_problems_unit ON problems (unit);
   CREATE INDEX IF NOT EXISTS idx_problems_difficulty_unit ON problems (difficulty, unit);
@@ -74,10 +78,11 @@ const ready = (async () => {
   }
 })();
 
-async function listProblems({ difficulty, unit } = {}) {
+async function listProblems({ difficulty, unit, activeOnly } = {}) {
   await ready;
   const conditions = [];
   const values = [];
+  if (activeOnly) conditions.push('active');
   if (difficulty) {
     values.push(difficulty);
     conditions.push(`difficulty = $${values.length}`);
@@ -180,6 +185,15 @@ async function updateProblem(
   return rows[0];
 }
 
+async function setProblemActive(id, active) {
+  await ready;
+  const { rows } = await pool.query(
+    'UPDATE problems SET active = $1, updated_at = now() WHERE id = $2 RETURNING *',
+    [Boolean(active), id]
+  );
+  return rows[0] || null;
+}
+
 async function deleteProblem(id) {
   await ready;
   const { rows } = await pool.query('DELETE FROM problems WHERE id = $1 RETURNING *', [id]);
@@ -197,5 +211,6 @@ module.exports = {
   getProblem,
   createProblem,
   updateProblem,
+  setProblemActive,
   deleteProblem,
 };

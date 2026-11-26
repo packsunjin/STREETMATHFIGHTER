@@ -22,6 +22,7 @@ const {
   getProblem,
   createProblem,
   updateProblem,
+  setProblemActive,
   deleteProblem,
 } = require('../shared/db');
 const { applyProblemSet, LOCAL_IMAGE_PREFIX } = require('../shared/problem-set');
@@ -163,13 +164,24 @@ async function installProblemSet() {
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/stats', express.static(path.join(__dirname, 'admin-dashboard-app', 'dist')));
 
+// 진행 화면 숫자판에 있는 것(숫자 . / -)으로 칠 수 있는 답: 정수, 소수, 분수, 음수.
+// "9분의 4"나 "③"처럼 숫자판으로 칠 수 없는 정답이 들어가면 학생이 맞게 풀어도
+// 정답을 입력할 방법이 없다. 실제로 문제 수합 슬라이드에 "9분의 4"가 있었다.
+const KEYPAD_ANSWER = /^-?\d*\.?\d+(\/-?\d*\.?\d+)?$/;
+
 // 정답 문자열 정규화. 미입력이면 null(채점 기능 없음), 객관식이면 1~5만 허용.
 function normalizeAnswer(questionType, rawAnswer) {
   if (rawAnswer === undefined || rawAnswer === null) return { ok: true, value: undefined };
-  const trimmed = String(rawAnswer).trim();
+  const trimmed = String(rawAnswer).trim().replace(/\s+/g, '');
   if (!trimmed) return { ok: true, value: null };
   if (questionType === 'objective' && !OBJECTIVE_CHOICES.includes(trimmed)) {
-    return { ok: false };
+    return { ok: false, error: '객관식 정답은 ①~⑤ 중 하나를 선택해주세요.' };
+  }
+  if (questionType !== 'objective' && !KEYPAD_ANSWER.test(trimmed)) {
+    return {
+      ok: false,
+      error: '주관식 정답은 진행 화면 숫자판으로 칠 수 있게 숫자로 적어주세요 (예: 42, 0.4, 3/4, -2).',
+    };
   }
   return { ok: true, value: trimmed };
 }
@@ -238,6 +250,7 @@ function toPublicProblem(problem) {
     questionType: problem.question_type,
     answer: problem.answer,
     unit: problem.unit || null,
+    active: problem.active !== false,
     createdAt: problem.created_at,
     updatedAt: problem.updated_at,
   };
@@ -315,7 +328,7 @@ app.get('/api/show/problems', async (req, res, next) => {
       return res.status(400).json({ error: '올바르지 않은 난이도입니다.' });
     }
 
-    const problems = await listProblems({ difficulty: difficulty || undefined });
+    const problems = await listProblems({ difficulty: difficulty || undefined, activeOnly: true });
 
     // 정답이 없으면 채점을 못 하니 쇼에서 쓸 수 없다. 다만 조용히 버리면
     // 진행 화면에는 "등록된 문제 없음"으로만 뜨고 왜 그런지 알 방법이 없다.
@@ -371,7 +384,7 @@ app.post('/api/problems', requireAuth, upload.single('image'), async (req, res, 
     }
     const normalizedAnswer = normalizeAnswer(questionType || 'subjective', answer);
     if (!normalizedAnswer.ok) {
-      return res.status(400).json({ error: '객관식 정답은 ①~⑤ 중 하나를 선택해주세요.' });
+      return res.status(400).json({ error: normalizedAnswer.error });
     }
     // 정답이 없으면 진행 화면이 채점을 못 해서 그 문제를 아예 안 쓴다.
     // 예전에는 그냥 등록됐고, 관리자 목록에만 보이고 진행 화면에서는
@@ -426,7 +439,7 @@ app.put('/api/problems/:id', requireAuth, parseId, upload.single('image'), async
     const effectiveType = questionType || existing.question_type;
     const normalizedAnswer = normalizeAnswer(effectiveType, answer);
     if (!normalizedAnswer.ok) {
-      return res.status(400).json({ error: '객관식 정답은 ①~⑤ 중 하나를 선택해주세요.' });
+      return res.status(400).json({ error: normalizedAnswer.error });
     }
     // 유형만 객관식으로 바꾸고 정답은 그대로 두면, 예전 주관식 정답("7/10")이
     // 객관식 정답 자리에 남는다. 진행 화면은 그걸 ①로 읽어서 엉뚱하게 채점한다.
@@ -465,6 +478,21 @@ app.put('/api/problems/:id', requireAuth, parseId, upload.single('image'), async
       unit: unit !== undefined ? unit.trim() : undefined,
     });
 
+    res.json({ problem: toPublicProblem(problem) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// 이번 행사에 낼지 켜고 끈다. 목록에서 바로 누르는 스위치라 다른 칸은 건드리지 않는다.
+app.patch('/api/problems/:id/active', requireAuth, parseId, async (req, res, next) => {
+  try {
+    const { active } = req.body || {};
+    if (typeof active !== 'boolean') {
+      return res.status(400).json({ error: 'active는 true/false여야 합니다.' });
+    }
+    const problem = await setProblemActive(req.problemId, active);
+    if (!problem) return res.status(404).json({ error: '문제를 찾을 수 없습니다.' });
     res.json({ problem: toPublicProblem(problem) });
   } catch (err) {
     next(err);
