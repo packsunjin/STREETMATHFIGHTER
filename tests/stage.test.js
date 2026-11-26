@@ -275,3 +275,28 @@ test('시간이 다 되면 정답을 공개한다', async (t) => {
   assert.equal(await ui.text('#verdict'), '시간 종료');
   assert.equal(await ui.text('#resultCorrect'), '462');
 });
+
+test('펜 색을 바꿔 쓸 수 있다(키 2 = 빨강). 쓰는 동안 그린 것과 다시 그린 것이 같다', async (t) => {
+  const ui = await openStage(t);
+  if (!ui) return;
+  await ui.startLevel('1');
+  await ui.key('2', 50);
+  await ui.penStroke(700, 600);
+  const redPixels = () =>
+    ui.page.evaluate(() => {
+      const c = document.getElementById('canvas');
+      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      let n = 0;
+      for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200 && d[i] > 200 && d[i + 1] < 90) n += 1;
+      return n;
+    });
+  const live = await redPixels();
+  assert.ok(live > 50, '빨간 획이 없음');
+  // 전체 다시 그리기(되돌리기 후 다시)를 해도 거의 같은 모양이어야 한다
+  await ui.key('u', 50);
+  assert.equal(await ui.inked(), 0);
+  await ui.key('r', 50);
+  const redrawn = await redPixels();
+  assert.ok(Math.abs(redrawn - live) / live < 0.25, `쓰는 중 ${live}px, 다시 그림 ${redrawn}px`);
+  assert.deepEqual(ui.errors, []);
+});

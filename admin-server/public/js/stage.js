@@ -49,6 +49,7 @@
     muted: false,
     pen: true,
     width: 5,
+    color: '#201e1d',
     zoom: 100,
     strokes: [],
     acts: [],
@@ -592,6 +593,24 @@
     $('eraserBtn').style.cssText = t === 'eraser' ? TOOL_ON : TOOL_OFF;
     $('moveBtn').style.cssText = t === 'move' ? TOOL_ON : TOOL_OFF;
     $('canvas').style.cursor = t === 'move' ? 'grab' : 'crosshair';
+    renderColors();
+  }
+  // 펜 색. 검정으로 풀고, 빨강·파랑으로 표시한다(강당 뒤에서도 구분되는 세 가지만).
+  const PEN_COLORS = [
+    { key: 'black', color: '#201e1d', label: '검정' },
+    { key: 'red', color: '#ec3013', label: '빨강' },
+    { key: 'blue', color: '#1f4fd1', label: '파랑' },
+  ];
+  function renderColors() {
+    document.querySelectorAll('.pen-color').forEach((b) => {
+      const on = state.tool === 'pen' && b.dataset.color === state.color;
+      b.style.outline = on ? '3px solid var(--color-text)' : 'none';
+      b.style.outlineOffset = on ? '2px' : '0';
+    });
+  }
+  function setColor(color) {
+    state.color = color;
+    setTool('pen');
   }
   function pos(e) {
     const r = $('canvas').getBoundingClientRect();
@@ -741,20 +760,32 @@
       return;
     }
     if (!drawing) return;
-    const p = pos(e);
     const r = $('canvas').getBoundingClientRect();
-    if (r.width && r.height)
+    if (!r.width || !r.height) return;
+    // 펜이 빠르게 움직이면 브라우저가 한 프레임에 여러 점을 묶어서 준다. 다 받아야
+    // 곡선이 각지지 않는다.
+    const samples = (e.getCoalescedEvents && e.getCoalescedEvents()) || [];
+    for (const ev of samples.length ? samples : [e]) {
+      const p = pos(ev);
+      if (Math.hypot(p.x - last.x, p.y - last.y) < 0.8) continue; // 제자리 떨림은 버린다
       state.strokes.push({
         sid: strokeSeq,
         x1: last.x / r.width,
         y1: last.y / r.height,
         x2: p.x / r.width,
         y2: p.y / r.height,
-        w: state.width,
+        w: penWidth(ev),
+        c: state.color,
       });
-    last = p;
-    drawAll();
+      last = p;
+      drawTail(strokeSeq);
+    }
   });
+  // 펜은 누르는 힘에 따라 굵기가 조금 바뀐다(0.6배~1.4배). 손가락·마우스는 그대로.
+  function penWidth(e) {
+    if (e.pointerType !== 'pen' || !(e.pressure > 0)) return state.width;
+    return Math.max(1, state.width * (0.6 + 0.8 * Math.min(1, e.pressure)));
+  }
   ['pointerup', 'pointercancel'].forEach((ev) =>
     $('canvas').addEventListener(ev, (e) => {
       // 걸러낸 손바닥을 뗄 때 쓰던 펜 획이 끊기면 안 된다
@@ -763,8 +794,10 @@
       pts.delete(e.pointerId);
       if (pts.size < 2) pinch = null;
       // 한 번에 그은 획, 한 번에 문질러 지운 획들을 각각 한 걸음으로 기록한다.
-      if (drawing && state.strokes.some((s) => s.sid === strokeSeq))
+      if (drawing && state.strokes.some((s) => s.sid === strokeSeq)) {
         state.acts.push({ t: 'd', sid: strokeSeq });
+        drawAll(); // 곡선의 마지막 반 토막까지 그린다
+      }
       if (erasing && erased.length) state.acts.push({ t: 'e', segs: erased });
       erased = [];
       // 확대하다 손가락 하나를 떼도 남은 손가락으로 갑자기 선이 그어지면 안 된다
@@ -776,25 +809,66 @@
     }),
   );
   // 획은 판 대비 비율로 들고 있다. 판이 커지거나 작아져도 사진 위 같은 자리에 남는다.
-  function drawAll() {
+  //
+  // 선 조각을 그대로 이으면 빠르게 쓴 글씨가 각지게 꺾인다. 조각과 조각의 가운데점을
+  // 잇는 곡선으로 그린다(꺾이는 점이 곡선의 조절점이 된다). 끝 반 토막은 직선으로 닫는다.
+  function strokeCtx() {
     const c = $('canvas'),
       ctx = c.getContext('2d'),
       r = c.getBoundingClientRect();
-    ctx.clearRect(0, 0, r.width, r.height);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#201e1d';
-    state.strokes.forEach((s) => {
-      ctx.lineWidth = s.w;
-      ctx.beginPath();
-      ctx.moveTo(s.x1 * r.width, s.y1 * r.height);
-      ctx.lineTo(s.x2 * r.width, s.y2 * r.height);
-      ctx.stroke();
-    });
+    return { ctx, w: r.width, h: r.height };
+  }
+  // 한 획의 i번째 조각이 맡는 곡선 한 토막: 앞 조각 가운데 → (조각 시작점) → 이 조각 가운데
+  function drawPiece(ctx, W, H, segs, i, tail) {
+    const s = segs[i],
+      prev = segs[i - 1];
+    const x1 = s.x1 * W,
+      y1 = s.y1 * H,
+      x2 = s.x2 * W,
+      y2 = s.y2 * H;
+    const fromX = prev ? (prev.x1 * W + x1) / 2 : x1,
+      fromY = prev ? (prev.y1 * H + y1) / 2 : y1;
+    const midX = (x1 + x2) / 2,
+      midY = (y1 + y2) / 2;
+    ctx.strokeStyle = s.c || '#201e1d';
+    ctx.lineWidth = s.w;
+    ctx.beginPath();
+    ctx.moveTo(fromX, fromY);
+    ctx.quadraticCurveTo(x1, y1, midX, midY);
+    if (tail) ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+  function drawAll() {
+    const { ctx, w, h } = strokeCtx();
+    ctx.clearRect(0, 0, w, h);
+    // 조각은 획 번호 순으로 붙어 있다(byStroke가 지킨다). 획마다 끊어서 그린다.
+    let start = 0;
+    const list = state.strokes;
+    for (let i = 1; i <= list.length; i += 1) {
+      if (i === list.length || list[i].sid !== list[start].sid) {
+        const segs = list.slice(start, i);
+        for (let j = 0; j < segs.length; j += 1) drawPiece(ctx, w, h, segs, j, j === segs.length - 1);
+        start = i;
+      }
+    }
+  }
+  // 쓰는 동안에는 방금 생긴 토막만 덧그린다. 예전에는 점 하나 들어올 때마다 판 전체를
+  // 다시 그려서, 풀이가 길어질수록 전자칠판에서 펜이 눈에 띄게 따라오지 못했다.
+  function drawTail(sid) {
+    const list = state.strokes;
+    let i = list.length - 1;
+    if (i < 0 || list[i].sid !== sid) return;
+    let first = i;
+    while (first > 0 && list[first - 1].sid === sid && i - first < 1) first -= 1;
+    const { ctx, w, h } = strokeCtx();
+    drawPiece(ctx, w, h, list.slice(first, i + 1), i - first, false);
   }
   $('penBtn').onclick = () => setTool('pen');
   $('eraserBtn').onclick = () => setTool('eraser');
   $('moveBtn').onclick = () => setTool('move');
+  document.querySelectorAll('.pen-color').forEach((b) => (b.onclick = () => setColor(b.dataset.color)));
   $('widthInput').oninput = (e) => {
     state.width = +e.target.value;
     $('widthLabel').textContent = '펜 ' + state.width + 'px';
@@ -938,6 +1012,11 @@
     }
     if (lower === 'c') {
       $('clearBtn').click();
+      return;
+    }
+    // 답 패널이 닫혀 있을 때 1·2·3은 펜 색(검정·빨강·파랑)
+    if (!open && ['1', '2', '3'].includes(k)) {
+      setColor(PEN_COLORS[+k - 1].color);
       return;
     }
     // 답 패널이 열려 있으면 화면 숫자판 말고 물리 키보드로도 넣는다.
